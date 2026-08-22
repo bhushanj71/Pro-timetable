@@ -2,15 +2,42 @@
 SQLAlchemy engine/session setup. Works with SQLite locally and
 Postgres (Vercel Postgres / Neon / Supabase) in production via DATABASE_URL.
 """
+import logging
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import get_settings
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
+SQLITE_FALLBACK = "sqlite:///./profschedule.db"
+
+url = (settings.DATABASE_URL or "").strip()
+
+# A declared-but-empty DATABASE_URL (easy to end up with on Render, where the
+# blueprint creates the key and you fill the value in later) otherwise crashes
+# at import with an opaque "Could not parse SQLAlchemy URL from string ''".
+if not url:
+    logger.warning(
+        "DATABASE_URL is not set; falling back to local SQLite (%s). "
+        "On a host with an ephemeral disk this loses all data on redeploy.",
+        SQLITE_FALLBACK,
+    )
+    url = SQLITE_FALLBACK
+
+# Catch a connection string pasted straight from a provider's docs with the
+# password placeholder still in it — the failure would otherwise surface much
+# later as a confusing auth/DNS error.
+for placeholder in ("[YOUR-PASSWORD]", "YOUR-PASSWORD", "<password>", "[PASSWORD]"):
+    if placeholder in url:
+        raise RuntimeError(
+            f"DATABASE_URL still contains the placeholder {placeholder!r}. "
+            "Replace it with your actual database password."
+        )
+
 connect_args = {}
-url = settings.DATABASE_URL
 if url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
