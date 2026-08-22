@@ -106,6 +106,10 @@ function collectGeneratorPayload() {
 function renderGeneratorPreview(result) {
   const el = document.getElementById("generator-result");
   const days = [...new Set(Object.keys(result.grid))];
+  if (!days.length) {
+    el.innerHTML = `<p class="form-error">Nothing could be scheduled. Check that you entered a subject name and that your working hours leave room for the lectures.</p>`;
+    return;
+  }
   let html = `<table style="width:100%;border-collapse:collapse;font-size:0.82rem">`;
   days.forEach((day) => {
     const slots = Object.entries(result.grid[day]).filter(([, subj]) => subj);
@@ -123,8 +127,12 @@ function renderGeneratorPreview(result) {
 }
 
 document.getElementById("run-generator-btn")?.addEventListener("click", async () => {
+  const payload = collectGeneratorPayload();
+  if (!payload.subjects.length) {
+    showToast("Enter at least one subject name before generating (the example text in the box is just a placeholder).", "error");
+    return;
+  }
   try {
-    const payload = collectGeneratorPayload();
     const result = await apiFetch("/api/timetable/generate", { method: "POST", body: payload });
     renderGeneratorPreview(result);
   } catch (err) {
@@ -133,8 +141,12 @@ document.getElementById("run-generator-btn")?.addEventListener("click", async ()
 });
 
 document.getElementById("commit-generator-btn")?.addEventListener("click", async () => {
+  const payload = collectGeneratorPayload();
+  if (!payload.subjects.length) {
+    showToast("Enter at least one subject name before generating (the example text in the box is just a placeholder).", "error");
+    return;
+  }
   try {
-    const payload = collectGeneratorPayload();
     const result = await apiFetch("/api/timetable/generate?commit=true", { method: "POST", body: payload });
     showToast(`✓ Timetable saved — ${result.events_created} events created.`, "success");
     document.getElementById("generator-modal").classList.add("hidden");

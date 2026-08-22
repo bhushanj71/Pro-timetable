@@ -67,6 +67,55 @@ prof-schedule-ai/
 └── package.json
 ```
 
+## Administrator access
+
+There is deliberately **no self-service way to become an admin** — the first
+one is created from the command line:
+
+```bash
+python create_admin.py
+```
+
+It will prompt for an email, name, and password (read via `getpass`, so it
+never lands in your shell history). Passing an email that already exists
+promotes that account instead of creating a new one.
+
+Once signed in as an admin, an **Admin** link appears in the sidebar
+(`/admin`), giving you:
+
+- System-wide stats: users, events, tasks, reminders, AI prompt volume
+- Full user management: create, edit, deactivate, delete
+- Promote/demote administrators
+- Reset any user's password
+- Search users by name or email
+
+Safety rails enforced server-side: you cannot delete or deactivate your own
+account, and the system refuses to remove the **last** remaining
+administrator.
+
+Every `/api/admin/*` route is gated by a dedicated `get_current_admin`
+dependency that returns 403 for regular professors, and deactivated accounts
+are refused at login.
+
+### Supabase setup
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. Go to **Project Settings → Database** and copy the connection string plus
+   your database password.
+3. Set it in `.env` (or in Vercel's environment variables):
+
+   ```env
+   DATABASE_URL=postgresql://postgres:YOUR-PASSWORD@db.<project-ref>.supabase.co:5432/postgres
+   ```
+
+4. Start the app once — tables are created automatically, and any columns
+   added by a later upgrade are backfilled in place.
+5. Run `python create_admin.py` to mint your administrator account.
+
+> Supabase also offers a **connection pooler** URL (port `6543`). Prefer that
+> one for serverless/Vercel deployments, since each function invocation opens
+> its own connection and the direct port-`5432` endpoint exhausts quickly.
+
 ## Local development
 
 Requires Python 3.11+ (tested against 3.10+ as well).

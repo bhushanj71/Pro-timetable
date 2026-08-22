@@ -33,7 +33,7 @@ def resolve_date(day_or_date: str | None, tz_name: str, reference: datetime | No
     now = reference or datetime.now(tz)
     today = now.date()
 
-    if not day_or_date:
+    if not day_or_date or day_or_date.strip().lower() in ("null", "none", ""):
         return today
 
     text = day_or_date.strip().lower()
@@ -69,7 +69,8 @@ def resolve_date(day_or_date: str | None, tz_name: str, reference: datetime | No
 
 
 def resolve_time(time_str: str | None, default: time = time(9, 0)) -> time:
-    if not time_str:
+    # LLMs sometimes emit the literal strings "null"/"none" instead of JSON null.
+    if not time_str or time_str.strip().lower() in ("null", "none", ""):
         return default
     text = time_str.strip()
     try:

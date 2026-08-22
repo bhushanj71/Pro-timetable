@@ -37,6 +37,16 @@ def get_current_user(
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found")
+    if not user.is_active:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This account has been deactivated")
+    return user
+
+
+def get_current_admin(user: User = Depends(get_current_user)) -> User:
+    """Gate admin-only endpoints. Deliberately a separate dependency so a
+    missing decorator can never silently expose an admin route."""
+    if not user.is_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Administrator access required")
     return user
 
 

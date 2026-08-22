@@ -12,7 +12,19 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import init_db
-from app.routers import ai, analytics, auth, cron, events, export, pages, reminders, tasks, timetable
+from app.routers import (
+    admin,
+    ai,
+    analytics,
+    auth,
+    cron,
+    events,
+    export,
+    pages,
+    reminders,
+    tasks,
+    timetable,
+)
 
 settings = get_settings()
 
@@ -36,6 +48,7 @@ app.include_router(ai.router)
 app.include_router(analytics.router)
 app.include_router(export.router)
 app.include_router(cron.router)
+app.include_router(admin.router)
 app.include_router(pages.router)
 
 

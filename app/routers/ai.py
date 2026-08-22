@@ -26,7 +26,7 @@ from app.schemas import (
 )
 from app.services.ai_service import get_ai_service
 from app.services.conflict_service import find_conflicts
-from app.services.nlp_dates import combine, get_tz, resolve_date, resolve_time, weekday_code
+from app.services.nlp_dates import WEEKDAYS, combine, get_tz, resolve_date, resolve_time, weekday_code
 from app.services.recurrence import generate_occurrence_starts
 from app.services.reminder_service import create_reminder_for_event, create_reminder_for_task
 from app.services.scheduler import find_free_slots, generate_timetable
@@ -38,6 +38,16 @@ def _schedule_event_to_datetimes(evt: ScheduleEvent, tz_name: str) -> tuple[date
     """Resolve a ScheduleEvent's day/date + start/end times into concrete datetimes and a recurrence_rule."""
     day_source = evt.date or evt.day
     recurrence_rule = None
+
+    # Models often get relative-date arithmetic wrong ("next Friday" -> a
+    # Wednesday's date) while naming the weekday correctly. When the explicit
+    # date contradicts the stated weekday, trust the weekday name.
+    if evt.date and evt.day:
+        stated_day = evt.day.strip().lower()
+        if stated_day in WEEKDAYS:
+            resolved_from_date = resolve_date(evt.date, tz_name)
+            if resolved_from_date.strftime("%A").lower() != stated_day:
+                day_source = evt.day
 
     if evt.recurrence == "weekly" and evt.recurrence_days:
         first_day = evt.recurrence_days[0]

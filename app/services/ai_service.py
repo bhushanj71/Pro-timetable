@@ -11,6 +11,7 @@ returns a validated AIExtractionResult that the router layer confirms with
 the user before persisting anything.
 """
 import json
+import logging
 import re
 from datetime import datetime, timedelta
 
@@ -21,6 +22,7 @@ from app.config import get_settings
 from app.schemas import AIExtractionResult
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 PROVIDER_BASE_URLS = {
     "openai": "https://api.openai.com/v1",
@@ -90,8 +92,14 @@ class AIService:
             try:
                 raw = self._call_llm(prompt, user_context)
                 return AIExtractionResult.model_validate(raw)
-            except (httpx.HTTPError, ValidationError, json.JSONDecodeError, AIServiceError):
-                pass  # fall through to rule-based extraction
+            except (httpx.HTTPError, ValidationError, json.JSONDecodeError, AIServiceError) as exc:
+                # Log why we degraded — a silent fallback makes a misconfigured
+                # model or key look like the AI simply parsing badly.
+                logger.warning(
+                    "AI provider call failed (%s: %s); using rule-based fallback",
+                    type(exc).__name__,
+                    exc,
+                )
 
         raw = self._fallback_rule_based(prompt, user_context)
         return AIExtractionResult.model_validate(raw)
@@ -112,7 +120,7 @@ class AIService:
         }
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
 
-        with httpx.Client(timeout=30) as client:
+        with httpx.Client(timeout=60) as client:
             resp = client.post(f"{self.base_url}/chat/completions", json=body, headers=headers)
             resp.raise_for_status()
             data = resp.json()

@@ -1,6 +1,8 @@
 """
 Registration, login, logout. Issues a JWT stored in an httpOnly cookie.
 """
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
@@ -53,6 +55,11 @@ def login(payload: UserLogin, response: Response, db: Session = Depends(get_db))
     user = db.query(User).filter(User.email == payload.email).first()
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
+    if not user.is_active:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This account has been deactivated")
+
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
 
     token = create_access_token(user.id)
     _set_auth_cookie(response, token)

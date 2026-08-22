@@ -90,7 +90,13 @@ class User(Base):
     default_reminder_minutes: Mapped[int] = mapped_column(Integer, default=30)
     preferred_ai_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
+    # Admin users can manage all accounts via /admin; regular professors can
+    # only ever see their own data.
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     events: Mapped[list["Event"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     tasks: Mapped[list["Task"]] = relationship(back_populates="user", cascade="all, delete-orphan")

@@ -73,6 +73,17 @@ def tasks_page(request: Request, user: User | None = Depends(get_current_user_op
     return templates.TemplateResponse("tasks.html", _ctx(request, user))
 
 
+@router.get("/admin")
+def admin_page(request: Request, user: User | None = Depends(get_current_user_optional)):
+    if not user:
+        return RedirectResponse(url="/login")
+    if not user.is_admin:
+        # Non-admins get sent home rather than shown a page they can't use;
+        # the API behind it enforces the real 403.
+        return RedirectResponse(url="/dashboard")
+    return templates.TemplateResponse("admin.html", _ctx(request, user))
+
+
 @router.get("/profile")
 def profile_page(request: Request, user: User | None = Depends(get_current_user_optional)):
     if not user:

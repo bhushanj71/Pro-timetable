@@ -33,6 +33,9 @@
       <a class="nav-link {% if request.url.path == '/tasks' %}active{% endif %}" href="/tasks">✅ Tasks</a>
       <a class="nav-link {% if request.url.path == '/reminders' %}active{% endif %}" href="/reminders">🔔 Reminders</a>
       <a class="nav-link {% if request.url.path == '/profile' %}active{% endif %}" href="/profile">⚙️ Profile</a>
+      {% if user.is_admin %}
+      <a class="nav-link {% if request.url.path == '/admin' %}active{% endif %}" href="/admin">🛡️ Admin</a>
+      {% endif %}
       <button class="nav-link logout-btn" id="logout-btn">🚪 Logout</button>
     </nav>
 

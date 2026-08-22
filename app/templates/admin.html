@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Admin — ProfSchedule AI{% endblock %}
+{% block content %}
+
+<div class="section-title">
+  <h2>🛡️ Admin Control Panel</h2>
+  <button class="btn btn-primary" id="ad-new-user-btn">+ New User</button>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:18px">
+  <div class="card stat-tile"><div class="value" id="ad-total-users">–</div><div class="label">Total Users</div></div>
+  <div class="card stat-tile"><div class="value" id="ad-active-users">–</div><div class="label">Active</div></div>
+  <div class="card stat-tile"><div class="value" id="ad-total-events">–</div><div class="label">Events</div></div>
+  <div class="card stat-tile"><div class="value" id="ad-pending-reminders">–</div><div class="label">Pending Reminders</div></div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:18px">
+  <div class="card stat-tile"><div class="value" id="ad-admin-users">–</div><div class="label">Admins</div></div>
+  <div class="card stat-tile"><div class="value" id="ad-total-tasks">–</div><div class="label">Tasks</div></div>
+  <div class="card stat-tile"><div class="value" id="ad-ai-convos">–</div><div class="label">AI Prompts</div></div>
+  <div class="card stat-tile"><div class="value" id="ad-new-users">–</div><div class="label">New This Week</div></div>
+</div>
+
+<div class="card">
+  <div class="section-title">
+    <h3>User Management</h3>
+    <input type="search" id="ad-search" placeholder="Search name or email..." style="max-width:260px;padding:8px 12px;border-radius:8px;border:1px solid var(--color-border)">
+  </div>
+  <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:0.86rem" id="ad-user-table">
+      <thead>
+        <tr style="text-align:left;border-bottom:2px solid var(--color-border)">
+          <th style="padding:8px">Name</th>
+          <th style="padding:8px">Email</th>
+          <th style="padding:8px">Department</th>
+          <th style="padding:8px">Role</th>
+          <th style="padding:8px">Status</th>
+          <th style="padding:8px">Events</th>
+          <th style="padding:8px">Last Login</th>
+          <th style="padding:8px">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="ad-user-tbody">
+        <tr><td colspan="8" style="padding:12px" class="schedule-sub">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Create/edit user modal -->
+<div id="ad-user-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:150;display:flex;align-items:center;justify-content:center">
+  <div class="card" style="width:100%;max-width:460px">
+    <h3 id="ad-modal-title">New User</h3>
+    <input type="hidden" id="ad-user-id">
+    <div class="form-group"><label>Full Name</label><input type="text" id="ad-name"></div>
+    <div class="form-group"><label>Email</label><input type="email" id="ad-email"></div>
+    <div class="form-group" id="ad-password-group">
+      <label>Password</label><input type="password" id="ad-password" autocomplete="new-password">
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Department</label><input type="text" id="ad-department"></div>
+      <div class="form-group"><label>Designation</label><input type="text" id="ad-designation"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Role</label>
+        <select id="ad-is-admin"><option value="false">Professor</option><option value="true">Administrator</option></select>
+      </div>
+      <div class="form-group" id="ad-status-group">
+        <label>Status</label>
+        <select id="ad-is-active"><option value="true">Active</option><option value="false">Deactivated</option></select>
+      </div>
+    </div>
+    <div class="ai-confirm-actions">
+      <button class="btn btn-primary" id="ad-save">Save</button>
+      <button class="btn" id="ad-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Password reset modal -->
+<div id="ad-pw-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:150;display:flex;align-items:center;justify-content:center">
+  <div class="card" style="width:100%;max-width:400px">
+    <h3>Reset Password</h3>
+    <p class="schedule-sub" id="ad-pw-target"></p>
+    <input type="hidden" id="ad-pw-user-id">
+    <div class="form-group"><label>New Password (min 8 chars)</label><input type="password" id="ad-new-password" autocomplete="new-password"></div>
+    <div class="ai-confirm-actions">
+      <button class="btn btn-primary" id="ad-pw-save">Reset Password</button>
+      <button class="btn" id="ad-pw-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/admin.js"></script>
+{% endblock %}

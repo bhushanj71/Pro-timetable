@@ -41,8 +41,64 @@ class UserOut(BaseModel):
     default_lecture_duration: int
     default_reminder_minutes: int
     preferred_ai_provider: Optional[str] = None
+    is_admin: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class AdminUserOut(BaseModel):
+    """Richer user view, admin-only. Never exposes password_hash."""
+
+    id: str
+    name: str
+    email: str
+    department: Optional[str] = None
+    designation: Optional[str] = None
+    college: Optional[str] = None
+    timezone: str
+    is_admin: bool
+    is_active: bool
+    created_at: datetime
+    last_login_at: Optional[datetime] = None
+    event_count: int = 0
+    task_count: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class AdminUserUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    department: Optional[str] = None
+    designation: Optional[str] = None
+    college: Optional[str] = None
+    is_admin: Optional[bool] = None
+    is_active: Optional[bool] = None
+
+
+class AdminPasswordReset(BaseModel):
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class AdminCreateUser(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    is_admin: bool = False
+    department: Optional[str] = None
+    designation: Optional[str] = None
+
+
+class AdminStats(BaseModel):
+    total_users: int
+    active_users: int
+    admin_users: int
+    total_events: int
+    total_tasks: int
+    total_reminders: int
+    pending_reminders: int
+    ai_conversations: int
+    new_users_this_week: int
 
 
 class UserProfileUpdate(BaseModel):
@@ -193,14 +249,37 @@ class ScheduleEvent(BaseModel):
     subject: Optional[str] = None
     day: Optional[str] = None  # e.g. "Monday" for recurring weekly events
     date: Optional[str] = None  # ISO date for one-off events, e.g. "2026-08-25"
-    start_time: str  # "HH:MM" 24h
-    end_time: str  # "HH:MM" 24h
+    # Optional because models frequently omit or null the end time when the
+    # user didn't state one; the router derives a sane default duration.
+    start_time: Optional[str] = None  # "HH:MM" 24h
+    end_time: Optional[str] = None  # "HH:MM" 24h
     recurrence: Optional[str] = None  # "weekly" | "daily" | "monthly" | None
     recurrence_days: Optional[list[str]] = None  # for multi-day weekly recurrence
     location: Optional[str] = None
     priority: str = "medium"
     reminder_minutes: Optional[int] = None
     description: Optional[str] = None
+
+    # LLMs routinely emit the literal string "null" instead of JSON null.
+    @field_validator(
+        "subject", "day", "date", "start_time", "end_time", "recurrence", "location", "description",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_null_strings(cls, v):
+        if isinstance(v, str) and v.strip().lower() in ("null", "none", ""):
+            return None
+        return v
+
+    # ...and `"priority": null` / `"event_type": null` rather than omitting the
+    # key, which would otherwise fail validation and silently drop the whole
+    # extraction to the rule-based fallback.
+    @field_validator("event_type", "priority", mode="before")
+    @classmethod
+    def _default_if_null(cls, v, info):
+        if v is None or (isinstance(v, str) and v.strip().lower() in ("null", "none", "")):
+            return "other" if info.field_name == "event_type" else "medium"
+        return v
 
 
 class AIReminder(BaseModel):
@@ -215,6 +294,11 @@ class AITask(BaseModel):
     title: str
     due_date: Optional[str] = None
     priority: str = "medium"
+
+    @field_validator("priority", mode="before")
+    @classmethod
+    def _default_priority(cls, v):
+        return "medium" if v is None else v
 
 
 class AIExtractionResult(BaseModel):
