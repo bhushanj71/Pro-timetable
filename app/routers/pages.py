@@ -2,6 +2,8 @@
 Server-rendered HTML pages (Jinja2). All data is fetched client-side from
 the JSON API via fetch/HTMX so these views stay thin.
 """
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -10,7 +12,8 @@ from app.deps import get_current_user_optional
 from app.models import User
 
 router = APIRouter(tags=["pages"])
-templates = Jinja2Templates(directory="app/templates")
+# Absolute path so the templates resolve regardless of working directory.
+templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 
 
 def _ctx(request: Request, user: User | None, **extra):

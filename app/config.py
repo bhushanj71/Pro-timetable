@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     # Reminders / cron
     CRON_SECRET: Optional[str] = None  # shared secret to protect the cron endpoint
 
+    # On persistent hosts (Render, Railway, a VM) deliver reminders from an
+    # in-process loop. Leave off for serverless (Vercel), where background
+    # tasks don't survive between invocations — use Vercel Cron there.
+    ENABLE_BACKGROUND_SCHEDULER: bool = False
+    REMINDER_POLL_SECONDS: int = 60
+
     # Email (optional, for email reminders)
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: int = 587

@@ -1,0 +1,36 @@
+# Render Blueprint. In Render: New → Blueprint → point at this repo.
+# Everything except the secrets below is configured automatically.
+services:
+  - type: web
+    name: profschedule-ai
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # Render injects $PORT; binding to 0.0.0.0 is required for the health check.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: ENV
+        value: production
+      # Generated once by Render and kept stable across deploys, so existing
+      # login sessions survive a redeploy.
+      - key: SECRET_KEY
+        generateValue: true
+      # Render runs a persistent process, so reminders are delivered in-process
+      # rather than by an external cron ping.
+      - key: ENABLE_BACKGROUND_SCHEDULER
+        value: "true"
+      - key: REMINDER_POLL_SECONDS
+        value: "60"
+      # --- Set these in the Render dashboard (marked sync:false so they are
+      # never committed to git) ---
+      - key: DATABASE_URL
+        sync: false
+      - key: AI_PROVIDER
+        sync: false
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_MODEL
+        sync: false

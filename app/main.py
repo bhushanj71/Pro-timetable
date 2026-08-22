@@ -3,7 +3,10 @@ FastAPI application factory. Mounted by api/index.py for Vercel's Python
 serverless runtime, and runnable directly with `uvicorn app.main:app` for
 local development.
 """
-from contextlib import asynccontextmanager
+import asyncio
+import logging
+from contextlib import asynccontextmanager, suppress
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -28,16 +31,40 @@ from app.routers import (
 
 settings = get_settings()
 
+# Without this, application loggers inherit the root WARNING level and our
+# INFO diagnostics (AI fallbacks, reminder delivery) never reach the host's
+# log stream — which is the only way to debug a deployed instance.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+
+    scheduler_task = None
+    if settings.ENABLE_BACKGROUND_SCHEDULER:
+        from app.services.background import reminder_loop
+
+        scheduler_task = asyncio.create_task(reminder_loop())
+
     yield
+
+    if scheduler_task:
+        scheduler_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await scheduler_task
 
 
 app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+# Resolve asset paths relative to this file rather than the process working
+# directory, so the app starts identically under uvicorn, Render, or Vercel
+# regardless of where it was launched from.
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 app.include_router(auth.router)
 app.include_router(events.router)
