@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Timetable — ProfSchedule AI{% endblock %}
+{% block content %}
+
+<div class="section-title">
+  <h2>Weekly Timetable</h2>
+  <div class="quick-actions">
+    <button class="btn" id="export-csv-btn">⬇ CSV</button>
+    <button class="btn" id="export-ics-btn">⬇ ICS</button>
+    <button class="btn" id="export-pdf-btn">⬇ PDF</button>
+    <button class="btn btn-primary" id="open-generator-btn">✨ Generate Timetable</button>
+  </div>
+</div>
+
+<div class="card" style="overflow-x:auto">
+  <div id="timetable-grid" class="timetable-grid"></div>
+</div>
+
+<div id="generator-modal" class="hidden" style="margin-top:20px">
+  <div class="card">
+    <h3>AI Timetable Generator</h3>
+    <p class="schedule-sub">Enter your subjects and constraints; the generator will place lectures automatically.</p>
+    <div id="subject-rows"></div>
+    <button class="btn btn-sm" id="add-subject-row">+ Add Subject</button>
+
+    <div class="form-row" style="margin-top:16px">
+      <div class="form-group">
+        <label>Working Days</label>
+        <input type="text" id="gen-days" value="Mon,Tue,Wed,Thu,Fri">
+      </div>
+      <div class="form-group">
+        <label>Working Hours</label>
+        <input type="text" id="gen-hours" value="09:00-17:00">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Lunch Break</label>
+        <input type="text" id="gen-lunch" value="13:00-13:30">
+      </div>
+      <div class="form-group">
+        <label>Avoid Classes After</label>
+        <input type="text" id="gen-avoid-after" value="16:00">
+      </div>
+    </div>
+
+    <div class="ai-confirm-actions">
+      <button class="btn btn-primary" id="run-generator-btn">Generate Preview</button>
+      <button class="btn" id="commit-generator-btn">Save to Timetable</button>
+    </div>
+    <div id="generator-result" style="margin-top:14px"></div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/timetable.js"></script>
+{% endblock %}

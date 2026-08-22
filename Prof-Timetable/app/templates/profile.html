@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Profile — ProfSchedule AI{% endblock %}
+{% block content %}
+
+<div class="section-title"><h2>⚙️ Professor Profile</h2></div>
+
+<div class="card" style="max-width:640px">
+  <div class="form-row">
+    <div class="form-group"><label>Name</label><input type="text" id="pf-name" value="{{ user.name }}"></div>
+    <div class="form-group"><label>Email</label><input type="text" value="{{ user.email }}" disabled></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>Department</label><input type="text" id="pf-department" value="{{ user.department or '' }}"></div>
+    <div class="form-group"><label>Designation</label><input type="text" id="pf-designation" value="{{ user.designation or '' }}"></div>
+  </div>
+  <div class="form-group"><label>College</label><input type="text" id="pf-college" value="{{ user.college or '' }}"></div>
+  <div class="form-row">
+    <div class="form-group"><label>Working Days</label><input type="text" id="pf-working-days" value="{{ user.working_days }}"></div>
+    <div class="form-group"><label>Timezone</label><input type="text" id="pf-timezone" value="{{ user.timezone }}"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>Working Hours Start</label><input type="text" id="pf-hours-start" value="{{ user.working_hours_start }}"></div>
+    <div class="form-group"><label>Working Hours End</label><input type="text" id="pf-hours-end" value="{{ user.working_hours_end }}"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>Lunch Start</label><input type="text" id="pf-lunch-start" value="{{ user.lunch_start }}"></div>
+    <div class="form-group"><label>Lunch End</label><input type="text" id="pf-lunch-end" value="{{ user.lunch_end }}"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>Default Lecture Duration (min)</label><input type="number" id="pf-lecture-duration" value="{{ user.default_lecture_duration }}"></div>
+    <div class="form-group"><label>Default Reminder (min before)</label><input type="number" id="pf-reminder-minutes" value="{{ user.default_reminder_minutes }}"></div>
+  </div>
+  <div class="form-group">
+    <label>Preferred AI Provider</label>
+    <select id="pf-ai-provider">
+      <option value="openai" {% if user.preferred_ai_provider == "openai" %}selected{% endif %}>OpenAI</option>
+      <option value="nvidia" {% if user.preferred_ai_provider == "nvidia" %}selected{% endif %}>NVIDIA NIM</option>
+      <option value="ollama" {% if user.preferred_ai_provider == "ollama" %}selected{% endif %}>Ollama / Local</option>
+    </select>
+  </div>
+  <button class="btn btn-primary" id="pf-save-btn">Save Changes</button>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/profile.js"></script>
+{% endblock %}

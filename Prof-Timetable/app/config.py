@@ -1,0 +1,45 @@
+"""
+Central application settings, loaded from environment variables.
+Works locally (via .env) and on Vercel (via project env vars).
+"""
+from functools import lru_cache
+from typing import Optional
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    # Core
+    APP_NAME: str = "ProfSchedule AI"
+    ENV: str = "development"
+    SECRET_KEY: str = "dev-secret-change-me"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    JWT_ALGORITHM: str = "HS256"
+
+    # Database
+    DATABASE_URL: str = "sqlite:///./profschedule.db"
+
+    # AI provider (provider-agnostic; any OpenAI-compatible endpoint works)
+    AI_PROVIDER: str = "openai"  # openai | nvidia | ollama | none
+    AI_API_KEY: Optional[str] = None
+    AI_MODEL: str = "gpt-4o-mini"
+    AI_BASE_URL: Optional[str] = None  # override for OpenAI-compatible endpoints
+
+    # Reminders / cron
+    CRON_SECRET: Optional[str] = None  # shared secret to protect the cron endpoint
+
+    # Email (optional, for email reminders)
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM: Optional[str] = None
+
+    DEFAULT_TIMEZONE: str = "Asia/Kolkata"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

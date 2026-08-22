@@ -1,0 +1,275 @@
+"""
+Pydantic schemas: request/response validation and the AI structured-output
+contracts. AI-generated JSON is always parsed into these models before it
+touches the database — never executed directly.
+"""
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+
+# ---------------------------------------------------------------------------
+# Auth / Users
+# ---------------------------------------------------------------------------
+
+class UserCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    timezone: str = "Asia/Kolkata"
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserOut(BaseModel):
+    id: str
+    name: str
+    email: str
+    timezone: str
+    department: Optional[str] = None
+    designation: Optional[str] = None
+    college: Optional[str] = None
+    working_days: str
+    working_hours_start: str
+    working_hours_end: str
+    lunch_start: str
+    lunch_end: str
+    default_lecture_duration: int
+    default_reminder_minutes: int
+    preferred_ai_provider: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class UserProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    timezone: Optional[str] = None
+    department: Optional[str] = None
+    designation: Optional[str] = None
+    college: Optional[str] = None
+    working_days: Optional[str] = None
+    working_hours_start: Optional[str] = None
+    working_hours_end: Optional[str] = None
+    lunch_start: Optional[str] = None
+    lunch_end: Optional[str] = None
+    default_lecture_duration: Optional[int] = None
+    default_reminder_minutes: Optional[int] = None
+    preferred_ai_provider: Optional[str] = None
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+# ---------------------------------------------------------------------------
+# Events
+# ---------------------------------------------------------------------------
+
+class EventCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    event_type: str = "other"
+    subject: Optional[str] = None
+    start_datetime: datetime
+    end_datetime: datetime
+    location: Optional[str] = None
+    priority: str = "medium"
+    recurrence_rule: Optional[str] = None
+    is_all_day: bool = False
+    reminder_minutes: Optional[list[int]] = None
+
+    @field_validator("end_datetime")
+    @classmethod
+    def end_after_start(cls, v, info):
+        start = info.data.get("start_datetime")
+        if start and v <= start:
+            raise ValueError("end_datetime must be after start_datetime")
+        return v
+
+
+class EventUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    event_type: Optional[str] = None
+    subject: Optional[str] = None
+    start_datetime: Optional[datetime] = None
+    end_datetime: Optional[datetime] = None
+    location: Optional[str] = None
+    priority: Optional[str] = None
+    recurrence_rule: Optional[str] = None
+    is_all_day: Optional[bool] = None
+    is_cancelled: Optional[bool] = None
+
+
+class EventOut(BaseModel):
+    id: str
+    user_id: str
+    title: str
+    description: Optional[str] = None
+    event_type: str
+    subject: Optional[str] = None
+    start_datetime: datetime
+    end_datetime: datetime
+    location: Optional[str] = None
+    priority: str
+    recurrence_rule: Optional[str] = None
+    recurrence_group_id: Optional[str] = None
+    is_all_day: bool
+    is_cancelled: bool
+
+    model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Reminders
+# ---------------------------------------------------------------------------
+
+class ReminderCreate(BaseModel):
+    event_id: Optional[str] = None
+    task_id: Optional[str] = None
+    title: Optional[str] = None
+    reminder_datetime: datetime
+    reminder_type: str = "in_app"
+
+
+class ReminderOut(BaseModel):
+    id: str
+    event_id: Optional[str] = None
+    task_id: Optional[str] = None
+    title: Optional[str] = None
+    reminder_datetime: datetime
+    reminder_type: str
+    is_sent: bool
+    delivery_status: str
+
+    model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Tasks
+# ---------------------------------------------------------------------------
+
+class TaskCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    due_date: Optional[datetime] = None
+    priority: str = "medium"
+
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    due_date: Optional[datetime] = None
+    priority: Optional[str] = None
+    status: Optional[str] = None
+
+
+class TaskOut(BaseModel):
+    id: str
+    title: str
+    description: Optional[str] = None
+    due_date: Optional[datetime] = None
+    priority: str
+    status: str
+    completed_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# AI structured contracts
+# ---------------------------------------------------------------------------
+
+class ScheduleEvent(BaseModel):
+    """One event as extracted by the AI. Validated before DB write."""
+
+    title: str
+    event_type: str = "other"
+    subject: Optional[str] = None
+    day: Optional[str] = None  # e.g. "Monday" for recurring weekly events
+    date: Optional[str] = None  # ISO date for one-off events, e.g. "2026-08-25"
+    start_time: str  # "HH:MM" 24h
+    end_time: str  # "HH:MM" 24h
+    recurrence: Optional[str] = None  # "weekly" | "daily" | "monthly" | None
+    recurrence_days: Optional[list[str]] = None  # for multi-day weekly recurrence
+    location: Optional[str] = None
+    priority: str = "medium"
+    reminder_minutes: Optional[int] = None
+    description: Optional[str] = None
+
+
+class AIReminder(BaseModel):
+    title: str
+    date: Optional[str] = None
+    time: Optional[str] = None
+    minutes_before_event: Optional[int] = None
+    related_event_title: Optional[str] = None
+
+
+class AITask(BaseModel):
+    title: str
+    due_date: Optional[str] = None
+    priority: str = "medium"
+
+
+class AIExtractionResult(BaseModel):
+    """Top-level structured response returned by the AI service."""
+
+    intent: str
+    events: list[ScheduleEvent] = Field(default_factory=list)
+    reminders: list[AIReminder] = Field(default_factory=list)
+    tasks: list[AITask] = Field(default_factory=list)
+    query_text: Optional[str] = None  # for QUERY_SCHEDULE / FIND_FREE_TIME
+    duration_minutes: Optional[int] = None  # for FIND_FREE_TIME
+    target_date: Optional[str] = None  # for FIND_FREE_TIME / QUERY_SCHEDULE
+    notes: Optional[str] = None  # human-readable explanation from the AI
+
+
+class AIPromptRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=2000)
+
+
+class AIPromptResponse(BaseModel):
+    intent: str
+    extraction: AIExtractionResult
+    summary: str  # human-readable confirmation text for the UI
+    conflicts: list[dict] = Field(default_factory=list)
+    requires_confirmation: bool = True
+
+
+class AIConfirmRequest(BaseModel):
+    extraction: AIExtractionResult
+
+
+# ---------------------------------------------------------------------------
+# Timetable generator
+# ---------------------------------------------------------------------------
+
+class SubjectRequirement(BaseModel):
+    subject: str
+    lectures_per_week: int
+    duration_minutes: int = 60
+    event_type: str = "lecture"
+    preferred_days: Optional[list[str]] = None
+    preferred_start_time: Optional[str] = None
+
+
+class TimetableGenerateRequest(BaseModel):
+    subjects: list[SubjectRequirement]
+    working_days: list[str] = Field(default_factory=lambda: ["Mon", "Tue", "Wed", "Thu", "Fri"])
+    working_hours_start: str = "09:00"
+    working_hours_end: str = "17:00"
+    lunch_start: Optional[str] = "13:00"
+    lunch_end: Optional[str] = "13:30"
+    slot_minutes: int = 60
+    avoid_after: Optional[str] = None  # e.g. "16:00"
+
+
+class FreeTimeRequest(BaseModel):
+    date: Optional[str] = None  # defaults to today
+    duration_minutes: int = 60

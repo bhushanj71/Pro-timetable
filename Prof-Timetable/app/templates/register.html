@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Create Account — ProfSchedule AI{% endblock %}
+{% block auth_content %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <h1>📅 ProfSchedule AI</h1>
+    <div class="subtitle">Create your professor account.</div>
+    <form id="register-form">
+      <div class="form-group">
+        <label for="name">Full Name</label>
+        <input type="text" id="name" required placeholder="Dr. Jane Doe">
+      </div>
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" required autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" required minlength="8" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label for="timezone">Timezone</label>
+        <input type="text" id="timezone" value="Asia/Kolkata">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%">Create Account</button>
+      <div id="register-error" class="form-error"></div>
+    </form>
+    <div class="auth-switch">Already have an account? <a href="/login">Sign in</a></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/auth.js"></script>
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — ProfSchedule AI{% endblock %}
+{% block content %}
+
+<div class="ai-box">
+  <h2>What would you like to schedule today?</h2>
+  <p>Type naturally — ProfSchedule AI will understand it.</p>
+  <form id="ai-prompt-form" class="ai-input-row">
+    <input type="text" id="ai-prompt-input" placeholder="e.g. I have ANN lecture every Monday, Wednesday and Friday from 10 AM to 11 AM" autocomplete="off">
+    <button type="submit">Ask AI</button>
+  </form>
+  <div class="ai-examples">
+    <span class="ai-example-chip" data-prompt="Remind me tomorrow at 9 AM to submit the internal marks.">Remind me to submit marks</span>
+    <span class="ai-example-chip" data-prompt="Schedule a department meeting next Friday at 2 PM.">Schedule a meeting</span>
+    <span class="ai-example-chip" data-prompt="When am I free this Friday?">When am I free?</span>
+    <span class="ai-example-chip" data-prompt="I have project reviews every Wednesday from 3 PM to 5 PM.">Recurring project review</span>
+  </div>
+  <div id="ai-result"></div>
+</div>
+
+<div class="quick-actions" style="margin:18px 0">
+  <a class="btn" href="/calendar">➕ Add Lecture</a>
+  <a class="btn" href="/calendar">👥 Add Meeting</a>
+  <a class="btn" href="/tasks">📝 Add Task</a>
+  <a class="btn" href="/reminders">⏰ Create Reminder</a>
+  <a class="btn" href="/timetable">🗓️ Generate Timetable</a>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:18px">
+  <div class="card stat-tile"><div class="value" id="stat-teaching">–</div><div class="label">Teaching Hrs (wk)</div></div>
+  <div class="card stat-tile"><div class="value" id="stat-meetings">–</div><div class="label">Meetings (wk)</div></div>
+  <div class="card stat-tile"><div class="value" id="stat-free">–</div><div class="label">Free Hrs (wk)</div></div>
+  <div class="card stat-tile"><div class="value" id="stat-tasks">–</div><div class="label">Pending Tasks</div></div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="section-title"><h3>Today's Schedule</h3></div>
+    <div id="today-schedule"><p class="schedule-sub">Loading…</p></div>
+  </div>
+  <div class="card">
+    <div class="section-title"><h3>Upcoming Events</h3></div>
+    <div id="upcoming-events"><p class="schedule-sub">Loading…</p></div>
+  </div>
+  <div class="card">
+    <div class="section-title"><h3>Pending Tasks</h3></div>
+    <div id="pending-tasks"><p class="schedule-sub">Loading…</p></div>
+  </div>
+  <div class="card">
+    <div class="section-title"><h3>Upcoming Deadlines</h3></div>
+    <div id="upcoming-deadlines"><p class="schedule-sub">Loading…</p></div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/ai.js"></script>
+<script src="/static/js/dashboard.js"></script>
+{% endblock %}

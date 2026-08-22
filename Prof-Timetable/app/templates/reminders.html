@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Reminders — ProfSchedule AI{% endblock %}
+{% block content %}
+
+<div class="section-title">
+  <h2>🔔 Notification Center</h2>
+</div>
+
+<div class="card" style="margin-bottom:18px">
+  <h3>Create a Reminder</h3>
+  <div class="form-row">
+    <div class="form-group"><label>Title</label><input type="text" id="rm-title" placeholder="Submit internal marks"></div>
+    <div class="form-group"><label>When</label><input type="datetime-local" id="rm-when"></div>
+    <div class="form-group" style="max-width:160px"><label>Type</label>
+      <select id="rm-type">
+        <option value="in_app">In-App</option>
+        <option value="browser">Browser</option>
+        <option value="email">Email</option>
+      </select>
+    </div>
+  </div>
+  <button class="btn btn-primary" id="rm-create-btn">+ Add Reminder</button>
+</div>
+
+<div class="card">
+  <div class="section-title">
+    <h3>Upcoming Reminders</h3>
+    <label style="font-size:0.85rem;font-weight:500;display:flex;align-items:center;gap:6px">
+      <input type="checkbox" id="rm-show-past"> Include past
+    </label>
+  </div>
+  <div id="reminders-list"><p class="schedule-sub">Loading…</p></div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/reminders.js"></script>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Tasks — ProfSchedule AI{% endblock %}
+{% block content %}
+
+<div class="section-title"><h2>✅ Tasks</h2></div>
+
+<div class="card" style="margin-bottom:18px">
+  <h3>New Task</h3>
+  <div class="form-row">
+    <div class="form-group"><label>Title</label><input type="text" id="tk-title" placeholder="Complete question paper"></div>
+    <div class="form-group"><label>Due Date</label><input type="date" id="tk-due"></div>
+    <div class="form-group" style="max-width:160px"><label>Priority</label>
+      <select id="tk-priority">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High</option>
+        <option value="urgent">Urgent</option>
+      </select>
+    </div>
+  </div>
+  <button class="btn btn-primary" id="tk-create-btn">+ Add Task</button>
+</div>
+
+<div class="card">
+  <div class="section-title">
+    <h3>My Tasks</h3>
+    <select id="tk-filter">
+      <option value="">All</option>
+      <option value="pending" selected>Pending</option>
+      <option value="in_progress">In Progress</option>
+      <option value="completed">Completed</option>
+    </select>
+  </div>
+  <div id="tasks-list"><p class="schedule-sub">Loading…</p></div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/tasks.js"></script>
+{% endblock %}

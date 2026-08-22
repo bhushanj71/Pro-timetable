@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Calendar — ProfSchedule AI{% endblock %}
+{% block content %}
+
+<div class="calendar-toolbar">
+  <button class="btn btn-sm" id="cal-prev">◀</button>
+  <button class="btn btn-sm" id="cal-today">Today</button>
+  <button class="btn btn-sm" id="cal-next">▶</button>
+  <h3 id="cal-label" style="margin:0 8px">—</h3>
+  <div class="calendar-view-switch">
+    <button class="btn btn-sm" data-view="day">Day</button>
+    <button class="btn btn-sm" data-view="week">Week</button>
+    <button class="btn btn-sm" data-view="month">Month</button>
+    <button class="btn btn-sm" data-view="agenda">Agenda</button>
+  </div>
+  <button class="btn btn-primary btn-sm" id="cal-add-event">+ New Event</button>
+</div>
+
+<div class="card" id="cal-view-container" style="overflow-x:auto"></div>
+
+<!-- Event modal -->
+<div id="event-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:150;display:flex;align-items:center;justify-content:center">
+  <div class="card" style="width:100%;max-width:480px">
+    <h3 id="event-modal-title">New Event</h3>
+    <input type="hidden" id="ev-id">
+    <div class="form-group"><label>Title</label><input type="text" id="ev-title"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Type</label>
+        <select id="ev-type">
+          <option value="lecture">Lecture</option>
+          <option value="lab">Lab</option>
+          <option value="meeting">Meeting</option>
+          <option value="project_review">Project Review</option>
+          <option value="examination">Examination</option>
+          <option value="research">Research</option>
+          <option value="conference">Conference</option>
+          <option value="fdp">FDP</option>
+          <option value="workshop">Workshop</option>
+          <option value="deadline">Deadline</option>
+          <option value="personal">Personal</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Priority</label>
+        <select id="ev-priority">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+          <option value="urgent">Urgent</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Start</label><input type="datetime-local" id="ev-start"></div>
+      <div class="form-group"><label>End</label><input type="datetime-local" id="ev-end"></div>
+    </div>
+    <div class="form-group"><label>Location</label><input type="text" id="ev-location"></div>
+    <div class="form-group"><label>Description</label><textarea id="ev-description" rows="2"></textarea></div>
+    <div class="ai-confirm-actions">
+      <button class="btn btn-primary" id="ev-save">Save</button>
+      <button class="btn btn-danger hidden" id="ev-delete">Delete</button>
+      <button class="btn" id="ev-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/calendar.js"></script>
+{% endblock %}

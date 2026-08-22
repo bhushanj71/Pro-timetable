@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}ProfSchedule AI{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  {% block head %}{% endblock %}
+</head>
+<body class="app-shell" x-data="{ sidebarOpen: false }">
+  {% if user %}
+  <div class="topbar">
+    <button class="icon-btn mobile-only" @click="sidebarOpen = !sidebarOpen" aria-label="Toggle menu">☰</button>
+    <div class="brand">📅 ProfSchedule <span class="brand-accent">AI</span></div>
+    <div class="topbar-search">
+      <input type="search" id="global-search" placeholder="Search lectures, meetings, tasks..." autocomplete="off">
+      <div id="search-results" class="search-results"></div>
+    </div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="notif-bell" title="Notifications">🔔<span id="notif-count" class="badge hidden">0</span></button>
+      <div id="notif-panel" class="notif-panel hidden"></div>
+      <div class="user-chip">{{ user.name }}</div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar" :class="{ open: sidebarOpen }">
+      <a class="nav-link {% if request.url.path == '/dashboard' %}active{% endif %}" href="/dashboard">🏠 Dashboard</a>
+      <a class="nav-link {% if request.url.path == '/timetable' %}active{% endif %}" href="/timetable">🗓️ Timetable</a>
+      <a class="nav-link {% if request.url.path == '/calendar' %}active{% endif %}" href="/calendar">📆 Calendar</a>
+      <a class="nav-link {% if request.url.path == '/tasks' %}active{% endif %}" href="/tasks">✅ Tasks</a>
+      <a class="nav-link {% if request.url.path == '/reminders' %}active{% endif %}" href="/reminders">🔔 Reminders</a>
+      <a class="nav-link {% if request.url.path == '/profile' %}active{% endif %}" href="/profile">⚙️ Profile</a>
+      <button class="nav-link logout-btn" id="logout-btn">🚪 Logout</button>
+    </nav>
+
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  {% else %}
+  {% block auth_content %}{% endblock %}
+  {% endif %}
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/static/js/app.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
