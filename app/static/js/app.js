@@ -20,6 +20,22 @@ function categoryColor(type) {
   return CATEGORY_COLORS[type] || CATEGORY_COLORS.other;
 }
 
+/** Tinted background matching a category's accent, for tags and badges. */
+function categorySoft(type) {
+  const key = CATEGORY_COLORS[type] ? type : "other";
+  return `var(--cat-${key}-soft)`;
+}
+
+const CATEGORY_LABELS = {
+  lecture: "Lecture", lab: "Lab", meeting: "Meeting", project_review: "Review",
+  examination: "Exam", personal: "Personal", research: "Research",
+  deadline: "Deadline", conference: "Conference", fdp: "FDP",
+  workshop: "Workshop", other: "Other",
+};
+function labelFor(type) {
+  return CATEGORY_LABELS[type] || "Other";
+}
+
 async function apiFetch(url, options = {}) {
   const opts = {
     credentials: "same-origin",
@@ -231,3 +247,59 @@ function startProgress(container, messages, { showElapsed = true } = {}) {
     },
   };
 }
+
+
+/* ---------------- Shell interactions ---------------- */
+
+// Mobile sidebar
+const _sidebar = document.getElementById("sidebar");
+const _scrim = document.getElementById("scrim");
+function toggleSidebar(open) {
+  if (!_sidebar) return;
+  const show = open ?? !_sidebar.classList.contains("open");
+  _sidebar.classList.toggle("open", show);
+  _scrim?.classList.toggle("hidden", !show);
+  document.body.style.overflow = show ? "hidden" : "";
+}
+document.getElementById("menu-btn")?.addEventListener("click", () => toggleSidebar());
+_scrim?.addEventListener("click", () => toggleSidebar(false));
+// Navigating on mobile should close the drawer behind you.
+_sidebar?.querySelectorAll("a").forEach((a) =>
+  a.addEventListener("click", () => window.innerWidth <= 768 && toggleSidebar(false))
+);
+
+// Elevate the topbar once the page scrolls beneath it.
+const _topbar = document.getElementById("topbar");
+if (_topbar) {
+  const onScroll = () => _topbar.classList.toggle("is-stuck", window.scrollY > 6);
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+}
+
+// Keyboard: Cmd/Ctrl+K focuses search, Escape closes overlays.
+document.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    document.getElementById("global-search")?.focus();
+  }
+  if (e.key === "Escape") {
+    document.getElementById("search-results")?.classList.add("hidden");
+    document.getElementById("notif-panel")?.classList.add("hidden");
+    document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((m) => m.classList.add("hidden"));
+    if (window.innerWidth <= 768) toggleSidebar(false);
+  }
+});
+
+// Reflect pending reminders on the sidebar badge too.
+async function refreshSidebarBadges() {
+  try {
+    const rem = await apiFetch("/api/reminders");
+    const badge = document.getElementById("nav-reminder-count");
+    if (badge) {
+      const pending = rem.filter((r) => !r.is_sent).length;
+      badge.textContent = pending;
+      badge.classList.toggle("hidden", pending === 0);
+    }
+  } catch (_) {}
+}
+if (document.getElementById("nav-reminder-count")) refreshSidebarBadges();

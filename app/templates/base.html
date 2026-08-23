@@ -3,49 +3,114 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#e0785d">
   <title>{% block title %}ProfSchedule AI{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/style.css?v={{ v }}">
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   {% block head %}{% endblock %}
 </head>
-<body class="app-shell" x-data="{ sidebarOpen: false }">
-  {% if user %}
-  <div class="topbar">
-    <button class="icon-btn mobile-only" @click="sidebarOpen = !sidebarOpen" aria-label="Toggle menu">☰</button>
-    <div class="brand">📅 ProfSchedule <span class="brand-accent">AI</span></div>
-    <div class="topbar-search">
-      <input type="search" id="global-search" placeholder="Search lectures, meetings, tasks..." autocomplete="off">
-      <div id="search-results" class="search-results"></div>
-    </div>
-    <div class="topbar-actions">
-      <button class="icon-btn" id="notif-bell" title="Notifications">🔔<span id="notif-count" class="badge hidden">0</span></button>
-      <div id="notif-panel" class="notif-panel hidden"></div>
-      <div class="user-chip">{{ user.name }}</div>
-    </div>
-  </div>
-
+<body class="app-shell">
+{% if user %}
   <div class="layout">
-    <nav class="sidebar" :class="{ open: sidebarOpen }">
-      <a class="nav-link {% if request.url.path == '/dashboard' %}active{% endif %}" href="/dashboard">🏠 Dashboard</a>
-      <a class="nav-link {% if request.url.path == '/timetable' %}active{% endif %}" href="/timetable">🗓️ Timetable</a>
-      <a class="nav-link {% if request.url.path == '/calendar' %}active{% endif %}" href="/calendar">📆 Calendar</a>
-      <a class="nav-link {% if request.url.path == '/tasks' %}active{% endif %}" href="/tasks">✅ Tasks</a>
-      <a class="nav-link {% if request.url.path == '/reminders' %}active{% endif %}" href="/reminders">🔔 Reminders</a>
-      <a class="nav-link {% if request.url.path == '/profile' %}active{% endif %}" href="/profile">⚙️ Profile</a>
+    <!-- ==================== Sidebar ==================== -->
+    <nav class="sidebar" id="sidebar">
+      <a href="/dashboard" class="brand-block">
+        <div class="brand-mark">👑</div>
+        <div>
+          <div class="brand-name">ProfSchedule <span>AI</span></div>
+          <div class="brand-tag">Plan Smarter, Teach Better</div>
+        </div>
+      </a>
+
+      <a class="nav-link {% if request.url.path == '/dashboard' %}active{% endif %}" href="/dashboard">
+        <span class="nav-ico">🏠</span> Dashboard
+      </a>
+      <a class="nav-link {% if request.url.path == '/timetable' %}active{% endif %}" href="/timetable">
+        <span class="nav-ico">🗓️</span> Timetable
+      </a>
+      <a class="nav-link {% if request.url.path == '/calendar' %}active{% endif %}" href="/calendar">
+        <span class="nav-ico">📆</span> Calendar
+      </a>
+      <a class="nav-link {% if request.url.path == '/tasks' %}active{% endif %}" href="/tasks">
+        <span class="nav-ico">✅</span> Tasks
+        <span class="nav-badge hidden" id="nav-task-count">0</span>
+      </a>
+      <a class="nav-link {% if request.url.path == '/reminders' %}active{% endif %}" href="/reminders">
+        <span class="nav-ico">🔔</span> Reminders
+        <span class="nav-badge hidden" id="nav-reminder-count">0</span>
+      </a>
+      <a class="nav-link {% if request.url.path == '/profile' %}active{% endif %}" href="/profile">
+        <span class="nav-ico">👤</span> Profile
+      </a>
       {% if user.is_admin %}
-      <a class="nav-link {% if request.url.path == '/admin' %}active{% endif %}" href="/admin">🛡️ Admin</a>
+      <a class="nav-link {% if request.url.path == '/admin' %}active{% endif %}" href="/admin">
+        <span class="nav-ico">🛡️</span> Admin
+      </a>
       {% endif %}
-      <button class="nav-link logout-btn" id="logout-btn">🚪 Logout</button>
+      <button class="nav-link logout-btn" id="logout-btn">
+        <span class="nav-ico">🚪</span> Logout
+      </button>
+
+      <div class="assistant-card">
+        <div class="assistant-title">✨ AI Assistant</div>
+        <div class="assistant-sub">Your intelligent academic companion</div>
+        <a class="assistant-btn" href="/dashboard#ai">
+          <span>🤖 Ask Something</span>
+          <span>›</span>
+        </a>
+      </div>
+
+      <div class="sidebar-quote">
+        <span class="qmark">"</span>
+        Discipline today, success tomorrow.
+      </div>
     </nav>
 
-    <main class="content">
-      {% block content %}{% endblock %}
-    </main>
+    <div class="scrim hidden" id="scrim"></div>
+
+    <!-- ==================== Main ==================== -->
+    <div class="main-col">
+      <header class="topbar" id="topbar">
+        <button class="icon-btn menu-btn" id="menu-btn" aria-label="Open menu">☰</button>
+
+        <div class="searchbar">
+          <span class="search-ico">🔍</span>
+          <input type="search" id="global-search" placeholder="Search lectures, meetings, tasks..." autocomplete="off" aria-label="Search">
+          <span class="kbd-hint">⌘K</span>
+          <div id="search-results" class="search-results hidden"></div>
+        </div>
+
+        <div class="topbar-actions">
+          <button class="icon-btn" id="notif-bell" aria-label="Notifications">
+            🔔<span id="notif-count" class="badge hidden">0</span>
+          </button>
+          <div id="notif-panel" class="popover hidden"></div>
+
+          <div class="user-chip">
+            <div class="user-avatar">{{ user.name[:1] | upper }}</div>
+            <div>
+              <div class="user-name">{{ user.name }}</div>
+              <div class="user-role">{{ user.designation or ("Administrator" if user.is_admin else "Professor") }}</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {% block body %}
+      <main class="content full">
+        <div class="content-main">
+          {% block content %}{% endblock %}
+        </div>
+      </main>
+      {% endblock %}
+    </div>
   </div>
-  {% else %}
+{% else %}
   {% block auth_content %}{% endblock %}
-  {% endif %}
+{% endif %}
 
   <div id="toast-container" class="toast-container"></div>
   <script src="/static/js/app.js?v={{ v }}"></script>

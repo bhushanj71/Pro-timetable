@@ -18,14 +18,14 @@
 </div>
 
 <div class="card" style="overflow-x:auto">
-  <h3 id="tt-week-label" style="margin:0 0 12px;font-size:0.95rem;color:var(--color-text-muted)">—</h3>
+  <h3 id="tt-week-label" style="margin:0 0 12px;font-size:0.95rem;color:var(--text-muted)">—</h3>
   <div id="timetable-grid" class="timetable-grid"></div>
 </div>
 
 <div id="generator-modal" class="hidden" style="margin-top:20px">
   <div class="card">
     <h3>AI Timetable Generator</h3>
-    <p class="schedule-sub">Enter your subjects and constraints; the generator will place lectures automatically.</p>
+    <p class="muted-text">Enter your subjects and constraints; the generator will place lectures automatically.</p>
     <div id="subject-rows"></div>
     <button class="btn btn-sm" id="add-subject-row">+ Add Subject</button>
 
@@ -50,7 +50,7 @@
       </div>
     </div>
 
-    <div class="ai-confirm-actions">
+    <div class="modal-actions">
       <button class="btn btn-primary" id="run-generator-btn">Generate Preview</button>
       <button class="btn" id="commit-generator-btn">Save to Timetable</button>
     </div>
@@ -59,8 +59,8 @@
 </div>
 
 <!-- Add / edit a single class -->
-<div id="tt-event-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:150;display:flex;align-items:center;justify-content:center;padding:16px">
-  <div class="card" style="width:100%;max-width:480px;max-height:90vh;overflow-y:auto">
+<div id="tt-event-modal" class="modal-backdrop hidden">
+  <div class="modal-card" style="max-width:480px">
     <h3 id="tt-modal-title">Add Class</h3>
     <input type="hidden" id="tt-ev-id">
     <input type="hidden" id="tt-ev-group">
@@ -97,17 +97,17 @@
     </div>
     <div class="form-group" id="tt-repeat-group">
       <label>Repeat weekly on</label>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <label style="font-weight:400"><input type="checkbox" class="tt-day" value="MON"> Mon</label>
-        <label style="font-weight:400"><input type="checkbox" class="tt-day" value="TUE"> Tue</label>
-        <label style="font-weight:400"><input type="checkbox" class="tt-day" value="WED"> Wed</label>
-        <label style="font-weight:400"><input type="checkbox" class="tt-day" value="THU"> Thu</label>
-        <label style="font-weight:400"><input type="checkbox" class="tt-day" value="FRI"> Fri</label>
-        <label style="font-weight:400"><input type="checkbox" class="tt-day" value="SAT"> Sat</label>
+      <div class="checkbox-row">
+        <label><input type="checkbox" class="tt-day" value="MON"> Mon</label>
+        <label><input type="checkbox" class="tt-day" value="TUE"> Tue</label>
+        <label><input type="checkbox" class="tt-day" value="WED"> Wed</label>
+        <label><input type="checkbox" class="tt-day" value="THU"> Thu</label>
+        <label><input type="checkbox" class="tt-day" value="FRI"> Fri</label>
+        <label><input type="checkbox" class="tt-day" value="SAT"> Sat</label>
       </div>
-      <small class="schedule-sub">Leave all unchecked for a one-off class.</small>
+      <small class="muted-text">Leave all unchecked for a one-off class.</small>
     </div>
-    <div class="ai-confirm-actions" style="flex-wrap:wrap">
+    <div class="modal-actions">
       <button class="btn btn-primary" id="tt-ev-save">Save</button>
       <button class="btn btn-danger hidden" id="tt-ev-delete">Delete this</button>
       <button class="btn btn-danger hidden" id="tt-ev-delete-series">Delete whole series</button>
@@ -117,10 +117,10 @@
 </div>
 
 <!-- Reset / bulk delete -->
-<div id="tt-reset-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:150;display:flex;align-items:center;justify-content:center;padding:16px">
-  <div class="card" style="width:100%;max-width:440px">
+<div id="tt-reset-modal" class="modal-backdrop hidden">
+  <div class="modal-card" style="max-width:440px">
     <h3>🗑 Reset Schedule</h3>
-    <p class="schedule-sub">This permanently deletes events and cannot be undone.</p>
+    <p class="muted-text">This permanently deletes events and cannot be undone.</p>
     <div class="form-group">
       <label>What to delete</label>
       <select id="tt-reset-scope">
@@ -135,7 +135,7 @@
       <input type="text" id="tt-reset-subject" placeholder="Leave blank for all subjects">
     </div>
     <p id="tt-reset-warning" class="form-error"></p>
-    <div class="ai-confirm-actions">
+    <div class="modal-actions">
       <button class="btn btn-danger" id="tt-reset-confirm">Delete</button>
       <button class="btn" id="tt-reset-cancel">Cancel</button>
     </div>

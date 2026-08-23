@@ -9,19 +9,19 @@ async function loadReminders() {
       ? reminders
           .map(
             (r) => `
-        <div class="schedule-item">
-          <div class="schedule-time">${fmtDate(r.reminder_datetime)}<br>${fmtTime(r.reminder_datetime)}</div>
+        <div class="task-row">
+          <div class="tl-time">${fmtDate(r.reminder_datetime)}<br>${fmtTime(r.reminder_datetime)}</div>
           <div style="flex:1">
-            <div class="schedule-title">${r.title || "Reminder"}</div>
-            <div class="schedule-sub">${r.reminder_type} · ${r.is_sent ? "Sent" : "Pending"}</div>
+            <div class="task-name">${r.title || "Reminder"}</div>
+            <div class="muted-text">${r.reminder_type} · ${r.is_sent ? "Sent" : "Pending"}</div>
           </div>
           <button class="btn btn-sm btn-danger" onclick="deleteReminder('${r.id}')">Delete</button>
         </div>`
           )
           .join("")
-      : `<p class="schedule-sub">No reminders yet.</p>`;
+      : `<p class="muted-text">No reminders yet.</p>`;
   } catch (_) {
-    el.innerHTML = `<p class="schedule-sub">Could not load reminders.</p>`;
+    el.innerHTML = `<p class="muted-text">Could not load reminders.</p>`;
   }
 }
 

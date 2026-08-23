@@ -24,32 +24,32 @@
 <div class="card">
   <div class="section-title">
     <h3>User Management</h3>
-    <input type="search" id="ad-search" placeholder="Search name or email..." style="max-width:260px;padding:8px 12px;border-radius:8px;border:1px solid var(--color-border)">
+    <input type="search" id="ad-search" placeholder="Search name or email..." style="max-width:260px;padding:8px 12px;border-radius:8px;border:1px solid var(--border)">
   </div>
   <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;font-size:0.86rem" id="ad-user-table">
+    <table class="data-table" id="ad-user-table">
       <thead>
-        <tr style="text-align:left;border-bottom:2px solid var(--color-border)">
-          <th style="padding:8px">Name</th>
-          <th style="padding:8px">Email</th>
-          <th style="padding:8px">Department</th>
-          <th style="padding:8px">Role</th>
-          <th style="padding:8px">Status</th>
-          <th style="padding:8px">Events</th>
-          <th style="padding:8px">Last Login</th>
-          <th style="padding:8px">Actions</th>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Department</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Events</th>
+          <th>Last Login</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody id="ad-user-tbody">
-        <tr><td colspan="8" style="padding:12px" class="schedule-sub">Loading…</td></tr>
+        <tr><td colspan="8" class="muted-text">Loading…</td></tr>
       </tbody>
     </table>
   </div>
 </div>
 
 <!-- Create/edit user modal -->
-<div id="ad-user-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:150;display:flex;align-items:center;justify-content:center">
-  <div class="card" style="width:100%;max-width:460px">
+<div id="ad-user-modal" class="modal-backdrop hidden">
+  <div class="modal-card" style="max-width:460px">
     <h3 id="ad-modal-title">New User</h3>
     <input type="hidden" id="ad-user-id">
     <div class="form-group"><label>Full Name</label><input type="text" id="ad-name"></div>
@@ -71,7 +71,7 @@
         <select id="ad-is-active"><option value="true">Active</option><option value="false">Deactivated</option></select>
       </div>
     </div>
-    <div class="ai-confirm-actions">
+    <div class="modal-actions">
       <button class="btn btn-primary" id="ad-save">Save</button>
       <button class="btn" id="ad-cancel">Cancel</button>
     </div>
@@ -79,13 +79,13 @@
 </div>
 
 <!-- Password reset modal -->
-<div id="ad-pw-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:150;display:flex;align-items:center;justify-content:center">
-  <div class="card" style="width:100%;max-width:400px">
+<div id="ad-pw-modal" class="modal-backdrop hidden">
+  <div class="modal-card" style="max-width:400px">
     <h3>Reset Password</h3>
-    <p class="schedule-sub" id="ad-pw-target"></p>
+    <p class="muted-text" id="ad-pw-target"></p>
     <input type="hidden" id="ad-pw-user-id">
     <div class="form-group"><label>New Password (min 8 chars)</label><input type="password" id="ad-new-password" autocomplete="new-password"></div>
-    <div class="ai-confirm-actions">
+    <div class="modal-actions">
       <button class="btn btn-primary" id="ad-pw-save">Reset Password</button>
       <button class="btn" id="ad-pw-cancel">Cancel</button>
     </div>

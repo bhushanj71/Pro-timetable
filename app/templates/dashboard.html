@@ -1,58 +1,142 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — ProfSchedule AI{% endblock %}
-{% block content %}
 
-<div class="ai-box">
-  <h2>What would you like to schedule today?</h2>
-  <p>Type naturally — ProfSchedule AI will understand it.</p>
-  <form id="ai-prompt-form" class="ai-input-row">
-    <input type="text" id="ai-prompt-input" placeholder="e.g. I have ANN lecture every Monday, Wednesday and Friday from 10 AM to 11 AM" autocomplete="off">
-    <button type="submit">Ask AI</button>
-  </form>
-  <div class="ai-examples">
-    <span class="ai-example-chip" data-prompt="Remind me tomorrow at 9 AM to submit the internal marks.">Remind me to submit marks</span>
-    <span class="ai-example-chip" data-prompt="Schedule a department meeting next Friday at 2 PM.">Schedule a meeting</span>
-    <span class="ai-example-chip" data-prompt="When am I free this Friday?">When am I free?</span>
-    <span class="ai-example-chip" data-prompt="I have project reviews every Wednesday from 3 PM to 5 PM.">Recurring project review</span>
-  </div>
-  <div id="ai-result"></div>
-</div>
+{% block body %}
+<main class="content">
+  <!-- ==================== Main column ==================== -->
+  <div class="content-main stagger">
 
-<div class="quick-actions" style="margin:18px 0">
-  <a class="btn" href="/calendar">➕ Add Lecture</a>
-  <a class="btn" href="/calendar">👥 Add Meeting</a>
-  <a class="btn" href="/tasks">📝 Add Task</a>
-  <a class="btn" href="/reminders">⏰ Create Reminder</a>
-  <a class="btn" href="/timetable">🗓️ Generate Timetable</a>
-</div>
+    <!-- Hero -->
+    <section class="hero" id="ai">
+      {# First name only — "Good Morning, Bhushan!" reads warmer than the full name. #}
+      <h1 class="hero-greet"><span id="greeting">Hello</span>, {{ user.name.split(' ')[0] }}! <span class="wave-emoji">👋</span></h1>
+      <p class="hero-sub">Let's make today productive and meaningful.</p>
 
-<div class="grid grid-4" style="margin-bottom:18px">
-  <div class="card stat-tile"><div class="value" id="stat-teaching">–</div><div class="label">Teaching Hrs (wk)</div></div>
-  <div class="card stat-tile"><div class="value" id="stat-meetings">–</div><div class="label">Meetings (wk)</div></div>
-  <div class="card stat-tile"><div class="value" id="stat-free">–</div><div class="label">Free Hrs (wk)</div></div>
-  <div class="card stat-tile"><div class="value" id="stat-tasks">–</div><div class="label">Pending Tasks</div></div>
-</div>
+      <form id="ai-prompt-form" class="ai-input-row">
+        <input type="text" id="ai-prompt-input" placeholder="What would you like to schedule today?" autocomplete="off" aria-label="Ask AI">
+        <button type="submit" class="btn-ask">Ask AI <span>✨</span></button>
+      </form>
 
-<div class="grid grid-2">
-  <div class="card">
-    <div class="section-title"><h3>Today's Schedule</h3></div>
-    <div id="today-schedule"><p class="schedule-sub">Loading…</p></div>
-  </div>
-  <div class="card">
-    <div class="section-title"><h3>Upcoming Events</h3></div>
-    <div id="upcoming-events"><p class="schedule-sub">Loading…</p></div>
-  </div>
-  <div class="card">
-    <div class="section-title"><h3>Pending Tasks</h3></div>
-    <div id="pending-tasks"><p class="schedule-sub">Loading…</p></div>
-  </div>
-  <div class="card">
-    <div class="section-title"><h3>Upcoming Deadlines</h3></div>
-    <div id="upcoming-deadlines"><p class="schedule-sub">Loading…</p></div>
-  </div>
-</div>
+      <div class="ai-examples">
+        <button type="button" class="ai-example-chip" data-prompt="I have ANN lecture every Monday at 10 AM">🎓 I have ANN lecture at 10 AM</button>
+        <button type="button" class="ai-example-chip" data-prompt="Schedule a department meeting next Friday at 2 PM">👥 Schedule a meeting</button>
+        <button type="button" class="ai-example-chip" data-prompt="Remind me tomorrow at 9 AM to submit the internal marks">🔔 Remind me to submit marks</button>
+        <button type="button" class="ai-example-chip" data-prompt="When am I free this Friday?">🕐 When am I free?</button>
+      </div>
 
+      <div id="ai-result"></div>
+    </section>
+
+    <!-- Quick actions -->
+    <section class="quick-actions">
+      <a class="qa-card" href="/timetable"><span class="qa-ico">📖</span> Add Lecture</a>
+      <a class="qa-card" href="/calendar"><span class="qa-ico">👥</span> Add Meeting</a>
+      <a class="qa-card" href="/tasks"><span class="qa-ico">✅</span> Add Task</a>
+      <a class="qa-card" href="/reminders"><span class="qa-ico">🔔</span> Create Reminder</a>
+      <a class="qa-card" href="/timetable"><span class="qa-ico">🗓️</span> Generate Timetable</a>
+    </section>
+
+    <!-- Stats -->
+    <section class="grid grid-4" id="stat-grid">
+      <div class="stat-card">
+        <div class="stat-top">
+          <div class="stat-ico" style="background:var(--cat-lecture-soft);color:var(--cat-lecture)">📖</div>
+          <div style="min-width:0">
+            <div class="stat-value" id="stat-teaching">–</div>
+            <div class="stat-label">Teaching Hours</div>
+            <div class="stat-sub">This Week</div>
+          </div>
+        </div>
+        <div class="stat-foot"><span class="trend up" id="trend-teaching"></span><span id="spark-teaching"></span></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-top">
+          <div class="stat-ico" style="background:var(--cat-meeting-soft);color:var(--cat-meeting)">👥</div>
+          <div style="min-width:0">
+            <div class="stat-value" id="stat-meetings">–</div>
+            <div class="stat-label">Meetings</div>
+            <div class="stat-sub">This Week</div>
+          </div>
+        </div>
+        <div class="stat-foot"><span class="trend up" id="trend-meetings"></span><span id="spark-meetings"></span></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-top">
+          <div class="stat-ico" style="background:var(--cat-research-soft);color:var(--cat-research)">🕐</div>
+          <div style="min-width:0">
+            <div class="stat-value" id="stat-free">–</div>
+            <div class="stat-label">Free Hours</div>
+            <div class="stat-sub">This Week</div>
+          </div>
+        </div>
+        <div class="stat-foot"><span class="trend up" id="trend-free"></span><span id="spark-free"></span></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-top">
+          <div class="stat-ico" style="background:var(--cat-project_review-soft);color:var(--cat-project_review)">📋</div>
+          <div style="min-width:0">
+            <div class="stat-value" id="stat-tasks">–</div>
+            <div class="stat-label">Pending Tasks</div>
+            <div class="stat-sub">This Week</div>
+          </div>
+        </div>
+        <div class="stat-foot"><span class="trend down" id="trend-tasks"></span><span id="spark-tasks"></span></div>
+      </div>
+    </section>
+
+    <!-- Today + Upcoming -->
+    <section class="grid grid-2">
+      <div class="card card-hover">
+        <div class="card-head">
+          <div class="card-title"><span class="t-ico">📅</span> Today's Schedule</div>
+          <a class="link-more" href="/timetable">View Timetable</a>
+        </div>
+        <div id="today-schedule" class="timeline"></div>
+      </div>
+
+      <div class="card card-hover">
+        <div class="card-head">
+          <div class="card-title"><span class="t-ico">🗂️</span> Upcoming Events</div>
+          <a class="link-more" href="/calendar">View Calendar</a>
+        </div>
+        <div id="upcoming-events"></div>
+        <a class="link-more" href="/calendar" style="margin-top:10px;display:inline-flex">View all events →</a>
+      </div>
+    </section>
+  </div>
+
+  <!-- ==================== Right rail ==================== -->
+  <aside class="content-rail stagger">
+    <div class="card">
+      <div class="mini-cal-head">
+        <div class="mini-cal-title" id="mini-cal-title">—</div>
+        <div class="mini-nav">
+          <button id="mini-prev" aria-label="Previous month">‹</button>
+          <button id="mini-next" aria-label="Next month">›</button>
+        </div>
+      </div>
+      <div class="mini-grid" id="mini-cal"></div>
+    </div>
+
+    <div class="card card-hover">
+      <div class="card-head">
+        <div class="card-title"><span class="t-ico">📌</span> Pending Tasks</div>
+        <a class="link-more" href="/tasks">View All</a>
+      </div>
+      <div id="pending-tasks"></div>
+    </div>
+
+    <div class="card card-hover">
+      <div class="card-head">
+        <div class="card-title"><span class="t-ico">🔔</span> Upcoming Deadlines</div>
+      </div>
+      <div id="upcoming-deadlines"></div>
+      <div class="reminder-bar"><span id="reminder-progress" style="width:0%"></span></div>
+    </div>
+  </aside>
+</main>
 {% endblock %}
+
 {% block scripts %}
 <script src="/static/js/ai.js?v={{ v }}"></script>
 <script src="/static/js/dashboard.js?v={{ v }}"></script>

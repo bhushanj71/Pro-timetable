@@ -61,7 +61,7 @@ function renderDayLike(container, events, days) {
       <div class="date-num">${d.toLocaleDateString([], { weekday: "short", day: "numeric" })}</div>
       ${dayEvents
         .map(
-          (e) => `<div class="tt-event" style="background:${categoryColor(e.event_type)}" onclick='openEditModal(${JSON.stringify(e).replace(/'/g, "&apos;")})'>${fmtTime(e.start_datetime)} ${e.title}</div>`
+          (e) => `<div class="tt-event" style="background:${categorySoft(e.event_type)};color:${categoryColor(e.event_type)}" onclick='openEditModal(${JSON.stringify(e).replace(/'/g, "&apos;")})'>${fmtTime(e.start_datetime)} ${e.title}</div>`
         )
         .join("")}
     </div>`;
@@ -90,9 +90,9 @@ function renderMonth(container, events, start) {
       <div class="date-num">${d.getDate()}</div>
       ${dayEvents
         .slice(0, 3)
-        .map((e) => `<div class="tt-event" style="background:${categoryColor(e.event_type)}" onclick='openEditModal(${JSON.stringify(e).replace(/'/g, "&apos;")})'>${e.title}</div>`)
+        .map((e) => `<div class="tt-event" style="background:${categorySoft(e.event_type)};color:${categoryColor(e.event_type)}" onclick='openEditModal(${JSON.stringify(e).replace(/'/g, "&apos;")})'>${e.title}</div>`)
         .join("")}
-      ${dayEvents.length > 3 ? `<div class="schedule-sub">+${dayEvents.length - 3} more</div>` : ""}
+      ${dayEvents.length > 3 ? `<div class="muted-text">+${dayEvents.length - 3} more</div>` : ""}
     </div>`;
   });
   html += `</div>`;
@@ -101,16 +101,16 @@ function renderMonth(container, events, start) {
 
 function renderAgenda(container, events) {
   if (!events.length) {
-    container.innerHTML = `<p class="schedule-sub">No events in this period.</p>`;
+    container.innerHTML = `<p class="muted-text">No events in this period.</p>`;
     return;
   }
   container.innerHTML = `<div class="agenda-list">${events
     .map(
-      (e) => `<div class="schedule-item" onclick='openEditModal(${JSON.stringify(e).replace(/'/g, "&apos;")})' style="cursor:pointer">
-      <div class="schedule-time">${fmtDate(e.start_datetime)}<br>${fmtTime(e.start_datetime)}</div>
-      <div class="category-dot" style="background:${categoryColor(e.event_type)}"></div>
-      <div style="flex:1"><div class="schedule-title">${e.title}</div><div class="schedule-sub">${e.location || ""}</div></div>
-      <span class="badge-pill priority-${e.priority}">${e.priority}</span>
+      (e) => `<div class="task-row" onclick='openEditModal(${JSON.stringify(e).replace(/'/g, "&apos;")})' style="cursor:pointer">
+      <div class="tl-time">${fmtDate(e.start_datetime)}<br>${fmtTime(e.start_datetime)}</div>
+      <div class="tl-dot" style="background:${categoryColor(e.event_type)}"></div>
+      <div style="flex:1"><div class="task-name">${e.title}</div><div class="muted-text">${e.location || ""}</div></div>
+      <span class="pill priority-${e.priority}">${e.priority}</span>
     </div>`
     )
     .join("")}</div>`;
@@ -133,7 +133,7 @@ async function renderCalendar() {
     } else if (calState.view === "month") renderMonth(container, events, start);
     else renderAgenda(container, events);
   } catch (err) {
-    container.innerHTML = `<p class="schedule-sub">Could not load events.</p>`;
+    container.innerHTML = `<p class="muted-text">Could not load events.</p>`;
   }
 }
 

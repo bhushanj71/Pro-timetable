@@ -3,8 +3,15 @@
 {% block auth_content %}
 <div class="auth-wrap">
   <div class="auth-card">
-    <h1>📅 ProfSchedule AI</h1>
-    <div class="subtitle">Create your professor account.</div>
+    <div class="auth-brand">
+      <div class="brand-mark">👑</div>
+      <div>
+        <div class="brand-name">ProfSchedule <span>AI</span></div>
+        <div class="brand-tag">Plan Smarter, Teach Better</div>
+      </div>
+    </div>
+    <h1 style="margin-top:18px">Create your account</h1>
+    <div class="subtitle">Tell us your college timings so we can build your timetable.</div>
     <form id="register-form">
       <div class="form-group">
         <label for="name">Full Name</label>
@@ -23,7 +30,7 @@
         <input type="text" id="timezone" value="Asia/Kolkata">
       </div>
 
-      <hr style="border:none;border-top:1px solid var(--color-border);margin:18px 0">
+      <hr class="auth-divider">
       <div class="form-group">
         <label for="college-timing">Your college timings</label>
         <select id="college-timing">
@@ -34,7 +41,7 @@
           <option value="11:00-18:30">11:00 AM – 6:30 PM</option>
           <option value="custom">Custom…</option>
         </select>
-        <small class="schedule-sub">Used to build your timetable grid and find free slots.</small>
+        <small class="form-hint">Used to build your timetable grid and find free slots.</small>
       </div>
 
       <div class="form-row hidden" id="custom-hours-row">
@@ -61,17 +68,17 @@
 
       <div class="form-group">
         <label>Working days</label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <label style="font-weight:400"><input type="checkbox" class="work-day" value="Mon" checked> Mon</label>
-          <label style="font-weight:400"><input type="checkbox" class="work-day" value="Tue" checked> Tue</label>
-          <label style="font-weight:400"><input type="checkbox" class="work-day" value="Wed" checked> Wed</label>
-          <label style="font-weight:400"><input type="checkbox" class="work-day" value="Thu" checked> Thu</label>
-          <label style="font-weight:400"><input type="checkbox" class="work-day" value="Fri" checked> Fri</label>
-          <label style="font-weight:400"><input type="checkbox" class="work-day" value="Sat"> Sat</label>
+        <div class="checkbox-row">
+          <label><input type="checkbox" class="work-day" value="Mon" checked> Mon</label>
+          <label><input type="checkbox" class="work-day" value="Tue" checked> Tue</label>
+          <label><input type="checkbox" class="work-day" value="Wed" checked> Wed</label>
+          <label><input type="checkbox" class="work-day" value="Thu" checked> Thu</label>
+          <label><input type="checkbox" class="work-day" value="Fri" checked> Fri</label>
+          <label><input type="checkbox" class="work-day" value="Sat"> Sat</label>
         </div>
       </div>
 
-      <button type="submit" class="btn btn-primary" style="width:100%">Create Account</button>
+      <button type="submit" class="btn btn-primary btn-block">Create Account</button>
       <div id="register-error" class="form-error"></div>
     </form>
     <div class="auth-switch">Already have an account? <a href="/login">Sign in</a></div>

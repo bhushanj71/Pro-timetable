@@ -34,20 +34,20 @@ async function loadUsers() {
   try {
     const users = await apiFetch(`/api/admin/users${q ? `?q=${encodeURIComponent(q)}` : ""}`);
     if (!users.length) {
-      tbody.innerHTML = `<tr><td colspan="8" style="padding:12px" class="schedule-sub">No users found.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="muted-text">No users found.</td></tr>`;
       return;
     }
     tbody.innerHTML = users
       .map(
         (u) => `
-      <tr style="border-bottom:1px solid var(--color-border)">
-        <td style="padding:8px"><strong>${escapeHtml(u.name)}</strong></td>
-        <td style="padding:8px">${escapeHtml(u.email)}</td>
-        <td style="padding:8px">${escapeHtml(u.department || "—")}</td>
-        <td style="padding:8px"><span class="badge-pill ${u.is_admin ? "priority-urgent" : "priority-medium"}">${u.is_admin ? "Admin" : "Professor"}</span></td>
-        <td style="padding:8px"><span class="badge-pill ${u.is_active ? "priority-low" : "priority-high"}">${u.is_active ? "Active" : "Disabled"}</span></td>
-        <td style="padding:8px">${u.event_count}</td>
-        <td style="padding:8px">${u.last_login_at ? fmtDate(u.last_login_at) : "Never"}</td>
+      <tr >
+        <td ><strong>${escapeHtml(u.name)}</strong></td>
+        <td >${escapeHtml(u.email)}</td>
+        <td >${escapeHtml(u.department || "—")}</td>
+        <td ><span class="pill ${u.is_admin ? "priority-urgent" : "priority-medium"}">${u.is_admin ? "Admin" : "Professor"}</span></td>
+        <td ><span class="pill ${u.is_active ? "priority-low" : "priority-high"}">${u.is_active ? "Active" : "Disabled"}</span></td>
+        <td >${u.event_count}</td>
+        <td >${u.last_login_at ? fmtDate(u.last_login_at) : "Never"}</td>
         <td style="padding:8px;white-space:nowrap">
           <button class="btn btn-sm" data-act="edit" data-id="${u.id}">Edit</button>
           <button class="btn btn-sm" data-act="pw" data-id="${u.id}" data-email="${escapeHtml(u.email)}">Reset PW</button>
@@ -57,7 +57,7 @@ async function loadUsers() {
       )
       .join("");
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="8" style="padding:12px" class="schedule-sub">Could not load users.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="muted-text">Could not load users.</td></tr>`;
   }
 }
 

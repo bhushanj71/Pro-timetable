@@ -19,8 +19,8 @@
 <div class="card" id="cal-view-container" style="overflow-x:auto"></div>
 
 <!-- Event modal -->
-<div id="event-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:150;display:flex;align-items:center;justify-content:center">
-  <div class="card" style="width:100%;max-width:480px">
+<div id="event-modal" class="modal-backdrop hidden">
+  <div class="modal-card" style="max-width:480px">
     <h3 id="event-modal-title">New Event</h3>
     <input type="hidden" id="ev-id">
     <div class="form-group"><label>Title</label><input type="text" id="ev-title"></div>
@@ -56,7 +56,7 @@
     </div>
     <div class="form-group"><label>Location</label><input type="text" id="ev-location"></div>
     <div class="form-group"><label>Description</label><textarea id="ev-description" rows="2"></textarea></div>
-    <div class="ai-confirm-actions">
+    <div class="modal-actions">
       <button class="btn btn-primary" id="ev-save">Save</button>
       <button class="btn btn-danger hidden" id="ev-delete">Delete</button>
       <button class="btn" id="ev-cancel">Cancel</button>

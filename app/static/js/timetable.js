@@ -70,7 +70,7 @@ async function renderTimetable() {
 
     if (!data.events.length) {
       const note = document.createElement("p");
-      note.className = "schedule-sub tt-empty-note";
+      note.className = "muted-text tt-empty-note";
       note.style.marginTop = "10px";
       note.textContent = "No classes scheduled this week. Use Prev/Next to check other weeks.";
       grid.parentElement.appendChild(note);
@@ -85,7 +85,8 @@ async function renderTimetable() {
       if (!cell) return;
       const evEl = document.createElement("div");
       evEl.className = "tt-event";
-      evEl.style.background = categoryColor(e.event_type);
+      evEl.style.background = categorySoft(e.event_type);
+      evEl.style.color = categoryColor(e.event_type);
       evEl.title = e.title;
       evEl.innerHTML = `${e.title}<div class="tt-event-time">${fmtTime(e.start)}–${fmtTime(e.end)}</div>`;
       evEl.addEventListener("click", () => showEventActions(e));

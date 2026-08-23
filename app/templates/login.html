@@ -1,20 +1,27 @@
 {% extends "base.html" %}
-{% block title %}Login — ProfSchedule AI{% endblock %}
+{% block title %}Sign In — ProfSchedule AI{% endblock %}
 {% block auth_content %}
 <div class="auth-wrap">
   <div class="auth-card">
-    <h1>📅 ProfSchedule AI</h1>
+    <div class="auth-brand">
+      <div class="brand-mark">👑</div>
+      <div>
+        <div class="brand-name">ProfSchedule <span>AI</span></div>
+        <div class="brand-tag">Plan Smarter, Teach Better</div>
+      </div>
+    </div>
+    <h1 style="margin-top:18px">Welcome back</h1>
     <div class="subtitle">Sign in to manage your academic schedule.</div>
     <form id="login-form">
       <div class="form-group">
         <label for="email">Email</label>
-        <input type="email" id="email" required autocomplete="username">
+        <input type="email" id="email" required autocomplete="username" placeholder="you@college.edu">
       </div>
       <div class="form-group">
         <label for="password">Password</label>
-        <input type="password" id="password" required autocomplete="current-password">
+        <input type="password" id="password" required autocomplete="current-password" placeholder="••••••••">
       </div>
-      <button type="submit" class="btn btn-primary" style="width:100%">Sign In</button>
+      <button type="submit" class="btn btn-primary btn-block">Sign In</button>
       <div id="login-error" class="form-error"></div>
     </form>
     <div class="auth-switch">Don't have an account? <a href="/register">Create one</a></div>

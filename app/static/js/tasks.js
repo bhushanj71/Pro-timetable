@@ -9,12 +9,12 @@ async function loadTasks() {
       ? tasks
           .map(
             (t) => `
-        <div class="schedule-item">
+        <div class="task-row">
           <div style="flex:1">
-            <div class="schedule-title" style="${t.status === "completed" ? "text-decoration:line-through;opacity:.6" : ""}">${t.title}</div>
-            <div class="schedule-sub">${t.due_date ? "Due " + fmtDate(t.due_date) : "No due date"}</div>
+            <div class="task-name" style="${t.status === "completed" ? "text-decoration:line-through;opacity:.6" : ""}">${t.title}</div>
+            <div class="muted-text">${t.due_date ? "Due " + fmtDate(t.due_date) : "No due date"}</div>
           </div>
-          <span class="badge-pill priority-${t.priority}">${t.priority}</span>
+          <span class="pill priority-${t.priority}">${t.priority}</span>
           ${
             t.status !== "completed"
               ? `<button class="btn btn-sm" onclick="completeTask('${t.id}')">✓ Complete</button>`
@@ -24,9 +24,9 @@ async function loadTasks() {
         </div>`
           )
           .join("")
-      : `<p class="schedule-sub">No tasks found.</p>`;
+      : `<p class="muted-text">No tasks found.</p>`;
   } catch (_) {
-    el.innerHTML = `<p class="schedule-sub">Could not load tasks.</p>`;
+    el.innerHTML = `<p class="muted-text">Could not load tasks.</p>`;
   }
 }
 
