@@ -176,3 +176,30 @@ def test_user_default_lead_time_is_respected(auth_client, db_session):
     r = db_session.query(Reminder).filter(Reminder.event_id == resp.json()[0]["id"]).first()
     delta = future - r.reminder_datetime.replace(tzinfo=timezone.utc)
     assert abs(delta - timedelta(minutes=60)) < timedelta(seconds=5)
+
+
+# --- Onboarding ------------------------------------------------------------
+
+def test_onboarding_status_reports_what_is_missing(auth_client):
+    body = auth_client.get("/api/onboarding/status").json()
+    assert body["completed"] is False
+    assert body["needs_setup"] is True, "a fresh account has no devices and no calendar"
+    assert body["push"]["devices"] == 0
+    assert body["email"]["address"] == "test@example.com"
+    assert body["calendar_feed_url"].endswith(".ics")
+
+
+def test_completing_onboarding_stops_the_prompt(auth_client):
+    assert auth_client.post("/api/onboarding/complete").json()["ok"] is True
+    body = auth_client.get("/api/onboarding/status").json()
+    assert body["completed"] is True
+    assert body["needs_setup"] is False, "the prompt must not reappear after being dismissed"
+
+
+def test_registering_a_device_satisfies_the_push_step(auth_client):
+    auth_client.post("/api/push/subscribe", json=_sub_payload("https://fcm.googleapis.com/fcm/send/onb1"))
+    assert auth_client.get("/api/onboarding/status").json()["push"]["devices"] == 1
+
+
+def test_onboarding_status_requires_auth(client):
+    assert client.get("/api/onboarding/status").status_code == 401

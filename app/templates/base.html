@@ -116,8 +116,83 @@
   {% block auth_content %}{% endblock %}
 {% endif %}
 
+
+  <!-- First-login notification setup -->
+  <div id="onboarding-modal" class="modal-backdrop hidden">
+    <div class="modal-card" style="max-width:520px">
+      <div style="text-align:center;margin-bottom:6px">
+        <div class="onb-hero">🔔</div>
+        <h3 style="margin:14px 0 6px">Never miss a lecture</h3>
+        <p class="muted-text">Set up reminders once and they'll reach your phone automatically.</p>
+      </div>
+
+      <div class="onb-steps">
+        <!-- Email: already known from the login -->
+        <div class="onb-step done" id="onb-email">
+          <div class="onb-ico">📧</div>
+          <div style="flex:1;min-width:0">
+            <div class="onb-title">Email reminders</div>
+            <div class="onb-sub" id="onb-email-sub">{{ user.email }}</div>
+          </div>
+          <span class="onb-state" id="onb-email-state">✓ On</span>
+        </div>
+
+        <!-- Push on this device -->
+        <div class="onb-step" id="onb-push">
+          <div class="onb-ico">📱</div>
+          <div style="flex:1;min-width:0">
+            <div class="onb-title">Alerts on this device</div>
+            <div class="onb-sub" id="onb-push-sub">Get a notification even when the app is closed</div>
+          </div>
+          <button class="btn btn-sm btn-primary" id="onb-push-btn">Allow</button>
+          <span class="onb-state hidden" id="onb-push-state">✓ On</span>
+        </div>
+
+        <!-- Calendar -->
+        <div class="onb-step" id="onb-cal">
+          <div class="onb-ico">🗓️</div>
+          <div style="flex:1;min-width:0">
+            <div class="onb-title">Add to your calendar</div>
+            <div class="onb-sub" id="onb-cal-sub">Your classes appear in the calendar app you already use</div>
+          </div>
+          <button class="btn btn-sm btn-primary" id="onb-cal-btn">Connect</button>
+          <span class="onb-state hidden" id="onb-cal-state">✓ On</span>
+        </div>
+      </div>
+
+      <!-- Revealed when the professor picks Apple/other, or Google isn't available -->
+      <div id="onb-cal-options" class="hidden onb-options">
+        <div class="onb-opt" id="onb-google-opt">
+          <a class="btn btn-block" href="/auth/google/link">🗓️ Google Calendar — one tap</a>
+        </div>
+        <div class="onb-opt">
+          <div class="onb-title" style="margin-bottom:6px">🍎 Apple Calendar / Outlook / other</div>
+          <p class="muted-text" style="margin-bottom:8px">
+            Apple has no one-tap connect, so subscribe to your personal feed instead —
+            it works the same once added.
+          </p>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="onb-feed-url" readonly value="Loading…" style="font-size:0.75rem">
+            <button class="btn btn-sm" id="onb-copy-feed">Copy</button>
+          </div>
+          <small class="form-hint">
+            iPhone: Settings → Apps → Calendar → Accounts → Add Account → Other →
+            Add Subscribed Calendar, then paste this link.
+          </small>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="justify-content:space-between">
+        <button class="btn btn-ghost btn-sm" id="onb-skip">Skip for now</button>
+        <button class="btn btn-primary" id="onb-done">Done</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast-container" class="toast-container"></div>
   <script src="/static/js/app.js?v={{ v }}"></script>
+  <script src="/static/js/push.js?v={{ v }}"></script>
+  <script src="/static/js/onboarding.js?v={{ v }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

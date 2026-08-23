@@ -1186,3 +1186,34 @@ input, select, textarea, button { font-size: inherit; }
   padding: 5px 12px; border-radius: var(--radius-pill);
   font-size: 0.76rem; font-weight: 800;
 }
+
+/* ---------- First-login onboarding ---------- */
+.onb-hero {
+  width: 64px; height: 64px; margin: 0 auto;
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--primary) 0%, #eb9375 100%);
+  display: grid; place-items: center; font-size: 1.7rem;
+  box-shadow: 0 8px 22px var(--primary-ring);
+  animation: scaleIn var(--t-slow) var(--ease-spring) both;
+}
+.onb-steps { display: flex; flex-direction: column; gap: 10px; margin: 20px 0 4px; }
+.onb-step {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-alt);
+  transition: border-color var(--t) var(--ease), background var(--t) var(--ease), transform var(--t) var(--ease);
+}
+.onb-step:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.onb-step.done { background: var(--success-soft); border-color: transparent; }
+.onb-ico {
+  width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
+  background: var(--surface); display: grid; place-items: center; font-size: 1.05rem;
+  box-shadow: var(--shadow-xs);
+}
+.onb-title { font-weight: 700; font-size: 0.885rem; }
+.onb-sub { font-size: 0.755rem; color: var(--text-muted); margin-top: 1px; }
+.onb-state { font-size: 0.76rem; font-weight: 800; color: var(--success); white-space: nowrap; }
+.onb-options { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
+.onb-opt { animation: fadeUp var(--t) var(--ease-out) both; }

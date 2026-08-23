@@ -145,6 +145,7 @@ _ADDITIVE_COLUMNS = {
         ("google_refresh_token", "TEXT"),
         ("google_calendar_id", "VARCHAR(255)"),
         ("google_sync_enabled", "BOOLEAN DEFAULT 0 NOT NULL"),
+        ("onboarding_completed", "BOOLEAN DEFAULT 0 NOT NULL"),
     ],
     "events": [
         ("google_event_id", "VARCHAR(255)"),

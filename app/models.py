@@ -113,6 +113,10 @@ class User(Base):
     google_calendar_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     google_sync_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # First-run notification setup. Stored server-side so the prompt follows
+    # the professor to any browser until they've actually made a choice.
+    onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

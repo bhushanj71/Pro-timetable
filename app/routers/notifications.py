@@ -214,3 +214,37 @@ def rotate_calendar_token(db: Session = Depends(get_db), user: User = Depends(ge
     user.calendar_token = uuid.uuid4().hex
     db.commit()
     return {"ok": True, "token": user.calendar_token}
+
+
+# ---------------------------------------------------------------------------
+# First-run onboarding
+# ---------------------------------------------------------------------------
+@router.get("/onboarding/status")
+def onboarding_status(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """What the professor still needs to set up for reminders to reach them.
+
+    Drives the first-login prompt, so nobody has to discover the settings
+    page on their own.
+    """
+    from app.services.google import google_configured
+
+    base = (settings.PUBLIC_BASE_URL or str(request.base_url)).rstrip("/")
+    devices = db.query(PushSubscription).filter(PushSubscription.user_id == user.id).count()
+
+    return {
+        "completed": user.onboarding_completed,
+        "email": {"address": user.email, "enabled": user.notify_email, "server_ready": email_configured()},
+        "push": {"enabled": user.notify_push, "server_ready": push_configured(), "devices": devices},
+        "google": {"available": google_configured(), "connected": user.google_sync_enabled},
+        "calendar_feed_url": f"{base}/api/calendar/{user.calendar_token}.ics",
+        # Nothing left to prompt about once a calendar is linked and this
+        # device can receive push.
+        "needs_setup": not user.onboarding_completed and (devices == 0 or not user.google_sync_enabled),
+    }
+
+
+@router.post("/onboarding/complete")
+def onboarding_complete(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    user.onboarding_completed = True
+    db.commit()
+    return {"ok": True}
