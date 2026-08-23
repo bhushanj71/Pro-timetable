@@ -240,20 +240,42 @@ Professors can also create an account with one tap instead of a password.
 
 **Google Cloud Console setup**
 
+Google renamed this area to **Google Auth Platform** in 2025 — there is no
+longer an "OAuth consent screen" page.
+
 1. Create a project at [console.cloud.google.com](https://console.cloud.google.com).
 2. **APIs & Services → Library** → enable **Google Calendar API**.
-3. **OAuth consent screen** → External. Add your email as a test user. Add
-   scopes `openid`, `email`, `profile`, and
+3. **Google Auth Platform → Branding** — set the app name, user support email
+   and developer contact.
+4. **Google Auth Platform → Audience** — choose the user type:
+
+   | | Internal | External |
+   |---|---|---|
+   | Who can sign in | Anyone in your Workspace domain | Any Google account |
+   | "Unverified app" warning | None | Shown until verified |
+   | User cap | Unlimited | 100 test users |
+   | Verification | Never required | Required, and slow for the calendar scope |
+
+   **Internal is strongly preferred for a college deployment** — every
+   professor already has a domain account, and it avoids Google verification
+   entirely. It only appears when you are signed in with a Google Workspace
+   account; a personal Gmail can only create External apps.
+
+   If you pick External, add yourself under *Test users*, or sign-in will be
+   refused.
+
+5. **Google Auth Platform → Data Access** → *Add or remove scopes*:
+   `openid`, `.../auth/userinfo.email`, `.../auth/userinfo.profile`, and
    `https://www.googleapis.com/auth/calendar.events`.
-4. **Credentials → Create credentials → OAuth client ID → Web application**.
-   Add the authorised redirect URI:
+6. **Google Auth Platform → Clients** → *Create client* → **Web application**.
+   Add the authorised redirect URIs:
 
    ```
    https://your-app.onrender.com/auth/google/callback
+   http://localhost:8000/auth/google/callback
    ```
 
-   (and `http://localhost:8000/auth/google/callback` for local development)
-5. Set the printed values in the environment:
+7. Set the printed values in the environment:
 
    ```env
    GOOGLE_CLIENT_ID=...apps.googleusercontent.com
@@ -278,12 +300,12 @@ shows a dead link.
 - Disconnecting is refused for accounts that have no password, since it would
   lock the professor out.
 
-> **On Google's verification screen:** while the OAuth consent screen is in
-> Testing mode, Google shows an "unverified app" warning and only the test
-> users you list can sign in (up to 100). That's fine for a department. To
-> remove the warning and open it to anyone, submit the app for verification —
-> the calendar scope is classed as sensitive, so this requires a privacy
-> policy and a verified domain, and review takes time.
+> **Only relevant if you chose External:** while the app is in Testing mode
+> Google shows an "unverified app" warning and only listed test users can sign
+> in (up to 100). Removing that means submitting for verification, and because
+> `calendar.events` is a sensitive scope that requires a privacy policy and a
+> verified domain, with a review that takes weeks. Choosing **Internal** avoids
+> all of this.
 
 ### Keeping delivery on time
 
