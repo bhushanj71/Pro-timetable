@@ -13,7 +13,7 @@ from app.models import Event, User
 from app.schemas import EventCreate, EventOut, EventUpdate
 from app.services.conflict_service import find_conflicts, suggest_resolution
 from app.services.recurrence import generate_occurrence_starts
-from app.services.reminder_service import create_reminder_for_event
+from app.services.reminder_service import schedule_event_reminders
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
@@ -116,13 +116,9 @@ def create_event(
     occurrence_starts = generate_occurrence_starts(payload.start_datetime, payload.recurrence_rule)
     group_id = str(uuid4()) if payload.recurrence_rule and len(occurrence_starts) > 1 else None
 
-    # `None` means "the professor didn't specify", so fall back to the lead
-    # time from their profile — otherwise events silently get no reminder at
-    # all and nothing is ever delivered. An explicit empty list still means
-    # "no reminders for this event".
+    # Passed through untouched: `None` lets schedule_event_reminders apply the
+    # profile default, while an explicit empty list still means "no reminders".
     lead_times = payload.reminder_minutes
-    if lead_times is None:
-        lead_times = [user.default_reminder_minutes] if user.default_reminder_minutes else []
 
     created: list[Event] = []
     for occ_start in occurrence_starts:
@@ -142,12 +138,7 @@ def create_event(
         )
         db.add(event)
         db.flush()  # get event.id before creating reminders
-        for minutes in lead_times:
-            # Skip occurrences whose reminder time has already passed — a
-            # 16-week recurring series would otherwise dump a pile of overdue
-            # reminders that all fire at once on the next tick.
-            if occ_start - timedelta(minutes=minutes) > datetime.now(timezone.utc):
-                create_reminder_for_event(db, event, minutes)
+        schedule_event_reminders(db, event, user, leads=lead_times)
         created.append(event)
 
     db.commit()

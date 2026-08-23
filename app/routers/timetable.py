@@ -13,6 +13,7 @@ from app.models import Event, User
 from app.schemas import TimetableGenerateRequest
 from app.services.nlp_dates import combine, resolve_time
 from app.services.recurrence import DAY_CODES, generate_occurrence_starts
+from app.services.reminder_service import schedule_event_reminders
 from app.services.scheduler import generate_timetable
 
 router = APIRouter(prefix="/api/timetable", tags=["timetable"])
@@ -80,6 +81,9 @@ def generate(
                     recurrence_group_id=group_id,
                 )
                 db.add(event)
+                db.flush()
+                # Generated classes previously got no reminders at all.
+                schedule_event_reminders(db, event, user)
                 created_count += 1
 
             i = j + 1

@@ -127,11 +127,14 @@ def test_creating_an_event_creates_a_reminder_by_default(auth_client, db_session
     event_id = resp.json()[0]["id"]
 
     reminders = db_session.query(Reminder).filter(Reminder.event_id == event_id).all()
-    assert len(reminders) == 1, "an event with no explicit reminder must still use the profile default"
+    assert reminders, "an event with no explicit reminder must still use the profile default"
 
-    # Default lead time is 30 minutes before the event.
-    delta = future - reminders[0].reminder_datetime.replace(tzinfo=timezone.utc)
-    assert abs(delta - timedelta(minutes=30)) < timedelta(seconds=5)
+    # The 30-minute profile default plus the 5-minute last call.
+    leads = sorted(
+        round((future - r.reminder_datetime.replace(tzinfo=timezone.utc)).total_seconds() / 60)
+        for r in reminders
+    )
+    assert leads == [5, 30]
 
 
 def test_explicit_empty_list_means_no_reminder(auth_client, db_session):
@@ -144,6 +147,65 @@ def test_explicit_empty_list_means_no_reminder(auth_client, db_session):
     })
     event_id = resp.json()[0]["id"]
     assert db_session.query(Reminder).filter(Reminder.event_id == event_id).count() == 0
+
+
+def test_every_event_gets_a_five_minute_last_call(auth_client, db_session):
+    """'Remind me 5 minutes before' applies to everything on the schedule, on
+    top of whatever longer lead time the professor set."""
+    future = datetime.now(timezone.utc) + timedelta(days=1)
+    resp = auth_client.post("/api/events", json={
+        "title": "Project Review",
+        "event_type": "review",
+        "start_datetime": future.isoformat(),
+        "end_datetime": (future + timedelta(hours=1)).isoformat(),
+        "reminder_minutes": [60],
+    })
+    event_id = resp.json()[0]["id"]
+
+    leads = sorted(
+        round((future - r.reminder_datetime.replace(tzinfo=timezone.utc)).total_seconds() / 60)
+        for r in db_session.query(Reminder).filter(Reminder.event_id == event_id)
+    )
+    assert leads == [5, 60]
+
+
+def test_five_minute_nudge_is_not_duplicated(auth_client, db_session):
+    """A professor whose default already is 5 minutes gets one reminder, not two."""
+    future = datetime.now(timezone.utc) + timedelta(days=1)
+    resp = auth_client.post("/api/events", json={
+        "title": "Short Notice",
+        "start_datetime": future.isoformat(),
+        "end_datetime": (future + timedelta(hours=1)).isoformat(),
+        "reminder_minutes": [5],
+    })
+    event_id = resp.json()[0]["id"]
+    assert db_session.query(Reminder).filter(Reminder.event_id == event_id).count() == 1
+
+
+def test_tasks_created_from_the_tasks_page_get_reminders(auth_client, db_session):
+    """Tasks used to be created with no reminders at all, so a deadline could
+    pass in silence."""
+    due = datetime.now(timezone.utc) + timedelta(days=3)
+    resp = auth_client.post("/api/tasks", json={"title": "Submit marks", "due_date": due.isoformat()})
+    assert resp.status_code == 201
+    task_id = resp.json()["id"]
+
+    leads = sorted(
+        round((due - r.reminder_datetime.replace(tzinfo=timezone.utc)).total_seconds() / 60)
+        for r in db_session.query(Reminder).filter(Reminder.task_id == task_id)
+    )
+    assert leads == [5, 24 * 60]
+
+
+def test_generated_timetable_classes_get_reminders(auth_client, db_session):
+    """Committed timetable lectures previously bypassed reminder creation."""
+    resp = auth_client.post("/api/timetable/generate?commit=true", json={
+        "subjects": [{"subject": "Data Structures", "lectures_per_week": 2}],
+        "working_days": ["Mon", "Tue"],
+    })
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["events_created"] > 0
+    assert db_session.query(Reminder).count() > 0, "generated lectures must be reminded about"
 
 
 def test_past_occurrences_do_not_create_overdue_reminders(auth_client, db_session):

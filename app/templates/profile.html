@@ -28,7 +28,11 @@
   </div>
   <div class="form-row">
     <div class="form-group"><label>Default Lecture Duration (min)</label><input type="number" id="pf-lecture-duration" value="{{ user.default_lecture_duration }}"></div>
-    <div class="form-group"><label>Default Reminder (min before)</label><input type="number" id="pf-reminder-minutes" value="{{ user.default_reminder_minutes }}"></div>
+    <div class="form-group">
+      <label>Default Reminder (min before)</label>
+      <input type="number" id="pf-reminder-minutes" value="{{ user.default_reminder_minutes }}">
+      <small class="form-hint">Everything on your schedule also gets a final nudge 5 minutes before it starts.</small>
+    </div>
   </div>
   <div class="form-group">
     <label>Preferred AI Provider</label>

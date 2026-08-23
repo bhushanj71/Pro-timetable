@@ -36,7 +36,11 @@ from app.services.nlp_dates import (
     weekday_code,
 )
 from app.services.recurrence import generate_occurrence_starts
-from app.services.reminder_service import create_reminder_for_event, create_reminder_for_task
+from app.services.reminder_service import (
+    create_reminder_for_event,
+    schedule_event_reminders,
+    schedule_task_reminders,
+)
 from app.services.scheduler import find_free_slots, generate_timetable
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
@@ -386,8 +390,7 @@ def confirm_extraction(payload: AIConfirmRequest, db: Session = Depends(get_db),
             # Fall back to the professor's configured lead time when the model
             # didn't specify one, so every scheduled item actually reminds.
             lead = evt.reminder_minutes or user.default_reminder_minutes
-            if lead and occ_start - timedelta(minutes=lead) > datetime.now(timezone.utc):
-                create_reminder_for_event(db, event, lead)
+            schedule_event_reminders(db, event, user, leads=[lead] if lead else None)
             created_events.append(event)
 
     for r in extraction.reminders:
@@ -422,8 +425,7 @@ def confirm_extraction(payload: AIConfirmRequest, db: Session = Depends(get_db),
         )
         db.add(task)
         db.flush()
-        if due:
-            create_reminder_for_task(db, task, combine(due, time(9, 0), user.timezone) - timedelta(days=1))
+        schedule_task_reminders(db, task, user)
         created_tasks.append(task)
 
     db.commit()

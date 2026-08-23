@@ -42,6 +42,66 @@ def create_reminder_for_task(db: Session, task: Task, reminder_time: datetime, r
     return reminder
 
 
+# Every scheduled item also gets a short "starting now" nudge, on top of the
+# professor's own lead time.
+LAST_CALL_MINUTES = 5
+
+
+def schedule_event_reminders(db: Session, event: Event, user: User, leads: list[int] | None = None) -> int:
+    """Create this event's reminders: the professor's lead time plus a 5-minute
+    final nudge.
+
+    Deduplicated (a 5-minute default would otherwise produce two identical
+    reminders) and skips any whose time has already passed, so backfilling a
+    long recurring series cannot dump a pile of overdue reminders.
+    """
+    if leads is None:
+        leads = [user.default_reminder_minutes or 30]
+    elif not leads:
+        return 0  # explicit opt-out: not even the last-call nudge
+    wanted = sorted({m for m in list(leads) + [LAST_CALL_MINUTES] if m and m > 0}, reverse=True)
+
+    now = datetime.now(timezone.utc)
+    start = event.start_datetime
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+
+    created = 0
+    for minutes in wanted:
+        if start - timedelta(minutes=minutes) <= now:
+            continue
+        create_reminder_for_event(db, event, minutes)
+        created += 1
+    return created
+
+
+def schedule_task_reminders(db: Session, task: Task, user: User) -> int:
+    """A day-ahead heads-up plus a 5-minute nudge before the deadline."""
+    if not task.due_date:
+        return 0
+
+    due = task.due_date if task.due_date.tzinfo else task.due_date.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+
+    created = 0
+    for when, label in (
+        (due - timedelta(days=1), f"Due tomorrow: {task.title}"),
+        (due - timedelta(minutes=LAST_CALL_MINUTES), f"Due in {LAST_CALL_MINUTES} minutes: {task.title}"),
+    ):
+        if when <= now:
+            continue
+        db.add(
+            Reminder(
+                task_id=task.id,
+                user_id=task.user_id,
+                title=label,
+                reminder_datetime=when,
+            )
+        )
+        created += 1
+    return created
+
+
 def _describe_when(reminder: Reminder, tz_name: str) -> tuple[str, str | None]:
     """Human-readable time and location for the reminder's target event."""
     from app.services.nlp_dates import ensure_aware_utc, get_tz

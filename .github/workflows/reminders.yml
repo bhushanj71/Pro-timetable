@@ -11,9 +11,11 @@ name: Process reminders
 
 on:
   schedule:
-    # Every 10 minutes. GitHub queues scheduled jobs, so the real interval
-    # can drift by a few minutes under load.
-    - cron: "*/10 * * * *"
+    # Every 5 minutes -- the shortest GitHub allows -- because the last-call
+    # reminder fires 5 minutes before an event and a slower poll would deliver
+    # it after the event had already started. GitHub queues scheduled jobs, so
+    # the real interval can still drift by a few minutes under load.
+    - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
 jobs:

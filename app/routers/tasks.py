@@ -10,6 +10,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models import Task, User
 from app.schemas import TaskCreate, TaskOut, TaskUpdate
+from app.services.reminder_service import schedule_task_reminders
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -33,6 +34,9 @@ def list_tasks(
 def create_task(payload: TaskCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     task = Task(user_id=user.id, **payload.model_dump())
     db.add(task)
+    db.flush()
+    # Tasks created here previously had no reminders at all.
+    schedule_task_reminders(db, task, user)
     db.commit()
     db.refresh(task)
     return task
