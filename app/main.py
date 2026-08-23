@@ -127,7 +127,7 @@ def health():
     """
     from sqlalchemy import text
 
-    from app.database import CONFIG_ERROR, engine
+    from app.database import CONFIG_ERROR, describe_connection, engine
 
     db_ok, db_error = True, None
     try:
@@ -137,7 +137,7 @@ def health():
         db_ok = False
         db_error = f"{type(exc).__name__}: {exc}"[:300]
 
-    return {
+    payload = {
         "status": "ok" if db_ok and not _startup_error and not CONFIG_ERROR else "degraded",
         "app": settings.APP_NAME,
         "database": "connected" if db_ok else "unreachable",
@@ -145,3 +145,8 @@ def health():
         "startup_error": _startup_error,
         "config_error": CONFIG_ERROR,
     }
+    if not db_ok:
+        # Only while broken: reveals which host is actually being dialed
+        # (password redacted) so the misconfiguration can be pinpointed.
+        payload["connecting_to"] = describe_connection()
+    return payload

@@ -70,6 +70,22 @@ if "db." in url and ".supabase.co" in url:
         "(aws-<region>.pooler.supabase.com) with username postgres.<project-ref>."
     )
 
+def describe_connection() -> str:
+    """Human-readable connection target with the password stripped.
+
+    Exposed on /api/health only while the database is unreachable, so a
+    misconfigured host can be identified without shell access to the host —
+    and nothing is disclosed once the connection is healthy.
+    """
+    try:
+        from sqlalchemy.engine import make_url
+
+        u = make_url(url)
+        return f"{u.drivername}://{u.username or '(no user)'}:***@{u.host or '(no host)'}:{u.port or '(default port)'}/{u.database or ''}"
+    except Exception:
+        return "(could not parse DATABASE_URL)"
+
+
 def _build_engine(target_url: str):
     return create_engine(target_url, connect_args=connect_args, pool_pre_ping=True)
 
