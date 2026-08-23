@@ -77,11 +77,25 @@ def describe_connection() -> str:
     misconfigured host can be identified without shell access to the host —
     and nothing is disclosed once the connection is healthy.
     """
+    import re
+
     try:
         from sqlalchemy.engine import make_url
 
         u = make_url(url)
-        return f"{u.drivername}://{u.username or '(no user)'}:***@{u.host or '(no host)'}:{u.port or '(default port)'}/{u.database or ''}"
+        host = u.host or "(no host)"
+
+        # A password containing unencoded reserved characters (@ : / # ? %)
+        # makes the parser mis-split the URI, spilling password bytes into the
+        # host. Never echo that back — report the misconfiguration instead.
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", host):
+            return (
+                "(malformed DATABASE_URL: the password almost certainly contains "
+                "special characters that must be percent-encoded, e.g. @ -> %40, "
+                "# -> %23, $ -> %24, %% -> %25, ! -> %21)"
+            )
+
+        return f"{u.drivername}://{u.username or '(no user)'}:***@{host}:{u.port or '(default port)'}/{u.database or ''}"
     except Exception:
         return "(could not parse DATABASE_URL)"
 
