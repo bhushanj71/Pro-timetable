@@ -56,6 +56,32 @@ function renderExtractionPreview(response) {
     return;
   }
 
+  // --- Create: list what will be added ---
+  // The model often omits end_time; the server derives a default duration, so
+  // mirror that here rather than rendering a literal "null".
+  const impliedEnd = (start, end) => {
+    if (end) return end;
+    if (!start || !/^\d{1,2}:\d{2}$/.test(start)) return "";
+    const [h, m] = start.split(":").map(Number);
+    return `${String((h + 1) % 24).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  };
+
+  extraction.events.forEach((e) => {
+    const when = [e.day, e.date].filter(Boolean).join(" ");
+    const range = [e.start_time, impliedEnd(e.start_time, e.end_time)].filter(Boolean).join("–");
+    const days = e.recurrence_days?.length ? e.recurrence_days.join(", ") : null;
+    const repeat = e.recurrence ? ` (every ${days || e.recurrence.replace("weekly", "week")})` : "";
+    lines += `<div class="event-line">📌 <strong>${e.title}</strong> — ${days || when} ${range}${repeat}</div>`;
+  });
+
+  extraction.reminders.forEach((r) => {
+    lines += `<div class="event-line">⏰ Reminder: <strong>${r.title}</strong> ${r.date || ""} ${r.time || ""}</div>`;
+  });
+
+  extraction.tasks.forEach((t) => {
+    lines += `<div class="event-line">✅ Task: <strong>${t.title}</strong> ${t.due_date ? "due " + t.due_date : ""}</div>`;
+  });
+
   let conflictHtml = "";
   if (conflicts && conflicts.length) {
     conflictHtml = `<div class="event-line" style="color:#ffb4a2">⚠️ Conflicts with: ${conflicts
