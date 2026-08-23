@@ -127,7 +127,7 @@ def health():
     """
     from sqlalchemy import text
 
-    from app.database import engine
+    from app.database import CONFIG_ERROR, engine
 
     db_ok, db_error = True, None
     try:
@@ -138,9 +138,10 @@ def health():
         db_error = f"{type(exc).__name__}: {exc}"[:300]
 
     return {
-        "status": "ok" if db_ok and not _startup_error else "degraded",
+        "status": "ok" if db_ok and not _startup_error and not CONFIG_ERROR else "degraded",
         "app": settings.APP_NAME,
         "database": "connected" if db_ok else "unreachable",
         "database_error": db_error,
         "startup_error": _startup_error,
+        "config_error": CONFIG_ERROR,
     }

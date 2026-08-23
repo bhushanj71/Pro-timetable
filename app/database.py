@@ -28,14 +28,21 @@ if not url:
     url = SQLITE_FALLBACK
 
 # Catch a connection string pasted straight from a provider's docs with the
-# password placeholder still in it — the failure would otherwise surface much
-# later as a confusing auth/DNS error.
+# password placeholder still in it. This must NOT raise: a config mistake that
+# crashes at import prevents the process from starting at all, which the host
+# can only report as an opaque "deploy failed". Fall back to SQLite so the app
+# boots and /api/health can state the real problem.
+CONFIG_ERROR: str | None = None
+
 for placeholder in ("[YOUR-PASSWORD]", "YOUR-PASSWORD", "<password>", "[PASSWORD]"):
     if placeholder in url:
-        raise RuntimeError(
+        CONFIG_ERROR = (
             f"DATABASE_URL still contains the placeholder {placeholder!r}. "
             "Replace it with your actual database password."
         )
+        logger.error("%s Falling back to local SQLite.", CONFIG_ERROR)
+        url = SQLITE_FALLBACK
+        break
 
 connect_args = {}
 if url.startswith("sqlite"):
@@ -63,7 +70,19 @@ if "db." in url and ".supabase.co" in url:
         "(aws-<region>.pooler.supabase.com) with username postgres.<project-ref>."
     )
 
-engine = create_engine(url, connect_args=connect_args, pool_pre_ping=True)
+def _build_engine(target_url: str):
+    return create_engine(target_url, connect_args=connect_args, pool_pre_ping=True)
+
+
+try:
+    engine = _build_engine(url)
+except Exception as exc:  # malformed URL, unknown driver, missing dialect...
+    # Same rationale as the placeholder guard: never crash at import over a
+    # config value. Boot on SQLite and let /api/health explain.
+    CONFIG_ERROR = f"Invalid DATABASE_URL ({type(exc).__name__}: {exc}). Falling back to local SQLite."
+    logger.error(CONFIG_ERROR)
+    connect_args = {"check_same_thread": False}
+    engine = _build_engine(SQLITE_FALLBACK)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
