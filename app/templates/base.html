@@ -9,12 +9,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v={{ v }}">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="ProfSchedule">
   <link rel="stylesheet" href="/static/css/style.css?v={{ v }}">
   <link rel="stylesheet" href="/static/css/mobile.css?v={{ v }}">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
+  <link rel="icon" type="image/png" href="/static/favicon.png?v={{ v }}">
   {% block head %}{% endblock %}
 </head>
 <body class="app-shell">
@@ -23,10 +23,11 @@
     <!-- ==================== Sidebar ==================== -->
     <nav class="sidebar" id="sidebar">
       <a href="/dashboard" class="brand-block">
-        <div class="brand-mark">👑</div>
+        <img src="/static/logo.png?v={{ v }}" alt="ProfSchedule AI" class="brand-logo"
+             onerror="this.classList.add('is-missing')">
         <div>
           <div class="brand-name">ProfSchedule <span>AI</span></div>
-          <div class="brand-tag">Plan Smarter, Teach Better</div>
+          <div class="brand-tag">Plan &middot; Teach &middot; Inspire</div>
         </div>
       </a>
 

@@ -195,20 +195,38 @@ document.addEventListener("click", (e) => {
 
 /* ---------------- Loading helpers ---------------- */
 
+// Nothing renders for the first 300ms: most requests finish inside that, and
+// flashing a loader for them reads as jank rather than feedback.
+const LOADER_DELAY_MS = 300;
+
+/** Markup for the five-dot loader. */
+function dotsMarkup(extraClass = "") {
+  return `<span class="dots5 ${extraClass}"><span></span><span></span><span></span><span></span><span></span></span>`;
+}
+
+
 /** Toggle a button's spinner. Also disables it, which prevents the
  *  double-submits that previously created duplicate events. */
 function setButtonLoading(btn, isLoading, loadingLabel) {
   if (!btn) return;
+
   if (isLoading) {
     if (!btn.dataset.originalHtml) btn.dataset.originalHtml = btn.innerHTML;
-    // Lock the current width so the layout doesn't jump when the label hides.
+    // Lock the width so the layout doesn't jump when the label is replaced.
     btn.style.minWidth = `${btn.offsetWidth}px`;
-    if (loadingLabel) btn.innerHTML = loadingLabel;
-    btn.classList.add("is-loading");
     btn.disabled = true;
+
+    // Defer the visual state: a fast action shouldn't flash a loader.
+    btn._loadTimer = setTimeout(() => {
+      if (loadingLabel) btn.innerHTML = loadingLabel;
+      btn.classList.add("is-loading");
+      btn.insertAdjacentHTML("beforeend", dotsMarkup("dots5-sm"));
+    }, LOADER_DELAY_MS);
   } else {
+    clearTimeout(btn._loadTimer);
     btn.classList.remove("is-loading");
     btn.disabled = false;
+    btn.querySelector(".dots5")?.remove();
     if (btn.dataset.originalHtml) {
       btn.innerHTML = btn.dataset.originalHtml;
       delete btn.dataset.originalHtml;
@@ -229,54 +247,58 @@ function showSkeleton(container, rows = 3) {
 function showOverlay(container, label = "Loading…") {
   if (!container) return () => {};
   container.classList.add("loading-host");
-  const el = document.createElement("div");
-  el.className = "loading-overlay";
-  el.innerHTML = `<span class="spinner"></span><span>${label}</span>`;
-  container.appendChild(el);
+  let el = null;
+  const timer = setTimeout(() => {
+    el = document.createElement("div");
+    el.className = "loading-overlay";
+    el.innerHTML = `${dotsMarkup()}<span>${label}</span>`;
+    container.appendChild(el);
+  }, LOADER_DELAY_MS);
+
   return () => {
-    el.remove();
+    clearTimeout(timer);
+    el?.remove();
     container.classList.remove("loading-host");
   };
 }
 
 /**
- * Animated "working on it" panel with a live elapsed timer and rotating
- * status messages. AI calls routinely run several seconds, and a static
- * label makes that feel like the app has hung.
+ * "Working on it" panel with rotating status messages.
  */
-function startProgress(container, messages, { showElapsed = true } = {}) {
+function startProgress(container, messages, options = {}) {
   if (!container) return { stop() {} };
-  const list = messages.length ? messages : ["Working…"];
+  const list = messages.length ? messages : ["Working..."];
   let index = 0;
-  const startedAt = Date.now();
+  let msgTimer = null;
+  let shown = false;
 
-  container.innerHTML = `
-    <div class="ai-confirm-card">
-      <div class="ai-thinking">
-        <span class="spinner spinner-lg"></span>
-        <span class="ai-thinking-text" id="progress-text">${list[0]}</span>
-        ${showElapsed ? '<span class="ai-thinking-elapsed" id="progress-elapsed">0.0s</span>' : ""}
-      </div>
-    </div>`;
+  const showTimer = setTimeout(() => {
+    shown = true;
+    container.innerHTML = `
+      <div class="ai-result-card">
+        <div class="ai-thinking">
+          ${dotsMarkup()}
+          <span class="ai-thinking-text" id="progress-text">${list[0]}</span>
+        </div>
+      </div>`;
 
-  const textEl = container.querySelector("#progress-text");
-  const elapsedEl = container.querySelector("#progress-elapsed");
-
-  const msgTimer = setInterval(() => {
-    index = (index + 1) % list.length;
-    if (textEl) textEl.textContent = list[index];
-  }, 2200);
-
-  const tickTimer = elapsedEl
-    ? setInterval(() => {
-        elapsedEl.textContent = `${((Date.now() - startedAt) / 1000).toFixed(1)}s`;
-      }, 100)
-    : null;
+    const textEl = container.querySelector("#progress-text");
+    msgTimer = setInterval(() => {
+      index = (index + 1) % list.length;
+      if (textEl) textEl.textContent = list[index];
+    }, 2200);
+  }, options.delay ?? LOADER_DELAY_MS);
 
   return {
     stop() {
-      clearInterval(msgTimer);
-      if (tickTimer) clearInterval(tickTimer);
+      clearTimeout(showTimer);
+      if (msgTimer) clearInterval(msgTimer);
+      // Clear the panel only if we actually drew it; otherwise the caller's
+      // own result rendering must not be wiped.
+      if (shown && options.clearOnStop) container.innerHTML = "";
+    },
+    get visible() {
+      return shown;
     },
   };
 }

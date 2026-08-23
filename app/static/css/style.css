@@ -1305,3 +1305,74 @@ input, select, textarea, button { font-size: inherit; }
 @media (hover: none) {
   .ue-manage { opacity: 1; }
 }
+
+/* Brand logo. Falls back to the emoji mark if the asset is missing. */
+.brand-logo {
+  width: 42px; height: 42px;
+  object-fit: contain;
+  flex-shrink: 0;
+  transition: transform var(--t) var(--ease-spring);
+}
+.brand-block:hover .brand-logo { transform: rotate(-6deg) scale(1.07); }
+.brand-logo-lg { width: 52px; height: 52px; }
+
+/* ---------- Brand logo ---------- */
+.brand-logo {
+  width: 42px; height: 42px;
+  object-fit: contain;
+  flex-shrink: 0;
+  transition: transform var(--t) var(--ease-spring);
+}
+.brand-block:hover .brand-logo,
+.lp-nav .brand-block:hover .brand-logo { transform: rotate(-6deg) scale(1.07); }
+.brand-logo-lg { width: 54px; height: 54px; }
+
+/* If logo.png hasn't been added yet, fall back to the gradient mark rather
+   than showing a broken-image icon. */
+.brand-logo.is-missing {
+  background: linear-gradient(135deg, var(--primary) 0%, #eda184 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px var(--primary-ring);
+  position: relative;
+}
+.brand-logo.is-missing::after {
+  content: "PS";
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  color: #fff; font-weight: 800; font-size: 0.95rem;
+}
+
+/* ---------- Five-dot loader ---------- */
+@keyframes dot5 {
+  0%, 70%, 100% { transform: translateY(0) scale(0.82); opacity: 0.35; }
+  35%           { transform: translateY(-7px) scale(1); opacity: 1; }
+}
+.dots5 {
+  display: inline-flex; align-items: flex-end; gap: 5px; height: 18px;
+}
+.dots5 span {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--primary);
+  animation: dot5 1.15s infinite ease-in-out both;
+}
+.dots5 span:nth-child(1) { animation-delay: 0s; }
+.dots5 span:nth-child(2) { animation-delay: 0.11s; }
+.dots5 span:nth-child(3) { animation-delay: 0.22s; }
+.dots5 span:nth-child(4) { animation-delay: 0.33s; }
+.dots5 span:nth-child(5) { animation-delay: 0.44s; }
+.dots5.on-dark span { background: #fff; }
+.dots5-sm span { width: 5px; height: 5px; }
+
+/* In-button variant replaces the spinner */
+.btn.is-loading::after { display: none; }
+.btn.is-loading .dots5 {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  height: auto;
+}
+.btn-primary.is-loading .dots5 span,
+.btn-ask.is-loading .dots5 span { background: #fff; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dots5 span { animation: none; opacity: 0.7; }
+}
