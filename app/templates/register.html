@@ -22,6 +22,55 @@
         <label for="timezone">Timezone</label>
         <input type="text" id="timezone" value="Asia/Kolkata">
       </div>
+
+      <hr style="border:none;border-top:1px solid var(--color-border);margin:18px 0">
+      <div class="form-group">
+        <label for="college-timing">Your college timings</label>
+        <select id="college-timing">
+          <option value="08:45-16:15">8:45 AM – 4:15 PM</option>
+          <option value="09:00-17:00" selected>9:00 AM – 5:00 PM</option>
+          <option value="09:45-17:15">9:45 AM – 5:15 PM</option>
+          <option value="10:00-18:00">10:00 AM – 6:00 PM</option>
+          <option value="11:00-18:30">11:00 AM – 6:30 PM</option>
+          <option value="custom">Custom…</option>
+        </select>
+        <small class="schedule-sub">Used to build your timetable grid and find free slots.</small>
+      </div>
+
+      <div class="form-row hidden" id="custom-hours-row">
+        <div class="form-group">
+          <label for="work-start">Start time</label>
+          <input type="time" id="work-start" value="09:00">
+        </div>
+        <div class="form-group">
+          <label for="work-end">End time</label>
+          <input type="time" id="work-end" value="17:00">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="lunch-start">Lunch from</label>
+          <input type="time" id="lunch-start" value="13:00">
+        </div>
+        <div class="form-group">
+          <label for="lunch-end">Lunch to</label>
+          <input type="time" id="lunch-end" value="13:30">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Working days</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <label style="font-weight:400"><input type="checkbox" class="work-day" value="Mon" checked> Mon</label>
+          <label style="font-weight:400"><input type="checkbox" class="work-day" value="Tue" checked> Tue</label>
+          <label style="font-weight:400"><input type="checkbox" class="work-day" value="Wed" checked> Wed</label>
+          <label style="font-weight:400"><input type="checkbox" class="work-day" value="Thu" checked> Thu</label>
+          <label style="font-weight:400"><input type="checkbox" class="work-day" value="Fri" checked> Fri</label>
+          <label style="font-weight:400"><input type="checkbox" class="work-day" value="Sat"> Sat</label>
+        </div>
+      </div>
+
       <button type="submit" class="btn btn-primary" style="width:100%">Create Account</button>
       <div id="register-error" class="form-error"></div>
     </form>

@@ -13,11 +13,31 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 # Auth / Users
 # ---------------------------------------------------------------------------
 
+HHMM_PATTERN = r"^([01]\d|2[0-3]):[0-5]\d$"
+
+
 class UserCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     timezone: str = "Asia/Kolkata"
+
+    # College timings vary per professor (08:45-16:15, 09:45-17:15, 11:00-18:30,
+    # ...), and they drive the timetable grid, the generator, and free-time
+    # search — so they are collected at signup rather than assumed.
+    working_hours_start: str = Field(default="09:00", pattern=HHMM_PATTERN)
+    working_hours_end: str = Field(default="17:00", pattern=HHMM_PATTERN)
+    lunch_start: str = Field(default="13:00", pattern=HHMM_PATTERN)
+    lunch_end: str = Field(default="13:30", pattern=HHMM_PATTERN)
+    working_days: str = "Mon,Tue,Wed,Thu,Fri"
+
+    @field_validator("working_hours_end")
+    @classmethod
+    def end_after_start(cls, v, info):
+        start = info.data.get("working_hours_start")
+        if start and v <= start:
+            raise ValueError("working_hours_end must be after working_hours_start")
+        return v
 
 
 class UserLogin(BaseModel):

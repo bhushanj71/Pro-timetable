@@ -40,6 +40,11 @@ def register(payload: UserCreate, response: Response, db: Session = Depends(get_
         email=payload.email,
         password_hash=hash_password(payload.password),
         timezone=payload.timezone,
+        working_hours_start=payload.working_hours_start,
+        working_hours_end=payload.working_hours_end,
+        lunch_start=payload.lunch_start,
+        lunch_end=payload.lunch_end,
+        working_days=payload.working_days,
     )
     db.add(user)
     db.commit()

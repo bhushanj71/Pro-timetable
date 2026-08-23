@@ -2,7 +2,31 @@
 
 const TT_DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 const TT_DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const TT_HOURS = Array.from({ length: 11 }, (_, i) => 8 + i); // 8am - 6pm
+
+// Built from the professor's own college timings rather than a fixed 8-6
+// window, since these vary widely (08:45-16:15, 09:45-17:15, 11:00-18:30...).
+let TT_HOURS = Array.from({ length: 11 }, (_, i) => 8 + i);
+let ttProfile = null;
+
+function hhmmToHour(hhmm, fallback) {
+  if (!hhmm || !/^\d{1,2}:\d{2}$/.test(hhmm)) return fallback;
+  const [h, m] = hhmm.split(":").map(Number);
+  return h + m / 60;
+}
+
+/** Derive the grid rows from working hours, expanding to whole hours so a
+ *  08:45 start or an 18:30 end is still fully visible. */
+async function loadProfileHours() {
+  try {
+    ttProfile = await apiFetch("/api/auth/me");
+  } catch (_) {
+    return; // keep the default window
+  }
+  const startHour = Math.floor(hhmmToHour(ttProfile.working_hours_start, 8));
+  const endHour = Math.ceil(hhmmToHour(ttProfile.working_hours_end, 18));
+  const span = Math.max(1, endHour - startHour);
+  TT_HOURS = Array.from({ length: span }, (_, i) => startHour + i);
+}
 
 function timeToRow(iso) {
   const d = new Date(iso);
@@ -374,4 +398,20 @@ document.getElementById("export-csv-btn")?.addEventListener("click", () => (wind
 document.getElementById("export-ics-btn")?.addEventListener("click", () => (window.location.href = "/api/export/ics"));
 document.getElementById("export-pdf-btn")?.addEventListener("click", () => (window.location.href = "/api/export/pdf"));
 
-renderTimetable();
+/** Seed the generator form from the professor's saved timings so they don't
+ *  have to retype what they already gave at signup. */
+function prefillGeneratorFromProfile() {
+  if (!ttProfile) return;
+  const days = document.getElementById("gen-days");
+  const hours = document.getElementById("gen-hours");
+  const lunch = document.getElementById("gen-lunch");
+  if (days) days.value = ttProfile.working_days || "Mon,Tue,Wed,Thu,Fri";
+  if (hours) hours.value = `${ttProfile.working_hours_start}-${ttProfile.working_hours_end}`;
+  if (lunch) lunch.value = `${ttProfile.lunch_start}-${ttProfile.lunch_end}`;
+}
+
+(async () => {
+  await loadProfileHours();
+  prefillGeneratorFromProfile();
+  renderTimetable();
+})();
