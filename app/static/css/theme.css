@@ -1,0 +1,206 @@
+/* ==========================================================================
+   Dark theme
+   Loaded after style.css. Only tokens are redefined, so every component
+   follows automatically.
+
+   Three states:
+     data-theme="dark"   explicit choice
+     data-theme="light"  explicit choice (wins over the OS preference)
+     no attribute        follow the OS via prefers-color-scheme
+   ========================================================================== */
+
+:root[data-theme="dark"] {
+  /* Warm charcoals rather than neutral greys, so the coral still belongs. */
+  --bg: #171311;
+  --bg-tint: #1f1a17;
+  --surface: #201b18;
+  --surface-alt: #262019;
+  --border: #332b26;
+  --border-strong: #443a33;
+
+  --text: #f2ebe7;
+  --text-soft: #c9bcb4;
+  --text-muted: #9a8b82;
+
+  /* Lifted slightly: the light-theme coral is too dim on a dark ground. */
+  --primary: #ef8a6b;
+  --primary-hover: #f59d81;
+  --primary-soft: #3a251d;
+  --primary-softer: #2a1c17;
+  --primary-ring: rgba(239, 138, 107, 0.32);
+
+  --success: #5cb894;
+  --success-soft: #1c3229;
+  --warning: #e0b070;
+  --warning-soft: #33271a;
+  --danger: #e57a72;
+  --danger-soft: #37211f;
+  --info: #85a7c9;
+  --info-soft: #1e2833;
+
+  /* Category accents brightened, their tints darkened to match. */
+  --cat-lecture: #ef8a6b;        --cat-lecture-soft: #35231c;
+  --cat-lab: #a795d1;            --cat-lab-soft: #272134;
+  --cat-meeting: #5cb894;        --cat-meeting-soft: #1c3229;
+  --cat-project_review: #e0b070; --cat-project_review-soft: #33271a;
+  --cat-examination: #e57a72;    --cat-examination-soft: #37211f;
+  --cat-personal: #85a7c9;       --cat-personal-soft: #1e2833;
+  --cat-research: #63b3ac;       --cat-research-soft: #1a302e;
+  --cat-deadline: #dd85a5;       --cat-deadline-soft: #351f28;
+  --cat-conference: #98b877;     --cat-conference-soft: #232b1c;
+  --cat-fdp: #cfa06a;            --cat-fdp-soft: #2f2419;
+  --cat-workshop: #7aa6d4;       --cat-workshop-soft: #1d2733;
+  --cat-other: #a89a90;          --cat-other-soft: #2a2521;
+
+  /* Shadows need more opacity to register against a dark ground. */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.34);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.40);
+  --shadow-md: 0 8px 26px rgba(0, 0, 0, 0.46);
+  --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.55);
+
+  color-scheme: dark;
+}
+
+/* Follow the OS when the professor hasn't chosen explicitly. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #171311;
+    --bg-tint: #1f1a17;
+    --surface: #201b18;
+    --surface-alt: #262019;
+    --border: #332b26;
+    --border-strong: #443a33;
+
+    --text: #f2ebe7;
+    --text-soft: #c9bcb4;
+    --text-muted: #9a8b82;
+
+    --primary: #ef8a6b;
+    --primary-hover: #f59d81;
+    --primary-soft: #3a251d;
+    --primary-softer: #2a1c17;
+    --primary-ring: rgba(239, 138, 107, 0.32);
+
+    --success: #5cb894;   --success-soft: #1c3229;
+    --warning: #e0b070;   --warning-soft: #33271a;
+    --danger: #e57a72;    --danger-soft: #37211f;
+    --info: #85a7c9;      --info-soft: #1e2833;
+
+    --cat-lecture: #ef8a6b;        --cat-lecture-soft: #35231c;
+    --cat-lab: #a795d1;            --cat-lab-soft: #272134;
+    --cat-meeting: #5cb894;        --cat-meeting-soft: #1c3229;
+    --cat-project_review: #e0b070; --cat-project_review-soft: #33271a;
+    --cat-examination: #e57a72;    --cat-examination-soft: #37211f;
+    --cat-personal: #85a7c9;       --cat-personal-soft: #1e2833;
+    --cat-research: #63b3ac;       --cat-research-soft: #1a302e;
+    --cat-deadline: #dd85a5;       --cat-deadline-soft: #351f28;
+    --cat-conference: #98b877;     --cat-conference-soft: #232b1c;
+    --cat-fdp: #cfa06a;            --cat-fdp-soft: #2f2419;
+    --cat-workshop: #7aa6d4;       --cat-workshop-soft: #1d2733;
+    --cat-other: #a89a90;          --cat-other-soft: #2a2521;
+
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.30);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.34);
+    --shadow: 0 4px 16px rgba(0, 0, 0, 0.40);
+    --shadow-md: 0 8px 26px rgba(0, 0, 0, 0.46);
+    --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.55);
+
+    color-scheme: dark;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Surfaces that hard-coded a light value
+   -------------------------------------------------------------------------- */
+:root[data-theme="dark"] .topbar.is-stuck,
+:root:not([data-theme="light"]) .topbar.is-stuck {
+  background: rgba(23, 19, 17, 0.86);
+}
+:root[data-theme="dark"] .bottom-nav,
+:root:not([data-theme="light"]) .bottom-nav {
+  background: rgba(32, 27, 24, 0.94);
+}
+:root[data-theme="dark"] .lp-nav,
+:root:not([data-theme="light"]) .lp-nav {
+  background: rgba(23, 19, 17, 0.82);
+}
+:root[data-theme="dark"] .loading-overlay,
+:root:not([data-theme="light"]) .loading-overlay {
+  background: rgba(32, 27, 24, 0.76);
+}
+:root[data-theme="dark"] .lp-notif,
+:root:not([data-theme="light"]) .lp-notif {
+  background: rgba(38, 32, 25, 0.96);
+}
+
+/* The hero gradient and auth backdrop are painted from light peach tints. */
+:root[data-theme="dark"] .hero,
+:root:not([data-theme="light"]) .hero {
+  background:
+    radial-gradient(1100px 320px at 88% -12%, #3a251d 0%, rgba(58, 37, 29, 0) 62%),
+    linear-gradient(135deg, #241c18 0%, #2c211b 52%, #33251e 100%);
+}
+:root[data-theme="dark"] .auth-wrap,
+:root:not([data-theme="light"]) .auth-wrap {
+  background:
+    radial-gradient(760px 420px at 12% 8%, #2c211b 0%, rgba(44, 33, 27, 0) 62%),
+    radial-gradient(760px 420px at 88% 92%, #33251e 0%, rgba(51, 37, 30, 0) 62%),
+    var(--bg);
+}
+
+/* Emoji-based marks look washed out on dark; nudge their plates. */
+:root[data-theme="dark"] .onb-ico,
+:root:not([data-theme="light"]) .onb-ico { background: var(--bg-tint); }
+
+/* --------------------------------------------------------------------------
+   Theme switcher
+   -------------------------------------------------------------------------- */
+.theme-menu {
+  position: absolute;
+  top: 52px;
+  right: 0;
+  min-width: 168px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  z-index: 120;
+  animation: scaleIn var(--t) var(--ease-out) both;
+  transform-origin: top right;
+}
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-soft);
+  text-align: left;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.theme-option:hover { background: var(--bg-tint); color: var(--text); }
+.theme-option.active { background: var(--primary-soft); color: var(--primary-hover); }
+.theme-option .tick { margin-left: auto; opacity: 0; }
+.theme-option.active .tick { opacity: 1; }
+
+/* Cross-fade the palette instead of snapping between themes. Excluded from
+   elements that animate transform, so their motion isn't slowed. */
+:root.theme-animating body,
+:root.theme-animating .card,
+:root.theme-animating .sidebar,
+:root.theme-animating .topbar,
+:root.theme-animating .hero,
+:root.theme-animating .modal-card,
+:root.theme-animating .bottom-nav {
+  transition: background-color 260ms var(--ease), color 260ms var(--ease),
+              border-color 260ms var(--ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root.theme-animating * { transition: none !important; }
+}

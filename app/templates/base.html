@@ -14,8 +14,22 @@
   <meta name="apple-mobile-web-app-title" content="ProfSchedule">
   <link rel="stylesheet" href="/static/css/style.css?v={{ v }}">
   <link rel="stylesheet" href="/static/css/mobile.css?v={{ v }}">
+  <link rel="stylesheet" href="/static/css/theme.css?v={{ v }}">
   <link rel="icon" type="image/png" href="/static/favicon.png?v={{ v }}">
   {% block head %}{% endblock %}
+  <script>
+    // Applied before paint to avoid a flash of the wrong theme.
+    (function () {
+      try {
+        var c = localStorage.getItem("profschedule-theme") || "system";
+        if (c !== "system") document.documentElement.setAttribute("data-theme", c);
+        var dark = c === "dark" || (c === "system" &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches);
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.setAttribute("content", dark ? "#171311" : "#e0785d");
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body class="app-shell">
 {% if user %}
@@ -90,6 +104,9 @@
         </div>
 
         <div class="topbar-actions">
+          <button class="icon-btn" id="theme-btn" aria-label="Theme">☀️</button>
+          <div id="theme-menu" class="theme-menu hidden"></div>
+
           <button class="icon-btn" id="notif-bell" aria-label="Notifications">
             🔔<span id="notif-count" class="badge hidden">0</span>
           </button>
@@ -204,6 +221,7 @@
 
   <div id="toast-container" class="toast-container"></div>
   <script src="/static/js/app.js?v={{ v }}"></script>
+  <script src="/static/js/theme.js?v={{ v }}"></script>
   <script src="/static/js/mobile.js?v={{ v }}"></script>
   {% if user %}
   <script src="/static/js/pwa.js?v={{ v }}"></script>
