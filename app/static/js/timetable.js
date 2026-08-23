@@ -76,6 +76,9 @@ async function renderTimetable() {
       grid.parentElement.appendChild(note);
     }
 
+    // On phones the 7-column grid is unreadable, so render a single day.
+    if (typeof renderMobileTimetable === "function") renderMobileTimetable(data);
+
     data.events.forEach((e) => {
       const start = new Date(e.start);
       const end = new Date(e.end);

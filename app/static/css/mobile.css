@@ -1,0 +1,257 @@
+/* ==========================================================================
+   Portrait phone optimisations.
+   Loaded after style.css; everything here is inside a max-width query so the
+   desktop layout is untouched.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Page transitions
+   -------------------------------------------------------------------------- */
+@keyframes pageIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes pageOut { to { opacity: 0; transform: translateY(-6px); } }
+
+.content, .landing, .auth-wrap { animation: pageIn 320ms var(--ease-out) both; }
+/* Applied just before navigating so the outgoing page doesn't just vanish. */
+body.is-leaving .content,
+body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
+
+/* Chrome's native cross-document transitions, where available. */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: pageOut 170ms var(--ease) both; }
+::view-transition-new(root) { animation: pageIn 300ms var(--ease-out) both; }
+
+/* Horizontal rails: swipeable rows instead of tall stacks. */
+.h-scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  /* Bleed to the screen edges so the row reads as scrollable. */
+  margin-inline: -15px;
+  padding-inline: 15px;
+  padding-bottom: 4px;
+}
+.h-scroll::-webkit-scrollbar { display: none; }
+.h-scroll > * { scroll-snap-align: start; flex: 0 0 auto; }
+
+@media (max-width: 768px) {
+  /* ------------------------------------------------------------------
+     Touch targets — 44px minimum, per platform guidance
+     ------------------------------------------------------------------ */
+  .btn, .btn-ask, .icon-btn, .tab-btn, .nav-link, .mini-nav button {
+    min-height: 44px;
+  }
+  /* 44px is the platform minimum for a reliable tap. */
+  .btn-sm { min-height: 44px; padding: 10px 14px; font-size: 0.82rem; }
+  .task-check { width: 26px; height: 26px; }
+  .link-more { min-height: 40px; display: inline-flex; align-items: center; }
+
+  /* ------------------------------------------------------------------
+     Shell: bottom tab bar replaces the drawer for primary navigation
+     ------------------------------------------------------------------ */
+  .content { padding-bottom: 84px; }   /* clear the tab bar */
+
+  .bottom-nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 70;
+    display: flex; justify-content: space-around; align-items: stretch;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(14px);
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 -2px 14px rgba(76, 52, 42, 0.06);
+  }
+  .bn-item {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; padding: 9px 4px 7px;
+    font-size: 0.63rem; font-weight: 700;
+    color: var(--text-muted);
+    position: relative;
+    transition: color var(--t-fast) var(--ease);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .bn-ico { font-size: 1.18rem; line-height: 1; transition: transform var(--t) var(--ease-spring); }
+  .bn-item:active .bn-ico { transform: scale(0.86); }
+  .bn-item.active { color: var(--primary); }
+  .bn-item.active .bn-ico { transform: translateY(-2px) scale(1.08); }
+  /* Indicator bar above the active tab. */
+  .bn-item.active::before {
+    content: ""; position: absolute; top: 0; left: 50%;
+    width: 26px; height: 3px; margin-left: -13px;
+    background: var(--primary); border-radius: 0 0 4px 4px;
+    animation: scaleIn var(--t) var(--ease-spring) both;
+  }
+  .bn-badge {
+    position: absolute; top: 5px; right: 50%; margin-right: -20px;
+    background: var(--primary); color: #fff;
+    font-size: 0.58rem; font-weight: 800;
+    min-width: 16px; height: 16px; padding: 0 4px;
+    border-radius: 99px; display: grid; place-items: center;
+  }
+
+  /* The drawer now only holds secondary items, reached via "More". */
+  .sidebar { padding-bottom: 90px; }
+
+  /* ------------------------------------------------------------------
+     Topbar: tighter, search collapses to an icon
+     ------------------------------------------------------------------ */
+  .topbar { padding: 10px 15px; gap: 8px; }
+  .searchbar { position: static; }
+  .searchbar input {
+    padding: 10px 12px 10px 38px;
+    font-size: 0.88rem;
+  }
+  .searchbar .search-ico { left: 13px; }
+  .search-results { left: 15px; width: calc(100vw - 30px); top: 60px; }
+  .user-chip { padding: 3px; }
+  .user-avatar { width: 32px; height: 32px; }
+
+  /* ------------------------------------------------------------------
+     Dashboard: put the schedule first, rails for the rest
+     ------------------------------------------------------------------ */
+  .content-main { display: flex; flex-direction: column; }
+  .hero { order: 1; padding: 20px 18px; }
+  .grid-4#stat-grid { order: 2; }
+  .quick-actions { order: 4; }
+  section.grid-2 { order: 3; }   /* Today's Schedule + Upcoming */
+  .content-rail { order: 5; }
+
+  .hero-greet { font-size: 1.22rem; }
+  .hero-sub { font-size: 0.85rem; }
+  .hero::before, .hero::after { display: none; }  /* decorative arcs cost paint */
+
+  .ai-input-row { padding: 5px 5px 5px 14px; margin-top: 14px; }
+  .ai-input-row input { font-size: 16px; }  /* < 16px makes iOS zoom on focus */
+  .btn-ask { padding: 11px 16px; font-size: 0.86rem; }
+
+  /* Chips: one swipeable row rather than a 167px stack */
+  .ai-examples {
+    flex-wrap: nowrap; overflow-x: auto;
+    scroll-snap-type: x proximity; scrollbar-width: none;
+    margin-inline: -18px; padding-inline: 18px; padding-bottom: 2px;
+  }
+  .ai-examples::-webkit-scrollbar { display: none; }
+  .ai-example-chip { flex: 0 0 auto; scroll-snap-align: start; }
+
+  /* Stat tiles: compact swipeable rail instead of four tall cards */
+  #stat-grid {
+    display: flex; gap: 10px; overflow-x: auto;
+    scroll-snap-type: x proximity; scrollbar-width: none;
+    margin-inline: -15px; padding-inline: 15px; padding-bottom: 4px;
+  }
+  #stat-grid::-webkit-scrollbar { display: none; }
+  #stat-grid .stat-card {
+    flex: 0 0 148px; scroll-snap-align: start; padding: 14px;
+  }
+  #stat-grid .stat-value { font-size: 1.45rem; }
+  #stat-grid .stat-ico { width: 36px; height: 36px; font-size: 1rem; border-radius: 11px; }
+  #stat-grid .stat-sub { display: none; }
+  #stat-grid .sparkline { display: none; }
+
+  /* Quick actions: two per row reads better than one tall column */
+  .quick-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .qa-card { padding: 13px 14px; font-size: 0.8rem; gap: 9px; }
+  .qa-card .qa-ico { width: 28px; height: 28px; font-size: 0.85rem; }
+
+  /* ------------------------------------------------------------------
+     Timetable: a 7-column grid is unusable at 375px, so show one day
+     ------------------------------------------------------------------ */
+  .tt-toolbar-wrap { display: flex; align-items: center; gap: 8px; }
+  .tt-week-nav { display: flex; gap: 6px; flex: 1; }
+  .tt-week-nav .btn { flex: 1; padding: 9px 6px; font-size: 0.78rem; }
+
+  /* Everything else collapses behind a single overflow button. */
+  .tt-overflow { position: relative; }
+  .tt-overflow-menu {
+    position: absolute; right: 0; top: 50px; z-index: 90;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: var(--shadow-lg);
+    padding: 7px; min-width: 190px;
+    display: flex; flex-direction: column; gap: 3px;
+    animation: scaleIn var(--t) var(--ease-out) both;
+    transform-origin: top right;
+  }
+  .tt-overflow-menu .btn {
+    justify-content: flex-start; border: none; box-shadow: none;
+    background: transparent; width: 100%;
+  }
+  .tt-overflow-menu .btn:hover { background: var(--bg-tint); transform: none; }
+
+  /* Day picker */
+  .tt-daybar {
+    display: flex; gap: 6px; margin: 12px 0;
+    overflow-x: auto; scrollbar-width: none;
+    margin-inline: -15px; padding-inline: 15px;
+  }
+  .tt-daybar::-webkit-scrollbar { display: none; }
+  .tt-day-btn {
+    flex: 0 0 auto; min-width: 52px;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 9px 8px; border-radius: 13px;
+    background: var(--surface); border: 1px solid var(--border);
+    font-weight: 700; font-size: 0.7rem; color: var(--text-soft);
+    transition: background var(--t) var(--ease), color var(--t) var(--ease), transform var(--t) var(--ease);
+  }
+  .tt-day-btn .tt-day-num { font-size: 1rem; font-weight: 800; }
+  .tt-day-btn.active {
+    background: linear-gradient(135deg, var(--primary) 0%, #eb9375 100%);
+    color: #fff; border-color: transparent;
+    box-shadow: 0 5px 14px var(--primary-ring);
+  }
+  .tt-day-btn.has-events:not(.active)::after {
+    content: ""; width: 4px; height: 4px; border-radius: 50%;
+    background: var(--primary); margin-top: 1px;
+  }
+  .tt-day-btn:active { transform: scale(0.95); }
+
+  /* Single-day agenda replaces the grid */
+  .timetable-grid { display: none; }
+  .tt-dayview { display: block; animation: pageIn 260ms var(--ease-out) both; }
+  .tt-dayview .tl-item { grid-template-columns: 58px 16px 1fr; }
+  .tt-dayview .tag { grid-column: 3; justify-self: start; margin-top: 6px; }
+
+  /* ------------------------------------------------------------------
+     Calendar, tables, modals
+     ------------------------------------------------------------------ */
+  .calendar-toolbar { gap: 7px; }
+  .calendar-view-switch { width: 100%; margin-left: 0; order: 3; }
+  .calendar-view-switch .btn { flex: 1; }
+  .month-cell { min-height: 62px; padding: 5px; font-size: 0.7rem; }
+  .month-grid { gap: 4px; }
+
+  .data-table { font-size: 0.78rem; }
+  .data-table th, .data-table td { padding: 9px 8px; }
+
+  /* Modals become bottom sheets — easier to reach one-handed. */
+  .modal-backdrop { align-items: flex-end; padding: 0; }
+  .modal-card {
+    max-width: none; width: 100%;
+    border-radius: 22px 22px 0 0;
+    max-height: 90vh; padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
+    animation: sheetUp 300ms var(--ease-out) both;
+  }
+  .modal-actions .btn { flex: 1; min-width: 44%; }
+
+  .toast-container { bottom: 82px; left: 15px; right: 15px; }
+}
+
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: none; } }
+
+/* Very narrow phones */
+@media (max-width: 340px) {
+  .quick-actions { grid-template-columns: minmax(0, 1fr); }
+  .hero-greet { font-size: 1.12rem; }
+  .bn-item { font-size: 0.58rem; }
+}
+
+/* Landscape phones: the tab bar would eat too much of a short viewport. */
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 480px) {
+  .bottom-nav { display: none; }
+  .content { padding-bottom: 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content, .landing, .auth-wrap, .modal-card, .tt-dayview { animation: none !important; }
+}

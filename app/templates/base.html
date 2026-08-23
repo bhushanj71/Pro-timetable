@@ -13,6 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="ProfSchedule">
   <link rel="stylesheet" href="/static/css/style.css?v={{ v }}">
+  <link rel="stylesheet" href="/static/css/mobile.css?v={{ v }}">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   {% block head %}{% endblock %}
 </head>
@@ -112,6 +113,27 @@
       {% endblock %}
     </div>
   </div>
+
+    <!-- Primary navigation on phones; the drawer keeps the secondary items -->
+    <nav class="bottom-nav" aria-label="Primary">
+      <a class="bn-item {% if request.url.path == '/dashboard' %}active{% endif %}" href="/dashboard">
+        <span class="bn-ico">🏠</span> Home
+      </a>
+      <a class="bn-item {% if request.url.path == '/timetable' %}active{% endif %}" href="/timetable">
+        <span class="bn-ico">🗓️</span> Timetable
+      </a>
+      <a class="bn-item {% if request.url.path == '/calendar' %}active{% endif %}" href="/calendar">
+        <span class="bn-ico">📆</span> Calendar
+      </a>
+      <a class="bn-item {% if request.url.path == '/tasks' %}active{% endif %}" href="/tasks">
+        <span class="bn-ico">✅</span> Tasks
+        <span class="bn-badge hidden" id="bn-task-count">0</span>
+      </a>
+      <button class="bn-item" id="bn-more">
+        <span class="bn-ico">☰</span> More
+      </button>
+    </nav>
+
   <!-- First-login notification setup -->
   <div id="onboarding-modal" class="modal-backdrop hidden">
     <div class="modal-card" style="max-width:500px">
@@ -181,6 +203,7 @@
 
   <div id="toast-container" class="toast-container"></div>
   <script src="/static/js/app.js?v={{ v }}"></script>
+  <script src="/static/js/mobile.js?v={{ v }}"></script>
   {% if user %}
   <script src="/static/js/pwa.js?v={{ v }}"></script>
   <script src="/static/js/push.js?v={{ v }}"></script>

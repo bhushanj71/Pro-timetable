@@ -4,22 +4,32 @@
 
 <div class="section-title">
   <h2>Weekly Timetable</h2>
-  <div class="quick-actions">
-    <button class="btn btn-sm" id="tt-prev">◀ Prev</button>
-    <button class="btn btn-sm" id="tt-today">This Week</button>
-    <button class="btn btn-sm" id="tt-next">Next ▶</button>
-    <button class="btn" id="export-csv-btn">⬇ CSV</button>
-    <button class="btn" id="export-ics-btn">⬇ ICS</button>
-    <button class="btn" id="export-pdf-btn">⬇ PDF</button>
-    <button class="btn btn-primary" id="tt-add-btn">+ Add Class</button>
-    <button class="btn btn-primary" id="open-generator-btn">✨ Generate Timetable</button>
-    <button class="btn btn-danger" id="tt-reset-btn">🗑 Reset</button>
+  <div class="tt-toolbar-wrap">
+    <div class="tt-week-nav">
+      <button class="btn btn-sm" id="tt-prev">◀</button>
+      <button class="btn btn-sm" id="tt-today">This Week</button>
+      <button class="btn btn-sm" id="tt-next">▶</button>
+    </div>
+    <button class="btn btn-primary btn-sm" id="tt-add-btn">+ Add</button>
+    <div class="tt-overflow">
+      <button class="btn btn-sm" id="tt-more-btn" aria-label="More actions">⋯</button>
+      <div class="tt-overflow-menu hidden" id="tt-more-menu">
+        <button class="btn btn-sm" id="open-generator-btn">✨ Generate Timetable</button>
+        <button class="btn btn-sm" id="export-csv-btn">⬇ Export CSV</button>
+        <button class="btn btn-sm" id="export-ics-btn">⬇ Export ICS</button>
+        <button class="btn btn-sm" id="export-pdf-btn">⬇ Export PDF</button>
+        <button class="btn btn-sm btn-danger" id="tt-reset-btn">🗑 Reset schedule</button>
+      </div>
+    </div>
   </div>
 </div>
+
+<div class="tt-daybar mobile-only" id="tt-daybar"></div>
 
 <div class="card" style="overflow-x:auto">
   <h3 id="tt-week-label" style="margin:0 0 12px;font-size:0.95rem;color:var(--text-muted)">—</h3>
   <div id="timetable-grid" class="timetable-grid"></div>
+  <div id="tt-dayview" class="tt-dayview mobile-only"></div>
 </div>
 
 <div id="generator-modal" class="hidden" style="margin-top:20px">
