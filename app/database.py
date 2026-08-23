@@ -152,6 +152,7 @@ _ADDITIVE_COLUMNS = {
     ],
     "reminders": [
         ("read_at", "TIMESTAMP"),
+        ("dismissed_at", "TIMESTAMP"),
     ],
 }
 

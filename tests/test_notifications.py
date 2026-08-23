@@ -334,6 +334,73 @@ def test_bell_badge_counts_unread_and_clears_once_read(auth_client):
     assert len(after["items"]) == len(before["items"]), "history should remain visible"
 
 
+def test_clearing_empties_the_bell(auth_client):
+    _deliver_a_reminder(auth_client, "Clear me")
+    assert auth_client.get("/api/reminders/notifications").json()["items"]
+
+    body = auth_client.post("/api/reminders/notifications/clear").json()
+    assert body["cleared"] >= 1
+
+    after = auth_client.get("/api/reminders/notifications").json()
+    assert after["items"] == [], "cleared notifications must leave the bell"
+    assert after["unread"] == 0
+
+
+def test_clearing_keeps_the_reminder_history(auth_client, db_session):
+    """The bell is an inbox, not the record: clearing it must not delete the
+    reminders the professor can still see on the Reminders page."""
+    _deliver_a_reminder(auth_client, "Still on record")
+    auth_client.post("/api/reminders/notifications/clear")
+
+    kept = db_session.query(Reminder).filter(Reminder.title == "Still on record").all()
+    assert len(kept) == 1
+    assert kept[0].dismissed_at is not None
+
+
+def test_clearing_never_cancels_a_pending_reminder(auth_client, db_session):
+    """Clearing the panel must not touch anything still waiting to fire."""
+    future = datetime.now(timezone.utc) + timedelta(days=1)
+    auth_client.post("/api/reminders", json={
+        "title": "Not yet due", "reminder_datetime": future.isoformat(), "reminder_type": "in_app"})
+
+    auth_client.post("/api/reminders/notifications/clear")
+
+    pending = db_session.query(Reminder).filter(Reminder.title == "Not yet due").one()
+    assert pending.dismissed_at is None, "a future reminder must survive a clear"
+
+
+def test_a_new_reminder_reappears_after_clearing(auth_client):
+    _deliver_a_reminder(auth_client, "Old")
+    auth_client.post("/api/reminders/notifications/clear")
+    assert auth_client.get("/api/reminders/notifications").json()["items"] == []
+
+    _deliver_a_reminder(auth_client, "New")
+    after = auth_client.get("/api/reminders/notifications").json()
+    assert [n["title"] for n in after["items"]] == ["New"]
+    assert after["unread"] == 1
+
+
+def test_clear_requires_auth(client):
+    assert client.post("/api/reminders/notifications/clear").status_code == 401
+
+
+def test_clearing_is_scoped_to_one_professor(client, db_session):
+    """One account's clear must not empty another's bell."""
+    client.post("/api/auth/register", json={
+        "name": "A", "email": "clear_a@example.com", "password": "password123"})
+    _deliver_a_reminder(client, "Mine")
+    client.post("/api/auth/logout")
+
+    client.post("/api/auth/register", json={
+        "name": "B", "email": "clear_b@example.com", "password": "password123"})
+    _deliver_a_reminder(client, "Theirs")
+    client.post("/api/reminders/notifications/clear")
+    client.post("/api/auth/logout")
+
+    client.post("/api/auth/login", json={"email": "clear_a@example.com", "password": "password123"})
+    assert [n["title"] for n in client.get("/api/reminders/notifications").json()["items"]] == ["Mine"]
+
+
 def test_a_new_reminder_makes_the_badge_reappear(auth_client):
     _deliver_a_reminder(auth_client, "First")
     auth_client.post("/api/reminders/notifications/read")

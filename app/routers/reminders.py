@@ -67,7 +67,12 @@ def notifications(db: Session = Depends(get_db), user: User = Depends(get_curren
 
     items = (
         db.query(Reminder)
-        .filter(Reminder.user_id == user.id, Reminder.reminder_datetime <= now, Reminder.is_sent.is_(True))
+        .filter(
+            Reminder.user_id == user.id,
+            Reminder.reminder_datetime <= now,
+            Reminder.is_sent.is_(True),
+            Reminder.dismissed_at.is_(None),
+        )
         .order_by(Reminder.reminder_datetime.desc())
         .limit(20)
         .all()
@@ -79,6 +84,7 @@ def notifications(db: Session = Depends(get_db), user: User = Depends(get_curren
             Reminder.reminder_datetime <= now,
             Reminder.is_sent.is_(True),
             Reminder.read_at.is_(None),
+            Reminder.dismissed_at.is_(None),
         )
         .count()
     )
@@ -115,6 +121,29 @@ def mark_notifications_read(db: Session = Depends(get_db), user: User = Depends(
     )
     db.commit()
     return {"ok": True, "marked_read": updated}
+
+
+@router.post("/notifications/clear")
+def clear_notifications(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Empty the bell.
+
+    Only reminders already delivered are dismissed, so clearing the panel can
+    never cancel something still due. The rows survive -- the Reminders page
+    is the history, the bell is only the inbox -- they are just hidden here.
+    """
+    now = datetime.now(timezone.utc)
+    cleared = (
+        db.query(Reminder)
+        .filter(
+            Reminder.user_id == user.id,
+            Reminder.reminder_datetime <= now,
+            Reminder.is_sent.is_(True),
+            Reminder.dismissed_at.is_(None),
+        )
+        .update({Reminder.dismissed_at: now, Reminder.read_at: now}, synchronize_session=False)
+    )
+    db.commit()
+    return {"ok": True, "cleared": cleared}
 
 
 @router.post("", response_model=ReminderOut, status_code=status.HTTP_201_CREATED)

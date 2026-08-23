@@ -179,6 +179,9 @@ class Reminder(Base):
     # Separate from is_sent: delivered is not the same as seen, and the bell
     # badge must clear once the professor has actually looked at it.
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Cleared from the bell by the professor. Distinct from read_at so the
+    # Reminders page keeps the full history after the feed is tidied up.
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     delivery_status: Mapped[str] = mapped_column(String(16), default=DeliveryStatus.PENDING.value)
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
 

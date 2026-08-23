@@ -1027,6 +1027,26 @@ input, select, textarea, button { font-size: inherit; }
 }
 .notif-item:hover { background: var(--surface-alt); }
 .notif-item small { color: var(--text-muted); font-size: 0.74rem; }
+.notif-item.notif-empty { color: var(--text-muted); }
+
+/* Sticky so "Clear all" stays reachable once the list starts scrolling. */
+.notif-head {
+  position: sticky; top: -9px; z-index: 1;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin: -9px -9px 6px; padding: 11px 13px 9px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  font-size: 0.78rem; font-weight: 700; color: var(--text-soft);
+}
+.notif-clear {
+  border: none; background: none; padding: 3px 7px; border-radius: 8px;
+  font: inherit; font-size: 0.75rem; font-weight: 700;
+  color: var(--primary); cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.notif-clear:hover:not(:disabled) { background: var(--primary-softer); }
+.notif-clear:disabled { color: var(--text-muted); cursor: default; }
 
 
 

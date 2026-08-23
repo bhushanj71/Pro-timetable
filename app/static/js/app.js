@@ -118,16 +118,24 @@ async function pollNotifications() {
       count.classList.add("hidden");
     }
 
-    panel.innerHTML = data.items.length
-      ? data.items
-          .map(
-            (n) => `<div class="notif-item${n.is_read ? "" : " unread"}">
+    const head = `<div class="notif-head">
+        <span>Notifications</span>
+        <button type="button" class="notif-clear" id="notif-clear"
+                ${data.items.length ? "" : "disabled"}>Clear all</button>
+      </div>`;
+
+    panel.innerHTML =
+      head +
+      (data.items.length
+        ? data.items
+            .map(
+              (n) => `<div class="notif-item${n.is_read ? "" : " unread"}">
               🔔 ${n.title || "Reminder"}
               <br><small>${fmtDate(n.reminder_datetime)} · ${fmtTime(n.reminder_datetime)}</small>
             </div>`
-          )
-          .join("")
-      : `<div class="notif-item">No notifications yet.</div>`;
+            )
+            .join("")
+        : `<div class="notif-item notif-empty">No notifications yet.</div>`);
   } catch (_) {
     /* silent: polling shouldn't interrupt the page */
   }
@@ -145,6 +153,23 @@ document.getElementById("notif-bell")?.addEventListener("click", async () => {
     await apiFetch("/api/reminders/notifications/read", { method: "POST" });
     await pollNotifications();
   } catch (_) {}
+});
+
+// Delegated: pollNotifications replaces the panel's contents wholesale, so a
+// listener bound to the button itself would be thrown away on every refresh.
+document.getElementById("notif-panel")?.addEventListener("click", async (e) => {
+  const btn = e.target.closest("#notif-clear");
+  if (!btn) return;
+
+  setButtonLoading(btn, true);
+  try {
+    const { cleared } = await apiFetch("/api/reminders/notifications/clear", { method: "POST" });
+    await pollNotifications();
+    showToast(cleared ? `Cleared ${cleared} notification${cleared === 1 ? "" : "s"}` : "Nothing to clear", "success");
+  } catch (_) {
+    showToast("Could not clear notifications", "error");
+    setButtonLoading(btn, false);
+  }
 });
 
 document.addEventListener("click", (e) => {
