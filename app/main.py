@@ -53,6 +53,17 @@ async def lifespan(app: FastAPI):
 
     try:
         init_db()
+
+        # Provision the first admin if the environment asks for one. Kept
+        # inside the same guard: a bootstrap failure must not stop the app.
+        from app.database import SessionLocal
+        from app.services.bootstrap import bootstrap_admin
+
+        _db = SessionLocal()
+        try:
+            bootstrap_admin(_db)
+        finally:
+            _db.close()
     except Exception as exc:
         # Deliberately non-fatal. If the database is unreachable, letting the
         # process die makes the host report only "deploy failed" with the real

@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     ENABLE_BACKGROUND_SCHEDULER: bool = False
     REMINDER_POLL_SECONDS: int = 60
 
+    # First-admin bootstrap. Hosts without shell access (Render's free tier,
+    # most PaaS free plans) can't run create_admin.py, and there is no
+    # self-service way to become an admin — so allow one to be provisioned
+    # from the environment at startup. Idempotent: promotes the account if it
+    # already exists, creates it if BOOTSTRAP_ADMIN_PASSWORD is also given.
+    BOOTSTRAP_ADMIN_EMAIL: Optional[str] = None
+    BOOTSTRAP_ADMIN_PASSWORD: Optional[str] = None
+
     # Email (optional, for email reminders)
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: int = 587

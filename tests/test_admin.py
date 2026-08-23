@@ -102,3 +102,55 @@ def test_duplicate_email_rejected_on_admin_create(client, db_session):
     payload = {"name": "Dup", "email": "dup@example.com", "password": "password123"}
     assert client.post("/api/admin/users", json=payload).status_code == 201
     assert client.post("/api/admin/users", json=payload).status_code == 400
+
+
+def _bootstrap(db_session, email, password=None):
+    """Run the bootstrap with patched settings, as a deploy would."""
+    from app.services import bootstrap as bs
+
+    original = (bs.settings.BOOTSTRAP_ADMIN_EMAIL, bs.settings.BOOTSTRAP_ADMIN_PASSWORD)
+    bs.settings.BOOTSTRAP_ADMIN_EMAIL = email
+    bs.settings.BOOTSTRAP_ADMIN_PASSWORD = password
+    try:
+        bs.bootstrap_admin(db_session)
+    finally:
+        bs.settings.BOOTSTRAP_ADMIN_EMAIL, bs.settings.BOOTSTRAP_ADMIN_PASSWORD = original
+
+
+def test_bootstrap_creates_admin_when_password_given(client, db_session):
+    _bootstrap(db_session, "boot@example.com", "bootpass123")
+
+    user = db_session.query(User).filter(User.email == "boot@example.com").first()
+    assert user is not None and user.is_admin
+
+    assert client.post("/api/auth/login", json={"email": "boot@example.com", "password": "bootpass123"}).status_code == 200
+    assert client.get("/api/admin/stats").status_code == 200
+
+
+def test_bootstrap_promotes_existing_account(client, db_session):
+    client.post("/api/auth/register", json={"name": "Prof", "email": "promote@example.com", "password": "password123"})
+    assert client.get("/api/admin/stats").status_code == 403, "should not be admin yet"
+
+    _bootstrap(db_session, "promote@example.com")
+
+    # Same password as before — bootstrap must never overwrite it.
+    client.post("/api/auth/logout")
+    assert client.post("/api/auth/login", json={"email": "promote@example.com", "password": "password123"}).status_code == 200
+    assert client.get("/api/admin/stats").status_code == 200
+
+
+def test_bootstrap_without_password_does_not_create_account(client, db_session):
+    _bootstrap(db_session, "ghost@example.com")
+    assert db_session.query(User).filter(User.email == "ghost@example.com").first() is None
+
+
+def test_bootstrap_is_idempotent(client, db_session):
+    _bootstrap(db_session, "twice@example.com", "bootpass123")
+    _bootstrap(db_session, "twice@example.com", "bootpass123")
+    assert db_session.query(User).filter(User.email == "twice@example.com").count() == 1
+
+
+def test_bootstrap_noop_when_unset(client, db_session):
+    before = db_session.query(User).count()
+    _bootstrap(db_session, None)
+    assert db_session.query(User).count() == before
