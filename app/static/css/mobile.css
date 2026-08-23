@@ -255,3 +255,25 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
 @media (prefers-reduced-motion: reduce) {
   .content, .landing, .auth-wrap, .modal-card, .tt-dayview { animation: none !important; }
 }
+
+/* ==========================================================================
+   Short viewports (small laptops, split screens)
+   The sidebar is a flex column; without this the AI assistant card and quote
+   sit below the fold or get squeezed, so they read as missing.
+   ========================================================================== */
+@media (min-width: 769px) and (max-height: 760px) {
+  .sidebar { padding-top: 16px; gap: 3px; }
+  .brand-block { padding-bottom: 14px; }
+  .nav-link { padding: 9px 14px; font-size: 0.875rem; }
+  /* The quote is pure decoration — first thing to go when space is tight. */
+  .sidebar-quote { display: none; }
+  .assistant-card { padding: 12px; margin-top: auto; }
+  .assistant-sub { margin: 4px 0 9px; font-size: 0.72rem; }
+}
+
+@media (min-width: 769px) and (max-height: 620px) {
+  /* Collapse the assistant card to just its button. */
+  .assistant-card { background: none; border: none; padding: 0; }
+  .assistant-title, .assistant-sub { display: none; }
+  .assistant-btn { padding: 10px 12px; }
+}

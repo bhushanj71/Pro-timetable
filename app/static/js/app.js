@@ -101,36 +101,56 @@ document.getElementById("logout-btn")?.addEventListener("click", async () => {
 });
 
 /* ---------------- Notification bell ---------------- */
+
 async function pollNotifications() {
   try {
-    const notifs = await apiFetch("/api/reminders/notifications");
+    const data = await apiFetch("/api/reminders/notifications");
     const count = document.getElementById("notif-count");
     const panel = document.getElementById("notif-panel");
     if (!count || !panel) return;
 
-    if (notifs.length > 0) {
-      count.textContent = notifs.length;
+    // The badge tracks *unread*, not merely delivered — otherwise it could
+    // never be cleared.
+    if (data.unread > 0) {
+      count.textContent = data.unread > 9 ? "9+" : data.unread;
       count.classList.remove("hidden");
     } else {
       count.classList.add("hidden");
     }
 
-    panel.innerHTML = notifs.length
-      ? notifs.map((n) => `<div class="notif-item">🔔 ${n.title || "Reminder"}<br><small>${fmtDate(n.reminder_datetime)} · ${fmtTime(n.reminder_datetime)}</small></div>`).join("")
+    panel.innerHTML = data.items.length
+      ? data.items
+          .map(
+            (n) => `<div class="notif-item${n.is_read ? "" : " unread"}">
+              🔔 ${n.title || "Reminder"}
+              <br><small>${fmtDate(n.reminder_datetime)} · ${fmtTime(n.reminder_datetime)}</small>
+            </div>`
+          )
+          .join("")
       : `<div class="notif-item">No notifications yet.</div>`;
   } catch (_) {
-    /* silent: notification polling shouldn't interrupt the page */
+    /* silent: polling shouldn't interrupt the page */
   }
 }
 
-document.getElementById("notif-bell")?.addEventListener("click", () => {
-  document.getElementById("notif-panel")?.classList.toggle("hidden");
+document.getElementById("notif-bell")?.addEventListener("click", async () => {
+  const panel = document.getElementById("notif-panel");
+  const opening = panel?.classList.contains("hidden");
+  panel?.classList.toggle("hidden");
+
+  if (!opening) return;
+  // Clear the badge immediately, then persist — the click is the "read".
+  document.getElementById("notif-count")?.classList.add("hidden");
+  try {
+    await apiFetch("/api/reminders/notifications/read", { method: "POST" });
+    await pollNotifications();
+  } catch (_) {}
 });
 
 document.addEventListener("click", (e) => {
   const panel = document.getElementById("notif-panel");
   const bell = document.getElementById("notif-bell");
-  if (panel && !panel.classList.contains("hidden") && !panel.contains(e.target) && e.target !== bell) {
+  if (panel && !panel.classList.contains("hidden") && !panel.contains(e.target) && !bell?.contains(e.target)) {
     panel.classList.add("hidden");
   }
 });

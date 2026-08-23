@@ -179,7 +179,7 @@ input, select, textarea, button { font-size: inherit; }
   transition: transform var(--t-slow) var(--ease-out);
 }
 
-.brand-block { display: flex; align-items: center; gap: 11px; padding: 0 8px 22px; }
+.brand-block { display: flex; align-items: center; gap: 11px; padding: 0 8px 22px; flex-shrink: 0; }
 .brand-mark {
   width: 40px; height: 40px;
   border-radius: 12px;
@@ -205,6 +205,7 @@ input, select, textarea, button { font-size: inherit; }
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
   padding: 11px 14px;
   border-radius: 13px;
   color: var(--text-soft);
@@ -255,6 +256,7 @@ input, select, textarea, button { font-size: inherit; }
 /* AI assistant promo card */
 .assistant-card {
   margin-top: auto;
+  flex-shrink: 0;
   background: linear-gradient(160deg, var(--primary-softer) 0%, var(--primary-soft) 100%);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -281,6 +283,7 @@ input, select, textarea, button { font-size: inherit; }
 .assistant-btn:active { transform: translateY(0); }
 
 .sidebar-quote {
+  flex-shrink: 0;
   margin-top: 16px;
   padding: 0 8px;
   font-size: 0.8rem;
@@ -1281,3 +1284,10 @@ input, select, textarea, button { font-size: inherit; }
 .ios-help li strong { display: inline; color: var(--text); }
 .ios-help small { display: block; margin-top: 10px; color: var(--text-muted); font-size: 0.75rem; }
 .ios-share { font-family: -apple-system, system-ui, sans-serif; }
+
+/* Unread notifications stand out until the bell has been opened. */
+.notif-item.unread {
+  background: var(--primary-softer);
+  border-left: 3px solid var(--primary);
+  font-weight: 600;
+}

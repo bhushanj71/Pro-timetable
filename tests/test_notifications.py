@@ -93,7 +93,7 @@ def test_due_reminder_is_delivered_in_app_without_channels_configured(auth_clien
     assert result["emails"] == 0 and result["pushes"] == 0
 
     notifs = auth_client.get("/api/reminders/notifications").json()
-    assert any(n["title"] == "Past due" for n in notifs)
+    assert any(n["title"] == "Past due" for n in notifs["items"])
 
 
 def test_reminder_delivery_is_idempotent(auth_client):
@@ -245,3 +245,69 @@ def test_onboarding_leads_with_install_not_calendar(auth_client):
     assert 'id="onb-install"' in body
     assert 'id="onb-ios-help"' in body
     assert "onb-cal-btn" not in body, "external calendar step should be gone"
+
+
+# --- Notification read state ----------------------------------------------
+
+def _deliver_a_reminder(client, title="Bell test"):
+    client.post("/api/reminders", json={
+        "title": title, "reminder_datetime": "2020-01-01T09:00:00Z", "reminder_type": "in_app"})
+    client.post("/api/cron/process-reminders")
+
+
+def test_bell_badge_counts_unread_and_clears_once_read(auth_client):
+    """The badge previously counted delivered reminders forever, so it could
+    never be reset by reading them."""
+    _deliver_a_reminder(auth_client)
+
+    before = auth_client.get("/api/reminders/notifications").json()
+    assert before["unread"] >= 1
+    assert all(not n["is_read"] for n in before["items"])
+
+    auth_client.post("/api/reminders/notifications/read")
+
+    after = auth_client.get("/api/reminders/notifications").json()
+    assert after["unread"] == 0, "badge must clear after the bell is opened"
+    assert all(n["is_read"] for n in after["items"])
+    assert len(after["items"]) == len(before["items"]), "history should remain visible"
+
+
+def test_a_new_reminder_makes_the_badge_reappear(auth_client):
+    _deliver_a_reminder(auth_client, "First")
+    auth_client.post("/api/reminders/notifications/read")
+    assert auth_client.get("/api/reminders/notifications").json()["unread"] == 0
+
+    _deliver_a_reminder(auth_client, "Second")
+    assert auth_client.get("/api/reminders/notifications").json()["unread"] == 1
+
+
+def test_marking_read_is_scoped_to_the_user(client):
+    client.post("/api/auth/register", json={"name": "A", "email": "bell_a@example.com", "password": "password123"})
+    _deliver_a_reminder(client, "A's reminder")
+    client.post("/api/auth/logout")
+
+    client.post("/api/auth/register", json={"name": "B", "email": "bell_b@example.com", "password": "password123"})
+    client.post("/api/reminders/notifications/read")
+    client.post("/api/auth/logout")
+
+    client.post("/api/auth/login", json={"email": "bell_a@example.com", "password": "password123"})
+    assert client.get("/api/reminders/notifications").json()["unread"] == 1, \
+        "another user marking read must not clear this account's badge"
+
+
+def test_reminder_still_delivers_when_push_is_configured_but_no_device(auth_client, monkeypatch):
+    """Zero registered devices is not a failure. Treating it as one meant the
+    reminder retried and expired instead of arriving in-app."""
+    from app.services import notifier
+
+    monkeypatch.setattr(notifier, "push_configured", lambda: True)
+
+    auth_client.post("/api/reminders", json={
+        "title": "No device", "reminder_datetime": "2020-01-01T09:00:00Z", "reminder_type": "in_app"})
+
+    result = auth_client.post("/api/cron/process-reminders").json()
+    assert result["sent"] >= 1, "should deliver in-app rather than retry forever"
+    assert result["pushes"] == 0
+
+    items = auth_client.get("/api/reminders/notifications").json()["items"]
+    assert any(n["title"] == "No device" for n in items)

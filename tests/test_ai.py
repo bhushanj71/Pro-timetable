@@ -81,7 +81,7 @@ def test_cron_processes_due_reminders(auth_client):
     assert resp.json()["sent"] >= 1
 
     notifs = auth_client.get("/api/reminders/notifications").json()
-    assert any(n["title"] == "Past reminder" for n in notifs)
+    assert any(n["title"] == "Past reminder" for n in notifs["items"])
 
 
 def test_duplicate_event_objects_are_collapsed(auth_client):

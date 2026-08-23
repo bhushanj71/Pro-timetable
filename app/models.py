@@ -176,6 +176,9 @@ class Reminder(Base):
 
     is_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Separate from is_sent: delivered is not the same as seen, and the bell
+    # badge must clear once the professor has actually looked at it.
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     delivery_status: Mapped[str] = mapped_column(String(16), default=DeliveryStatus.PENDING.value)
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
 

@@ -33,17 +33,64 @@ def list_reminders(
     return query.order_by(Reminder.reminder_datetime).limit(limit).all()
 
 
-@router.get("/notifications", response_model=list[ReminderOut])
+@router.get("/notifications")
 def notifications(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """Reminders that have fired (is_sent, meaning the cron job passed their due time) and are unread."""
+    """Delivered reminders for the bell, newest first, with an unread count.
+
+    "Delivered" (is_sent) and "seen" (read_at) are deliberately different: the
+    badge tracks the latter, so it clears once the panel has been opened.
+    """
     now = datetime.now(timezone.utc)
-    return (
+    items = (
         db.query(Reminder)
         .filter(Reminder.user_id == user.id, Reminder.reminder_datetime <= now, Reminder.is_sent.is_(True))
         .order_by(Reminder.reminder_datetime.desc())
         .limit(20)
         .all()
     )
+    unread = (
+        db.query(Reminder)
+        .filter(
+            Reminder.user_id == user.id,
+            Reminder.reminder_datetime <= now,
+            Reminder.is_sent.is_(True),
+            Reminder.read_at.is_(None),
+        )
+        .count()
+    )
+    return {
+        "unread": unread,
+        "items": [
+            {
+                "id": r.id,
+                "title": r.title,
+                "reminder_datetime": (
+                    r.reminder_datetime if r.reminder_datetime.tzinfo else r.reminder_datetime.replace(tzinfo=timezone.utc)
+                ).isoformat(),
+                "reminder_type": r.reminder_type,
+                "is_read": r.read_at is not None,
+            }
+            for r in items
+        ],
+    }
+
+
+@router.post("/notifications/read")
+def mark_notifications_read(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Mark every delivered reminder as seen — called when the bell is opened."""
+    now = datetime.now(timezone.utc)
+    updated = (
+        db.query(Reminder)
+        .filter(
+            Reminder.user_id == user.id,
+            Reminder.reminder_datetime <= now,
+            Reminder.is_sent.is_(True),
+            Reminder.read_at.is_(None),
+        )
+        .update({Reminder.read_at: now}, synchronize_session=False)
+    )
+    db.commit()
+    return {"ok": True, "marked_read": updated}
 
 
 @router.post("", response_model=ReminderOut, status_code=status.HTTP_201_CREATED)

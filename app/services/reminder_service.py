@@ -105,12 +105,23 @@ def process_due_reminders(db: Session, now: datetime | None = None) -> dict:
                     emails += 1
 
             # --- Web Push ---
+            # Having no registered device is not a delivery failure — there is
+            # simply nothing to push to. Treating it as one meant a professor
+            # who never enabled push got no notifications at all, because the
+            # reminder retried and then failed instead of falling through to
+            # in-app delivery.
             if user.notify_push and push_configured():
-                channel_attempted = True
-                n = send_push_to_user(db, user, title, when_text)
-                if n:
-                    channel_ok = True
-                    pushes += n
+                from app.models import PushSubscription
+
+                device_count = (
+                    db.query(PushSubscription).filter(PushSubscription.user_id == user.id).count()
+                )
+                if device_count:
+                    channel_attempted = True
+                    n = send_push_to_user(db, user, title, when_text)
+                    if n:
+                        channel_ok = True
+                        pushes += n
 
             # If an external channel was attempted but every one failed, retry
             # on a later tick rather than silently marking it delivered.

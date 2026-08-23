@@ -150,6 +150,9 @@ _ADDITIVE_COLUMNS = {
     "events": [
         ("google_event_id", "VARCHAR(255)"),
     ],
+    "reminders": [
+        ("read_at", "TIMESTAMP"),
+    ],
 }
 
 

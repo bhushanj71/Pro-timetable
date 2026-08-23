@@ -247,6 +247,7 @@ class ReminderOut(UTCModel):
     reminder_type: str
     is_sent: bool
     delivery_status: str
+    read_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
