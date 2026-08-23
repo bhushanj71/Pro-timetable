@@ -40,9 +40,31 @@ logging.basicConfig(
 )
 
 
+logger = logging.getLogger(__name__)
+
+# Set when startup DB initialization fails, so /api/health can report *why*
+# instead of the platform showing an opaque failed deploy.
+_startup_error: str | None = None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
+    global _startup_error
+
+    try:
+        init_db()
+    except Exception as exc:
+        # Deliberately non-fatal. If the database is unreachable, letting the
+        # process die makes the host report only "deploy failed" with the real
+        # cause buried. Starting anyway keeps /api/health reachable so the
+        # actual error is visible, and the DB is retried on the next boot.
+        _startup_error = f"{type(exc).__name__}: {exc}"
+        logger.error("Database initialization failed at startup: %s", _startup_error)
+        logger.error(
+            "If using Supabase, note the direct db.<ref>.supabase.co:5432 host is "
+            "IPv6-only and unreachable from IPv4-only platforms such as Render. "
+            "Use the connection pooler host (aws-<region>.pooler.supabase.com) instead."
+        )
 
     scheduler_task = None
     if settings.ENABLE_BACKGROUND_SCHEDULER:
@@ -97,4 +119,28 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "app": settings.APP_NAME}
+    """Liveness probe that also surfaces database reachability.
+
+    Returns 200 even when the database is down so the platform keeps the
+    service routable and the payload can explain what is actually broken —
+    a health check that just fails gives you nothing to debug with.
+    """
+    from sqlalchemy import text
+
+    from app.database import engine
+
+    db_ok, db_error = True, None
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception as exc:
+        db_ok = False
+        db_error = f"{type(exc).__name__}: {exc}"[:300]
+
+    return {
+        "status": "ok" if db_ok and not _startup_error else "degraded",
+        "app": settings.APP_NAME,
+        "database": "connected" if db_ok else "unreachable",
+        "database_error": db_error,
+        "startup_error": _startup_error,
+    }

@@ -40,12 +40,28 @@ for placeholder in ("[YOUR-PASSWORD]", "YOUR-PASSWORD", "<password>", "[PASSWORD
 connect_args = {}
 if url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
+else:
+    # Without an explicit timeout an unreachable host (a firewalled port, or
+    # Supabase's IPv6-only direct endpoint seen from an IPv4-only host) hangs
+    # the connection attempt for minutes, which reads as a stuck deploy rather
+    # than a clear error.
+    connect_args = {"connect_timeout": 10}
 
 # Vercel Postgres / Neon URLs sometimes use postgres:// which SQLAlchemy 2.x rejects
 if url.startswith("postgres://"):
     url = url.replace("postgres://", "postgresql+psycopg://", 1)
 elif url.startswith("postgresql://") and "+psycopg" not in url:
     url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+
+# Supabase's direct endpoint resolves to IPv6 only. Render (and most IPv4-only
+# hosts) cannot reach it, and the symptom is a silent hang at startup.
+if "db." in url and ".supabase.co" in url:
+    logger.warning(
+        "DATABASE_URL uses Supabase's direct endpoint (db.*.supabase.co), which is "
+        "IPv6-only and unreachable from IPv4-only hosts such as Render. If startup "
+        "hangs or the database is unreachable, switch to the pooler host "
+        "(aws-<region>.pooler.supabase.com) with username postgres.<project-ref>."
+    )
 
 engine = create_engine(url, connect_args=connect_args, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
