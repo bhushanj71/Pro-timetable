@@ -112,11 +112,6 @@
       {% endblock %}
     </div>
   </div>
-{% else %}
-  {% block auth_content %}{% endblock %}
-{% endif %}
-
-
   <!-- First-login notification setup -->
   <div id="onboarding-modal" class="modal-backdrop hidden">
     <div class="modal-card" style="max-width:520px">
@@ -188,11 +183,17 @@
       </div>
     </div>
   </div>
+{% else %}
+  {% block auth_content %}{% endblock %}
+{% endif %}
+
 
   <div id="toast-container" class="toast-container"></div>
   <script src="/static/js/app.js?v={{ v }}"></script>
+  {% if user %}
   <script src="/static/js/push.js?v={{ v }}"></script>
   <script src="/static/js/onboarding.js?v={{ v }}"></script>
+  {% endif %}
   {% block scripts %}{% endblock %}
 </body>
 </html>

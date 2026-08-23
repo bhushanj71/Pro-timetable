@@ -18,16 +18,25 @@ templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent
 
 def _ctx(request: Request, user: User | None, **extra):
     # `v` busts the browser cache for static assets whenever they change.
+    from datetime import datetime, timezone
+
     from app.main import ASSET_VERSION
 
-    return {"request": request, "user": user, "v": ASSET_VERSION, **extra}
+    return {
+        "request": request,
+        "user": user,
+        "v": ASSET_VERSION,
+        "now_year": datetime.now(timezone.utc).year,
+        **extra,
+    }
 
 
 @router.get("/")
 def index(request: Request, user: User | None = Depends(get_current_user_optional)):
+    # Signed-in professors go straight to work; everyone else gets the pitch.
     if user:
         return RedirectResponse(url="/dashboard")
-    return RedirectResponse(url="/login")
+    return templates.TemplateResponse("landing.html", _ctx(request, None))
 
 
 @router.get("/login")

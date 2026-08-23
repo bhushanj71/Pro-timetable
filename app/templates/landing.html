@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}ProfSchedule AI — Plan Smarter, Teach Better{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/landing.css?v={{ v }}">
+{% endblock %}
+
+{% block auth_content %}
+<div class="landing">
+
+  <!-- ==================== Nav ==================== -->
+  <header class="lp-nav">
+    <a href="/" class="brand-block" style="padding:0">
+      <div class="brand-mark">👑</div>
+      <div>
+        <div class="brand-name">ProfSchedule <span>AI</span></div>
+        <div class="brand-tag">Plan Smarter, Teach Better</div>
+      </div>
+    </a>
+    <nav class="lp-nav-links">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#notifications">Reminders</a>
+    </nav>
+    <div class="lp-nav-cta">
+      <a class="btn btn-ghost" href="/login">Log in</a>
+      <a class="btn btn-primary" href="/register">Get started free</a>
+    </div>
+  </header>
+
+  <!-- ==================== Hero ==================== -->
+  <section class="lp-hero">
+    <div class="lp-hero-copy">
+      <span class="lp-eyebrow">✨ Built for college faculty</span>
+      <h1 class="lp-title">Your entire teaching week, <em>typed in one sentence.</em></h1>
+      <p class="lp-sub">
+        Stop wrestling with spreadsheets and calendar forms. Describe your classes in
+        plain English and ProfSchedule AI builds the timetable, spots the clashes, and
+        reminds you before every lecture.
+      </p>
+
+      <div class="lp-cta-row">
+        <a class="btn btn-primary btn-lg" href="/register">Create your timetable →</a>
+        <a class="btn btn-lg" href="/login">I already have an account</a>
+      </div>
+
+      <div class="lp-trust">
+        <span>✓ Free to use</span>
+        <span>✓ No credit card</span>
+        <span>✓ Works on any phone</span>
+      </div>
+    </div>
+
+    <!-- Product preview -->
+    <div class="lp-hero-demo">
+      <div class="lp-demo-card">
+        <div class="lp-demo-prompt">
+          <span class="lp-demo-label">You type</span>
+          <div class="lp-demo-input">
+            <span id="lp-typed"></span><span class="lp-caret">|</span>
+          </div>
+        </div>
+        <div class="lp-demo-arrow">↓</div>
+        <div class="lp-demo-result">
+          <span class="lp-demo-label">ProfSchedule creates</span>
+          <div class="lp-demo-event">
+            <span class="lp-dot" style="background:var(--cat-lecture)"></span>
+            <div>
+              <strong>Artificial Neural Networks</strong>
+              <small>Mon, Wed, Fri · 10:00–11:00 AM · Room A-301</small>
+            </div>
+          </div>
+          <div class="lp-demo-event">
+            <span class="lp-dot" style="background:var(--cat-meeting)"></span>
+            <div>
+              <strong>Reminder set</strong>
+              <small>30 minutes before every class</small>
+            </div>
+          </div>
+          <div class="lp-demo-event">
+            <span class="lp-dot" style="background:var(--cat-research)"></span>
+            <div>
+              <strong>Synced to your phone</strong>
+              <small>Google Calendar · Email · Push</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== Features ==================== -->
+  <section class="lp-section" id="features">
+    <div class="lp-section-head">
+      <span class="lp-eyebrow">Features</span>
+      <h2 class="lp-h2">Everything an academic week demands</h2>
+      <p class="lp-section-sub">Lectures, labs, meetings, project reviews, paper evaluation, deadlines — handled.</p>
+    </div>
+
+    <div class="lp-grid">
+      <div class="lp-feature">
+        <div class="lp-fico" style="background:var(--cat-lecture-soft);color:var(--cat-lecture)">💬</div>
+        <h3>Just say it</h3>
+        <p>"I teach ANN every Monday, Wednesday and Friday from 10 to 11." That's the whole workflow — no forms, no dropdowns.</p>
+      </div>
+      <div class="lp-feature">
+        <div class="lp-fico" style="background:var(--cat-lab-soft);color:var(--cat-lab)">🪄</div>
+        <h3>Timetable generator</h3>
+        <p>Give it your subjects, lecture counts and working hours. It places everything around your lunch break and free periods.</p>
+      </div>
+      <div class="lp-feature">
+        <div class="lp-fico" style="background:var(--cat-examination-soft);color:var(--cat-examination)">⚠️</div>
+        <h3>Clash detection</h3>
+        <p>Double-booked yourself? You'll know before it's saved, with the next free slot suggested automatically.</p>
+      </div>
+      <div class="lp-feature">
+        <div class="lp-fico" style="background:var(--cat-meeting-soft);color:var(--cat-meeting)">📲</div>
+        <h3>Reminders that reach you</h3>
+        <p>Email, lock-screen push, and native Google or Apple Calendar alerts. Set it up once on your phone.</p>
+      </div>
+      <div class="lp-feature">
+        <div class="lp-fico" style="background:var(--cat-research-soft);color:var(--cat-research)">🔍</div>
+        <h3>Find a free hour</h3>
+        <p>"When am I free this Friday?" or "Find a 2-hour slot for research." It reads your real schedule and answers.</p>
+      </div>
+      <div class="lp-feature">
+        <div class="lp-fico" style="background:var(--cat-project_review-soft);color:var(--cat-project_review)">✅</div>
+        <h3>Tasks &amp; deadlines</h3>
+        <p>Internal marks, question papers, attendance uploads — tracked with countdowns so nothing slips.</p>
+      </div>
+      <div class="lp-feature">
+        <div class="lp-fico" style="background:var(--cat-workshop-soft);color:var(--cat-workshop)">🗓️</div>
+        <h3>Every view you need</h3>
+        <p>Weekly grid, day, month and agenda. Drag-free editing, recurring series, and one-click duplication.</p>
+      </div>
+      <div class="lp-feature">
+        <div class="lp-fico" style="background:var(--cat-fdp-soft);color:var(--cat-fdp)">📤</div>
+        <h3>Export anywhere</h3>
+        <p>Share your timetable as PDF, CSV or ICS — for the department office, or your own records.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== How it works ==================== -->
+  <section class="lp-section lp-section-alt" id="how">
+    <div class="lp-section-head">
+      <span class="lp-eyebrow">How it works</span>
+      <h2 class="lp-h2">Set up in about two minutes</h2>
+    </div>
+
+    <div class="lp-steps">
+      <div class="lp-step">
+        <div class="lp-step-num">1</div>
+        <h3>Tell us your college hours</h3>
+        <p>8:45–4:15? 11:00–6:30? Pick your timings and lunch break at signup — your timetable is built around them.</p>
+      </div>
+      <div class="lp-step">
+        <div class="lp-step-num">2</div>
+        <h3>Describe your classes</h3>
+        <p>Type them in plain English, or let the generator lay out a full week from your subject list.</p>
+      </div>
+      <div class="lp-step">
+        <div class="lp-step-num">3</div>
+        <h3>Connect your phone</h3>
+        <p>One tap links Google Calendar, so reminders arrive natively — even with the app closed.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== Notifications ==================== -->
+  <section class="lp-section" id="notifications">
+    <div class="lp-split">
+      <div>
+        <span class="lp-eyebrow">Never miss a class</span>
+        <h2 class="lp-h2">Reminders on the phone you already carry</h2>
+        <p class="lp-section-sub" style="text-align:left;margin:14px 0 22px">
+          No new app to install. Choose whichever channel suits you — or use all of them.
+        </p>
+        <ul class="lp-checks">
+          <li><strong>Google Calendar</strong> — one tap, and Google delivers the alert itself</li>
+          <li><strong>Apple Calendar &amp; Outlook</strong> — subscribe to your personal feed</li>
+          <li><strong>Email</strong> — straight to the address you signed in with</li>
+          <li><strong>Lock-screen push</strong> — works even when the site is closed</li>
+        </ul>
+        <a class="btn btn-primary" href="/register" style="margin-top:22px">Get started free</a>
+      </div>
+
+      <div class="lp-phone">
+        <div class="lp-phone-notch"></div>
+        <div class="lp-phone-screen">
+          <div class="lp-notif">
+            <div class="lp-notif-head">🔔 ProfSchedule AI · now</div>
+            <strong>ANN Lecture starts in 30 minutes</strong>
+            <small>10:00 AM · Room A-301</small>
+          </div>
+          <div class="lp-notif" style="animation-delay:.35s">
+            <div class="lp-notif-head">🔔 ProfSchedule AI · 2h ago</div>
+            <strong>Internal marks due tomorrow</strong>
+            <small>Submit via the department portal</small>
+          </div>
+          <div class="lp-notif" style="animation-delay:.7s">
+            <div class="lp-notif-head">🗓️ Google Calendar</div>
+            <strong>Department Meeting</strong>
+            <small>2:00 PM · HOD Cabin</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== Final CTA ==================== -->
+  <section class="lp-final">
+    <h2 class="lp-h2" style="color:#fff">Ready to stop managing your calendar by hand?</h2>
+    <p>Join the professors running their whole academic week through one prompt box.</p>
+    <div class="lp-cta-row" style="justify-content:center">
+      <a class="btn btn-lg" href="/register" style="background:#fff;color:var(--primary);border-color:#fff">Create free account</a>
+      <a class="btn btn-lg lp-btn-outline" href="/login">Log in</a>
+    </div>
+  </section>
+
+  <footer class="lp-footer">
+    <div>© {{ now_year }} ProfSchedule AI · Built for college faculty</div>
+    <div class="lp-footer-links">
+      <a href="/login">Log in</a>
+      <a href="/register">Sign up</a>
+    </div>
+  </footer>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/landing.js?v={{ v }}"></script>
+{% endblock %}

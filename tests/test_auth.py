@@ -105,3 +105,26 @@ def test_free_time_respects_custom_working_hours(client):
     # Converted to the user's timezone the window is 11:00-18:30; assert it is
     # not the old hard-coded 09:00-17:00 default.
     assert first_start < last_end
+
+
+def test_landing_page_is_public(client):
+    """Anonymous visitors get the marketing page, not a redirect to login."""
+    resp = client.get("/", follow_redirects=False)
+    assert resp.status_code == 200
+    body = resp.text
+    assert "lp-title" in body
+    assert 'href="/register"' in body and 'href="/login"' in body
+
+
+def test_landing_does_not_render_app_only_scripts(client):
+    """Onboarding calls an authenticated endpoint; loading it while logged out
+    would 401 and bounce the visitor straight off the landing page."""
+    body = client.get("/").text
+    assert "onboarding.js" not in body
+    assert 'id="onboarding-modal"' not in body
+
+
+def test_signed_in_user_skips_the_landing_page(auth_client):
+    resp = auth_client.get("/", follow_redirects=False)
+    assert resp.status_code in (302, 307)
+    assert resp.headers["location"] == "/dashboard"

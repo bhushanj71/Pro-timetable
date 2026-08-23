@@ -1,0 +1,174 @@
+/* ==========================================================================
+   Landing page — loaded only on "/", on top of the shared design system.
+   ========================================================================== */
+
+.landing { background: var(--bg); }
+.landing .btn-lg { padding: 14px 26px; font-size: 0.95rem; border-radius: 14px; }
+
+/* ---------------- Nav ---------------- */
+.lp-nav {
+  display: flex; align-items: center; gap: 26px;
+  padding: 18px 40px; max-width: 1240px; margin: 0 auto;
+  position: sticky; top: 0; z-index: 60;
+  background: rgba(253, 249, 247, 0.82);
+  backdrop-filter: blur(14px);
+}
+.lp-nav-links { display: flex; gap: 24px; margin-left: 18px; }
+.lp-nav-links a { font-size: 0.885rem; font-weight: 600; color: var(--text-soft); transition: color var(--t) var(--ease); }
+.lp-nav-links a:hover { color: var(--primary); }
+.lp-nav-cta { display: flex; gap: 10px; margin-left: auto; }
+
+/* ---------------- Hero ---------------- */
+.lp-hero {
+  max-width: 1240px; margin: 0 auto; padding: 54px 40px 76px;
+  display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 56px; align-items: center;
+}
+.lp-eyebrow {
+  display: inline-block; background: var(--primary-soft); color: var(--primary-hover);
+  padding: 6px 14px; border-radius: var(--radius-pill);
+  font-size: 0.76rem; font-weight: 800; margin-bottom: 18px;
+}
+.lp-title { font-size: clamp(2.1rem, 4.6vw, 3.3rem); line-height: 1.08; letter-spacing: -0.035em; font-weight: 800; }
+.lp-title em { font-style: normal; color: var(--primary); }
+.lp-sub { font-size: 1.03rem; color: var(--text-soft); margin-top: 18px; max-width: 52ch; line-height: 1.65; }
+.lp-cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+.lp-trust { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 22px; font-size: 0.82rem; color: var(--text-muted); font-weight: 600; }
+
+/* ---------------- Hero demo ---------------- */
+.lp-demo-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 22px;
+  box-shadow: var(--shadow-lg); animation: fadeUp 700ms var(--ease-out) both;
+}
+.lp-demo-label { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-muted); }
+.lp-demo-input { margin-top: 8px; padding: 14px 16px; background: var(--bg-tint); border-radius: 12px; font-size: 0.875rem; min-height: 52px; line-height: 1.5; }
+.lp-caret { color: var(--primary); font-weight: 700; animation: pulseFade 1.05s steps(1) infinite; }
+.lp-demo-arrow { text-align: center; color: var(--primary); font-size: 1.3rem; margin: 12px 0 6px; }
+.lp-demo-event {
+  display: flex; align-items: center; gap: 12px; padding: 11px 13px; margin-top: 8px;
+  background: var(--surface-alt); border: 1px solid var(--border); border-radius: 12px;
+  animation: fadeUp var(--t-slow) var(--ease-out) both;
+}
+/* Staggered so the "result" appears to build as the sentence finishes typing. */
+.lp-demo-event:nth-of-type(1) { animation-delay: 1.6s; }
+.lp-demo-event:nth-of-type(2) { animation-delay: 1.9s; }
+.lp-demo-event:nth-of-type(3) { animation-delay: 2.2s; }
+.lp-demo-event strong { display: block; font-size: 0.855rem; }
+.lp-demo-event small { color: var(--text-muted); font-size: 0.75rem; }
+.lp-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* ---------------- Sections ---------------- */
+.lp-section { max-width: 1240px; margin: 0 auto; padding: 76px 40px; }
+.lp-section-alt { background: var(--bg-tint); max-width: none; }
+.lp-section-alt > * { max-width: 1240px; margin-left: auto; margin-right: auto; }
+.lp-section-head { text-align: center; margin-bottom: 44px; }
+.lp-h2 { font-size: clamp(1.6rem, 3vw, 2.15rem); letter-spacing: -0.03em; line-height: 1.2; }
+.lp-section-sub { color: var(--text-soft); margin-top: 12px; font-size: 0.97rem; }
+
+/* ---------------- Feature grid ---------------- */
+.lp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+.lp-feature {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 24px 22px; box-shadow: var(--shadow-xs);
+  transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease), border-color var(--t) var(--ease);
+}
+.lp-feature:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+.lp-fico {
+  width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center;
+  font-size: 1.2rem; margin-bottom: 15px; transition: transform var(--t) var(--ease-spring);
+}
+.lp-feature:hover .lp-fico { transform: scale(1.1) rotate(-6deg); }
+.lp-feature h3 { font-size: 1rem; margin-bottom: 7px; }
+.lp-feature p { font-size: 0.845rem; color: var(--text-soft); line-height: 1.6; }
+
+/* ---------------- Steps ---------------- */
+.lp-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.lp-step {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 28px 24px; text-align: center;
+  transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
+}
+.lp-step:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); }
+.lp-step-num {
+  width: 44px; height: 44px; margin: 0 auto 16px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary) 0%, #eb9375 100%);
+  color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 1.05rem;
+  box-shadow: 0 6px 16px var(--primary-ring);
+}
+.lp-step h3 { font-size: 1rem; margin-bottom: 8px; }
+.lp-step p { font-size: 0.85rem; color: var(--text-soft); line-height: 1.6; }
+
+/* ---------------- Split / phone mock ---------------- */
+.lp-split { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+.lp-checks { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 13px; }
+.lp-checks li { position: relative; padding-left: 30px; font-size: 0.9rem; color: var(--text-soft); }
+/* Tick drawn with borders rather than a glyph, so it renders identically everywhere. */
+.lp-checks li::before {
+  content: ""; position: absolute; left: 0; top: -1px;
+  width: 20px; height: 20px; border-radius: 50%; background: var(--success-soft);
+}
+.lp-checks li::after {
+  content: ""; position: absolute; left: 7px; top: 4px;
+  width: 4px; height: 9px; border: solid var(--success);
+  border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.lp-checks strong { color: var(--text); }
+
+.lp-phone {
+  justify-self: center; width: 292px; padding: 14px;
+  background: #2f2a27; border-radius: 38px; box-shadow: var(--shadow-lg); position: relative;
+}
+.lp-phone-notch {
+  width: 110px; height: 20px; background: #2f2a27; border-radius: 0 0 14px 14px;
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%); z-index: 2;
+}
+.lp-phone-screen {
+  background: linear-gradient(170deg, #4a3f3a 0%, #6b5a52 100%);
+  border-radius: 26px; padding: 42px 12px 20px; min-height: 400px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.lp-notif {
+  background: rgba(255, 255, 255, 0.94); border-radius: 15px; padding: 11px 13px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.16); animation: fadeUp 600ms var(--ease-out) both;
+}
+.lp-notif-head { font-size: 0.66rem; color: var(--text-muted); font-weight: 700; margin-bottom: 3px; }
+.lp-notif strong { display: block; font-size: 0.815rem; }
+.lp-notif small { color: var(--text-muted); font-size: 0.72rem; }
+
+/* ---------------- Final CTA + footer ---------------- */
+.lp-final {
+  text-align: center; padding: 76px 40px;
+  background: linear-gradient(135deg, var(--primary) 0%, #d1684a 100%); color: #fff;
+}
+.lp-final p { color: rgba(255, 255, 255, 0.9); margin-top: 12px; font-size: 1rem; }
+.lp-btn-outline { background: transparent; color: #fff; border-color: rgba(255, 255, 255, 0.55); }
+.lp-btn-outline:hover { background: rgba(255, 255, 255, 0.14); }
+
+.lp-footer {
+  max-width: 1240px; margin: 0 auto; padding: 26px 40px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; font-size: 0.82rem; color: var(--text-muted);
+}
+.lp-footer-links { display: flex; gap: 18px; }
+.lp-footer-links a:hover { color: var(--primary); }
+
+/* ---------------- Responsive ---------------- */
+@media (max-width: 1000px) {
+  .lp-grid { grid-template-columns: repeat(2, 1fr); }
+  .lp-hero, .lp-split { grid-template-columns: 1fr; gap: 40px; }
+  .lp-steps { grid-template-columns: 1fr; }
+  .lp-nav-links { display: none; }
+}
+
+@media (max-width: 640px) {
+  .lp-nav { padding: 14px 18px; gap: 12px; }
+  .lp-nav .brand-tag { display: none; }
+  .lp-nav-cta .btn-ghost { display: none; }
+  .lp-hero { padding: 32px 18px 52px; }
+  .lp-section { padding: 52px 18px; }
+  .lp-grid { grid-template-columns: 1fr; }
+  .lp-final { padding: 52px 18px; }
+  .lp-footer { padding: 22px 18px; justify-content: center; text-align: center; }
+  .lp-cta-row .btn { width: 100%; justify-content: center; }
+  .lp-phone { width: 100%; max-width: 292px; }
+}
