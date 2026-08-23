@@ -110,3 +110,69 @@ def test_test_notification_endpoint_reports_channel_state(auth_client):
     body = auth_client.post("/api/notifications/test").json()
     assert "email" in body and "push" in body
     assert body["devices"] == 0
+
+
+# --- Reminders must be created automatically ------------------------------
+
+def test_creating_an_event_creates_a_reminder_by_default(auth_client, db_session):
+    """The regression behind 'I scheduled a meeting and got no notification':
+    no form sends reminder_minutes, so nothing was ever scheduled to deliver."""
+    future = datetime.now(timezone.utc) + timedelta(days=2)
+    resp = auth_client.post("/api/events", json={
+        "title": "Department Meeting",
+        "start_datetime": future.isoformat(),
+        "end_datetime": (future + timedelta(hours=1)).isoformat(),
+    })
+    assert resp.status_code == 201
+    event_id = resp.json()[0]["id"]
+
+    reminders = db_session.query(Reminder).filter(Reminder.event_id == event_id).all()
+    assert len(reminders) == 1, "an event with no explicit reminder must still use the profile default"
+
+    # Default lead time is 30 minutes before the event.
+    delta = future - reminders[0].reminder_datetime.replace(tzinfo=timezone.utc)
+    assert abs(delta - timedelta(minutes=30)) < timedelta(seconds=5)
+
+
+def test_explicit_empty_list_means_no_reminder(auth_client, db_session):
+    future = datetime.now(timezone.utc) + timedelta(days=2)
+    resp = auth_client.post("/api/events", json={
+        "title": "Quiet Event",
+        "start_datetime": future.isoformat(),
+        "end_datetime": (future + timedelta(hours=1)).isoformat(),
+        "reminder_minutes": [],
+    })
+    event_id = resp.json()[0]["id"]
+    assert db_session.query(Reminder).filter(Reminder.event_id == event_id).count() == 0
+
+
+def test_past_occurrences_do_not_create_overdue_reminders(auth_client, db_session):
+    """A recurring series starting in the past must not dump a pile of
+    already-due reminders that all fire at once."""
+    past = datetime.now(timezone.utc) - timedelta(days=14)
+    resp = auth_client.post("/api/events?force=true", json={
+        "title": "Long Running Class",
+        "start_datetime": past.isoformat(),
+        "end_datetime": (past + timedelta(hours=1)).isoformat(),
+        "recurrence_rule": "weekly:MON",
+    })
+    assert resp.status_code == 201
+
+    ids = [e["id"] for e in resp.json()]
+    reminders = db_session.query(Reminder).filter(Reminder.event_id.in_(ids)).all()
+    now = datetime.now(timezone.utc)
+    overdue = [r for r in reminders if r.reminder_datetime.replace(tzinfo=timezone.utc) <= now]
+    assert not overdue, f"{len(overdue)} reminders were created already overdue"
+
+
+def test_user_default_lead_time_is_respected(auth_client, db_session):
+    auth_client.put("/api/auth/me", json={"default_reminder_minutes": 60})
+    future = datetime.now(timezone.utc) + timedelta(days=3)
+    resp = auth_client.post("/api/events", json={
+        "title": "Custom Lead",
+        "start_datetime": future.isoformat(),
+        "end_datetime": (future + timedelta(hours=1)).isoformat(),
+    })
+    r = db_session.query(Reminder).filter(Reminder.event_id == resp.json()[0]["id"]).first()
+    delta = future - r.reminder_datetime.replace(tzinfo=timezone.utc)
+    assert abs(delta - timedelta(minutes=60)) < timedelta(seconds=5)

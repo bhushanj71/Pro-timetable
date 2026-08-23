@@ -3,10 +3,28 @@ Pydantic schemas: request/response validation and the AI structured-output
 contracts. AI-generated JSON is always parsed into these models before it
 touches the database — never executed directly.
 """
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Any, Optional
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator
+
+
+class UTCModel(BaseModel):
+    """Base for responses containing datetimes.
+
+    Every datetime is stored as UTC, but SQLite drops tzinfo on read-back, so
+    the value would serialize as a bare "2026-08-23T09:48:49". JavaScript
+    parses a string with no offset as *local* time, shifting every displayed
+    time by the user's UTC offset. Stamping the offset makes the wire format
+    unambiguous and identical across SQLite and Postgres.
+    """
+
+    @field_serializer("*", when_used="json")
+    def _serialize_utc(self, value: Any) -> Any:
+        if isinstance(value, datetime):
+            aware = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+            return aware.astimezone(timezone.utc).isoformat()
+        return value
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +86,7 @@ class UserOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class AdminUserOut(BaseModel):
+class AdminUserOut(UTCModel):
     """Richer user view, admin-only. Never exposes password_hash."""
 
     id: str
@@ -186,7 +204,7 @@ class EventUpdate(BaseModel):
     is_cancelled: Optional[bool] = None
 
 
-class EventOut(BaseModel):
+class EventOut(UTCModel):
     id: str
     user_id: str
     title: str
@@ -217,7 +235,7 @@ class ReminderCreate(BaseModel):
     reminder_type: str = "in_app"
 
 
-class ReminderOut(BaseModel):
+class ReminderOut(UTCModel):
     id: str
     event_id: Optional[str] = None
     task_id: Optional[str] = None
@@ -249,7 +267,7 @@ class TaskUpdate(BaseModel):
     status: Optional[str] = None
 
 
-class TaskOut(BaseModel):
+class TaskOut(UTCModel):
     id: str
     title: str
     description: Optional[str] = None

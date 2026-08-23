@@ -203,8 +203,11 @@ def confirm_extraction(payload: AIConfirmRequest, db: Session = Depends(get_db),
             )
             db.add(event)
             db.flush()
-            if evt.reminder_minutes:
-                create_reminder_for_event(db, event, evt.reminder_minutes)
+            # Fall back to the professor's configured lead time when the model
+            # didn't specify one, so every scheduled item actually reminds.
+            lead = evt.reminder_minutes or user.default_reminder_minutes
+            if lead and occ_start - timedelta(minutes=lead) > datetime.now(timezone.utc):
+                create_reminder_for_event(db, event, lead)
             created_events.append(event)
 
     for r in extraction.reminders:
