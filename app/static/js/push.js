@@ -123,6 +123,71 @@ async function disablePush() {
   showToast("Push notifications disabled on this device", "success");
 }
 
+/** List the devices that will actually receive a push.
+
+    Push subscriptions live in the browser, not the account: tapping Enable on
+    a laptop does nothing for a phone, and a failed subscribe leaves no trace.
+    Showing what is registered turns "why no notifications?" into something
+    the professor can see and fix. */
+async function refreshDeviceList() {
+  const box = document.getElementById("device-list");
+  if (!box) return;
+
+  let devices;
+  try {
+    ({ devices } = await apiFetch("/api/push/devices"));
+  } catch (_) {
+    box.innerHTML = `<div class="device-empty">Could not load your devices.</div>`;
+    return;
+  }
+
+  // Identify the row belonging to the browser we are looking at right now.
+  let myTail = null;
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    const sub = await reg?.pushManager.getSubscription();
+    if (sub) myTail = sub.endpoint.slice(-12);
+  } catch (_) {}
+
+  if (!devices.length) {
+    box.innerHTML = `<div class="device-empty warn">
+        <strong>No devices registered yet.</strong><br>
+        Reminders can only reach a phone that has tapped Enable <em>on that phone</em>.
+        Open this page on your phone and turn notifications on there.
+      </div>`;
+    return;
+  }
+
+  box.innerHTML = devices
+    .map((d) => {
+      const mine = myTail && d.endpoint_tail === myTail;
+      return `<div class="device-row">
+        <span class="dv-ico">📱</span>
+        <div class="dv-main">
+          <div class="dv-name">${d.label}${mine ? ` <span class="dv-this">· this device</span>` : ""}</div>
+          <div class="dv-when">Added ${fmtDate(d.added)}</div>
+        </div>
+        <button type="button" class="dv-forget" data-device="${d.id}">Forget</button>
+      </div>`;
+    })
+    .join("");
+}
+
+// Delegated: refreshDeviceList replaces these rows wholesale.
+document.getElementById("device-list")?.addEventListener("click", async (e) => {
+  const btn = e.target.closest(".dv-forget");
+  if (!btn) return;
+  setButtonLoading(btn, true);
+  try {
+    await apiFetch(`/api/push/devices/${btn.dataset.device}`, { method: "DELETE" });
+    await refreshDeviceList();
+    refreshPushStatus();
+  } catch (_) {
+    showToast("Could not remove that device", "error");
+    setButtonLoading(btn, false);
+  }
+});
+
 /** Reflect the current state in the profile page controls. */
 async function refreshPushStatus() {
   const statusEl = document.getElementById("push-status");
@@ -166,6 +231,7 @@ document.getElementById("push-enable-btn")?.addEventListener("click", async (e) 
   } finally {
     setButtonLoading(e.currentTarget, false);
     refreshPushStatus();
+    refreshDeviceList();
   }
 });
 
@@ -176,9 +242,11 @@ document.getElementById("push-disable-btn")?.addEventListener("click", async (e)
   } finally {
     setButtonLoading(e.currentTarget, false);
     refreshPushStatus();
+    refreshDeviceList();
   }
 });
 
 // Register early so an already-permitted device keeps working after a reload.
 if (pushSupported() && Notification.permission === "granted") registerServiceWorker();
 if (document.getElementById("push-status")) refreshPushStatus();
+if (document.getElementById("device-list")) refreshDeviceList();

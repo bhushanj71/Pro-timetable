@@ -309,6 +309,57 @@ def test_onboarding_leads_with_install_not_calendar(auth_client):
     assert "onb-cal-btn" not in body, "external calendar step should be gone"
 
 
+# --- Registered devices ----------------------------------------------------
+
+def test_device_list_is_empty_before_any_phone_subscribes(auth_client):
+    """The case behind 'I get nothing on my phone': no device ever registered."""
+    assert auth_client.get("/api/push/devices").json()["devices"] == []
+
+
+def test_device_list_names_the_subscribed_device(auth_client):
+    auth_client.post(
+        "/api/push/subscribe",
+        json=_sub_payload("https://fcm.googleapis.com/fcm/send/phone-endpoint-1"),
+        headers={"user-agent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/126.0"},
+    )
+    devices = auth_client.get("/api/push/devices").json()["devices"]
+    assert len(devices) == 1
+    assert devices[0]["label"] == "Android · Chrome"
+    assert devices[0]["endpoint_tail"] == "one-endpoint-1"[-12:]
+
+
+def test_device_list_does_not_leak_the_full_endpoint(auth_client):
+    """Endpoints are capability URLs -- anyone holding one can push."""
+    endpoint = "https://fcm.googleapis.com/fcm/send/secret-capability-url"
+    auth_client.post("/api/push/subscribe", json=_sub_payload(endpoint))
+    body = auth_client.get("/api/push/devices").text
+    assert endpoint not in body
+
+
+def test_forgetting_a_device_stops_it_receiving_push(auth_client, db_session):
+    auth_client.post("/api/push/subscribe", json=_sub_payload())
+    device_id = auth_client.get("/api/push/devices").json()["devices"][0]["id"]
+
+    assert auth_client.delete(f"/api/push/devices/{device_id}").status_code == 204
+    assert db_session.query(PushSubscription).count() == 0
+
+
+def test_cannot_forget_another_professors_device(client):
+    client.post("/api/auth/register", json={
+        "name": "A", "email": "dev_a@example.com", "password": "password123"})
+    client.post("/api/push/subscribe", json=_sub_payload("https://fcm.googleapis.com/fcm/send/a-device"))
+    device_id = client.get("/api/push/devices").json()["devices"][0]["id"]
+    client.post("/api/auth/logout")
+
+    client.post("/api/auth/register", json={
+        "name": "B", "email": "dev_b@example.com", "password": "password123"})
+    assert client.delete(f"/api/push/devices/{device_id}").status_code == 404
+
+
+def test_device_list_requires_auth(client):
+    assert client.get("/api/push/devices").status_code == 401
+
+
 # --- Notification read state ----------------------------------------------
 
 def _deliver_a_reminder(client, title="Bell test"):

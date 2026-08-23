@@ -87,6 +87,12 @@
       <button class="btn btn-sm btn-primary hidden" id="push-enable-btn">Enable on this device</button>
       <button class="btn btn-sm hidden" id="push-disable-btn">Disable on this device</button>
     </div>
+
+    <!-- Push is per-device. Without this list there is no way to tell a
+         registered phone from a laptop whose Enable silently failed. -->
+    <div class="device-list" id="device-list">
+      <div class="device-empty">Checking registered devices…</div>
+    </div>
   </div>
 
   <!-- Email fallback -->

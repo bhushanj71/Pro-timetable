@@ -1050,6 +1050,35 @@ input, select, textarea, button { font-size: inherit; }
 
 
 
+/* Registered push devices */
+.device-list { margin-top: 12px; display: flex; flex-direction: column; gap: 7px; }
+.device-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 11px;
+  background: var(--surface-alt); border: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.device-row .dv-ico { font-size: 1.05rem; }
+.device-row .dv-main { flex: 1; min-width: 0; }
+.device-row .dv-name { font-weight: 600; }
+.device-row .dv-name .dv-this { color: var(--primary); font-weight: 700; }
+.device-row .dv-when { color: var(--text-muted); font-size: 0.74rem; }
+.device-row .dv-forget {
+  border: none; background: none; padding: 4px 8px; border-radius: 8px;
+  font: inherit; font-size: 0.74rem; font-weight: 700;
+  color: var(--text-muted); cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.device-row .dv-forget:hover { background: var(--danger-soft); color: var(--danger); }
+.device-empty {
+  padding: 11px 13px; border-radius: 11px; font-size: 0.8rem;
+  background: var(--surface-alt); border: 1px dashed var(--border);
+  color: var(--text-muted);
+}
+.device-empty.warn {
+  border-color: var(--warning); color: var(--text-soft); border-style: solid;
+}
+
 /* Deadlines */
 .deadline-item {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;

@@ -87,6 +87,76 @@ def push_unsubscribe(
     return {"ok": True}
 
 
+def _device_label(user_agent: str | None) -> str:
+    """A recognisable name for a registered device, from its user agent."""
+    ua = user_agent or ""
+    if "iPhone" in ua:
+        os_name = "iPhone"
+    elif "iPad" in ua:
+        os_name = "iPad"
+    elif "Android" in ua:
+        os_name = "Android"
+    elif "Windows" in ua:
+        os_name = "Windows PC"
+    elif "Mac" in ua:
+        os_name = "Mac"
+    elif "Linux" in ua:
+        os_name = "Linux"
+    else:
+        os_name = "Unknown device"
+
+    # Order matters: Edge and Chrome both claim "Chrome", Chrome claims "Safari".
+    for token, name in (("Edg", "Edge"), ("OPR", "Opera"), ("Firefox", "Firefox"),
+                        ("Chrome", "Chrome"), ("Safari", "Safari")):
+        if token in ua:
+            return f"{os_name} · {name}"
+    return os_name
+
+
+@router.get("/push/devices")
+def list_push_devices(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Which devices will actually receive a push.
+
+    Without this the professor has no way to tell "my phone is subscribed"
+    from "I tapped Enable on my laptop and it silently failed" -- both look
+    identical from the app.
+    """
+    subs = (
+        db.query(PushSubscription)
+        .filter(PushSubscription.user_id == user.id)
+        .order_by(PushSubscription.created_at.desc())
+        .all()
+    )
+    return {
+        "devices": [
+            {
+                "id": s.id,
+                "label": _device_label(s.user_agent),
+                # Enough for the browser to recognise its own subscription
+                # without handing back the full capability URL.
+                "endpoint_tail": s.endpoint[-12:],
+                "added": (s.created_at if s.created_at.tzinfo else s.created_at.replace(tzinfo=timezone.utc)).isoformat(),
+            }
+            for s in subs
+        ]
+    }
+
+
+@router.delete("/push/devices/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_push_device(device_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Forget one device -- e.g. a laptop whose subscription never worked."""
+    sub = (
+        db.query(PushSubscription)
+        .filter(PushSubscription.id == device_id, PushSubscription.user_id == user.id)
+        .first()
+    )
+    if not sub:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Device not found")
+    db.delete(sub)
+    db.commit()
+    return None
+
+
 @router.post("/notifications/test")
 def send_test_notification(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Fire a reminder through every enabled channel right now, so a professor
