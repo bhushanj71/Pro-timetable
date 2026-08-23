@@ -1376,3 +1376,93 @@ input, select, textarea, button { font-size: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .dots5 span { animation: none; opacity: 0.7; }
 }
+
+/* ==========================================================================
+   Cursor + selection behaviour
+   The I-beam over labels, cards and nav made the app feel like a document.
+   UI chrome now shows the normal arrow and resists accidental selection,
+   while anything genuinely clickable keeps the hand, and real text fields
+   keep the caret.
+   ========================================================================== */
+body {
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  /* Stops the grey flash when tapping UI on mobile. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Anything actionable gets the hand. */
+a[href],
+button,
+.btn,
+.btn-ask,
+.nav-link,
+.bn-item,
+.icon-btn,
+.qa-card,
+.ai-example-chip,
+.tab-btn,
+.tt-event,
+.tt-day-btn,
+.mini-day:not(.muted),
+.tl-item[data-event-id],
+.task-check,
+.result-item,
+.notif-item,
+.user-chip,
+.month-cell,
+.ue-manage,
+label,
+select,
+summary,
+[role="button"],
+[data-manage],
+[data-complete],
+[data-act],
+[data-view],
+[data-tab],
+[data-day] {
+  cursor: pointer;
+}
+
+/* Disabled controls should not invite a click. */
+button:disabled,
+.btn:disabled,
+.btn.is-loading,
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+}
+
+/* Real text entry keeps the caret and normal selection. */
+input,
+textarea,
+[contenteditable="true"] {
+  cursor: text;
+  -webkit-user-select: text;
+  user-select: text;
+}
+input[type="checkbox"],
+input[type="radio"],
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="color"],
+input[type="range"],
+input[type="file"],
+input[type="submit"],
+input[type="button"] {
+  cursor: pointer;
+}
+
+/* Content worth copying stays selectable. */
+.selectable,
+.ai-result-card,
+.event-line,
+code,
+pre {
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: auto;
+}
