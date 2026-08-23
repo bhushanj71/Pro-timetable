@@ -311,3 +311,35 @@ def test_reminder_still_delivers_when_push_is_configured_but_no_device(auth_clie
 
     items = auth_client.get("/api/reminders/notifications").json()["items"]
     assert any(n["title"] == "No device" for n in items)
+
+
+def test_polling_delivers_overdue_reminders_without_cron(auth_client, db_session):
+    """On a host that sleeps, no cron may have run. Opening the bell should
+    still surface reminders that are already overdue."""
+    from app.models import Reminder
+
+    auth_client.post("/api/reminders", json={
+        "title": "Overdue, never cronned", "reminder_datetime": "2020-03-01T09:00:00Z", "reminder_type": "in_app"})
+
+    pending = db_session.query(Reminder).filter(Reminder.is_sent.is_(False)).count()
+    assert pending >= 1, "precondition: reminder is undelivered"
+
+    # No cron call — just read the feed.
+    body = auth_client.get("/api/reminders/notifications").json()
+    assert any(n["title"] == "Overdue, never cronned" for n in body["items"])
+    assert body["unread"] >= 1
+
+
+def test_polling_flush_is_scoped_to_the_requesting_user(client, db_session):
+    from app.models import Reminder
+
+    client.post("/api/auth/register", json={"name": "A", "email": "flush_a@example.com", "password": "password123"})
+    client.post("/api/reminders", json={
+        "title": "A overdue", "reminder_datetime": "2020-03-01T09:00:00Z", "reminder_type": "in_app"})
+    client.post("/api/auth/logout")
+
+    client.post("/api/auth/register", json={"name": "B", "email": "flush_b@example.com", "password": "password123"})
+    client.get("/api/reminders/notifications")  # B polls
+
+    a_reminder = db_session.query(Reminder).filter(Reminder.title == "A overdue").first()
+    assert a_reminder.is_sent is False, "one user's poll must not deliver another's reminders"

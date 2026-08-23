@@ -1,6 +1,7 @@
 """
 Reminder CRUD plus the notification-center feed (unsent, due reminders).
 """
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -12,6 +13,7 @@ from app.models import Reminder, User
 from app.schemas import ReminderCreate, ReminderOut
 
 router = APIRouter(prefix="/api/reminders", tags=["reminders"])
+logger = logging.getLogger(__name__)
 
 # A recurring lecture materializes one reminder per occurrence (see
 # generate_occurrence_starts' 16-week horizon), so "all reminders" for even a
@@ -41,6 +43,28 @@ def notifications(db: Session = Depends(get_db), user: User = Depends(get_curren
     badge tracks the latter, so it clears once the panel has been opened.
     """
     now = datetime.now(timezone.utc)
+
+    # Flush this user's overdue reminders before reading the feed. Without
+    # this, a sleeping instance shows an empty bell and sends no push until
+    # some external cron fires.
+    try:
+        from app.services.reminder_service import process_due_reminders
+
+        pending = (
+            db.query(Reminder)
+            .filter(
+                Reminder.user_id == user.id,
+                Reminder.is_sent.is_(False),
+                Reminder.reminder_datetime <= now,
+            )
+            .count()
+        )
+        if pending:
+            process_due_reminders(db, now=now, user_id=user.id)
+    except Exception:
+        # Never let a delivery problem break the notification list itself.
+        logger.exception("Opportunistic reminder flush failed")
+
     items = (
         db.query(Reminder)
         .filter(Reminder.user_id == user.id, Reminder.reminder_datetime <= now, Reminder.is_sent.is_(True))

@@ -55,7 +55,7 @@ def _describe_when(reminder: Reminder, tz_name: str) -> tuple[str, str | None]:
     return local.strftime("%A, %d %b at %I:%M %p"), event.location
 
 
-def process_due_reminders(db: Session, now: datetime | None = None) -> dict:
+def process_due_reminders(db: Session, now: datetime | None = None, user_id: str | None = None) -> dict:
     """
     Deliver every reminder that has come due, across all enabled channels.
 
@@ -74,11 +74,11 @@ def process_due_reminders(db: Session, now: datetime | None = None) -> dict:
     )
 
     now = now or datetime.now(timezone.utc)
-    due = (
-        db.query(Reminder)
-        .filter(Reminder.is_sent.is_(False), Reminder.reminder_datetime <= now)
-        .all()
-    )
+    query = db.query(Reminder).filter(Reminder.is_sent.is_(False), Reminder.reminder_datetime <= now)
+    # Scoped when called from a user's own request; unscoped for the cron run.
+    if user_id:
+        query = query.filter(Reminder.user_id == user_id)
+    due = query.all()
 
     sent = failed = emails = pushes = 0
 
