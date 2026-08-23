@@ -89,10 +89,18 @@ def generate(
 
 
 @router.get("")
-def get_weekly_timetable(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """Return this week's events shaped for the weekly grid view."""
+def get_weekly_timetable(
+    week_offset: int = Query(default=0, ge=-52, le=52, description="0 = this week, 1 = next week, -1 = last week"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Return one week's events shaped for the weekly grid view.
+
+    Defaults to the current week but accepts an offset, since a schedule
+    created for next week would otherwise be invisible in the grid.
+    """
     today = date.today()
-    monday = today - timedelta(days=today.weekday())
+    monday = today - timedelta(days=today.weekday()) + timedelta(weeks=week_offset)
     sunday_end = monday + timedelta(days=7)
 
     start_dt = combine(monday, resolve_time("00:00"), user.timezone)

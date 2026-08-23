@@ -10,8 +10,13 @@ function timeToRow(iso) {
   return hour - TT_HOURS[0];
 }
 
+// Which week the grid is showing: 0 = current, 1 = next, -1 = previous.
+let ttWeekOffset = 0;
+
 async function renderTimetable() {
   const grid = document.getElementById("timetable-grid");
+  // Clear any "no classes" note from a previous render so it can't stack up.
+  grid.parentElement.querySelectorAll(".tt-empty-note").forEach((n) => n.remove());
   grid.style.gridTemplateRows = `40px repeat(${TT_HOURS.length}, 60px)`;
 
   let html = `<div class="tt-header">Time</div>`;
@@ -27,7 +32,26 @@ async function renderTimetable() {
   grid.innerHTML = html;
 
   try {
-    const data = await apiFetch("/api/timetable");
+    const data = await apiFetch(`/api/timetable?week_offset=${ttWeekOffset}`);
+
+    const label = document.getElementById("tt-week-label");
+    if (label && data.week_start) {
+      const start = new Date(data.week_start + "T00:00:00");
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      const opts = { month: "short", day: "numeric" };
+      const rel = ttWeekOffset === 0 ? " (this week)" : ttWeekOffset === 1 ? " (next week)" : "";
+      label.textContent = `${start.toLocaleDateString([], opts)} – ${end.toLocaleDateString([], { ...opts, year: "numeric" })}${rel}`;
+    }
+
+    if (!data.events.length) {
+      const note = document.createElement("p");
+      note.className = "schedule-sub tt-empty-note";
+      note.style.marginTop = "10px";
+      note.textContent = "No classes scheduled this week. Use Prev/Next to check other weeks.";
+      grid.parentElement.appendChild(note);
+    }
+
     data.events.forEach((e) => {
       const start = new Date(e.start);
       const end = new Date(e.end);
@@ -154,6 +178,19 @@ document.getElementById("commit-generator-btn")?.addEventListener("click", async
   } catch (err) {
     showToast(err.message, "error");
   }
+});
+
+document.getElementById("tt-prev")?.addEventListener("click", () => {
+  ttWeekOffset -= 1;
+  renderTimetable();
+});
+document.getElementById("tt-next")?.addEventListener("click", () => {
+  ttWeekOffset += 1;
+  renderTimetable();
+});
+document.getElementById("tt-today")?.addEventListener("click", () => {
+  ttWeekOffset = 0;
+  renderTimetable();
 });
 
 document.getElementById("export-csv-btn")?.addEventListener("click", () => (window.location.href = "/api/export/csv"));

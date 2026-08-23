@@ -82,3 +82,77 @@ def test_cron_processes_due_reminders(auth_client):
 
     notifs = auth_client.get("/api/reminders/notifications").json()
     assert any(n["title"] == "Past reminder" for n in notifs)
+
+
+def test_duplicate_event_objects_are_collapsed(auth_client):
+    """Models often emit one event object per weekday, each already carrying
+    every recurrence day. Naively expanding those yields N copies per day."""
+    extraction = {
+        "intent": "CREATE_RECURRING_EVENT",
+        "events": [
+            {
+                "title": "DSV lecture",
+                "event_type": "lecture",
+                "start_time": "14:15",
+                "end_time": "15:15",
+                "recurrence": "weekly",
+                "recurrence_days": ["Monday", "Thursday", "Friday"],
+                "priority": "medium",
+            }
+        ]
+        * 3,  # the same schedule repeated, as the model tends to emit it
+        "reminders": [],
+        "tasks": [],
+    }
+    resp = auth_client.post("/api/ai/confirm", json={"extraction": extraction})
+    assert resp.status_code == 200
+
+    events = auth_client.get("/api/events").json()
+    # Exactly one event per occurrence, not three.
+    starts = [e["start_datetime"] for e in events]
+    assert len(starts) == len(set(starts)), "duplicate events were created for the same slot"
+
+
+def test_confirming_twice_does_not_duplicate(auth_client):
+    extraction = {
+        "intent": "CREATE_EVENT",
+        "events": [
+            {
+                "title": "One Off Meeting",
+                "event_type": "meeting",
+                "date": "2026-09-10",
+                "start_time": "11:00",
+                "end_time": "12:00",
+                "priority": "medium",
+            }
+        ],
+        "reminders": [],
+        "tasks": [],
+    }
+    auth_client.post("/api/ai/confirm", json={"extraction": extraction})
+    auth_client.post("/api/ai/confirm", json={"extraction": extraction})
+
+    events = [e for e in auth_client.get("/api/events").json() if e["title"] == "One Off Meeting"]
+    assert len(events) == 1, f"expected 1 event after double-confirm, got {len(events)}"
+
+
+def test_timetable_week_offset_finds_next_week(auth_client):
+    """A schedule created for next week must be reachable from the grid."""
+    from datetime import date, timedelta
+
+    today = date.today()
+    next_monday = today - timedelta(days=today.weekday()) + timedelta(days=7)
+    auth_client.post(
+        "/api/events",
+        json={
+            "title": "Next Week Lecture",
+            "start_datetime": f"{next_monday.isoformat()}T09:00:00Z",
+            "end_datetime": f"{next_monday.isoformat()}T10:00:00Z",
+        },
+    )
+
+    this_week = auth_client.get("/api/timetable").json()
+    assert not any(e["title"] == "Next Week Lecture" for e in this_week["events"])
+
+    next_week = auth_client.get("/api/timetable?week_offset=1").json()
+    assert any(e["title"] == "Next Week Lecture" for e in next_week["events"])

@@ -140,7 +140,28 @@ def confirm_extraction(payload: AIConfirmRequest, db: Session = Depends(get_db),
     created_events, created_reminders, created_tasks = [], [], []
     series_count = 0  # user-facing count: one per distinct weekly slot, not per materialized occurrence
 
+    # Models often express "every Mon, Thu and Fri" as three separate event
+    # objects that EACH carry all three recurrence_days, which would expand to
+    # one copy per day per object. Collapse events that resolve to the same
+    # schedule before writing anything.
+    unique_events = []
+    seen_specs = set()
     for evt in extraction.events:
+        spec = (
+            (evt.title or "").strip().lower(),
+            evt.start_time,
+            evt.end_time,
+            evt.recurrence,
+            tuple(sorted(d.lower() for d in (evt.recurrence_days or []))),
+            evt.date,
+            (evt.day or "").lower() if not evt.recurrence_days else None,
+        )
+        if spec in seen_specs:
+            continue
+        seen_specs.add(spec)
+        unique_events.append(evt)
+
+    for evt in unique_events:
         start_dt, end_dt, recurrence_rule = _schedule_event_to_datetimes(evt, user.timezone)
         duration = end_dt - start_dt
         occurrence_starts = generate_occurrence_starts(start_dt, recurrence_rule)
@@ -152,6 +173,21 @@ def confirm_extraction(payload: AIConfirmRequest, db: Session = Depends(get_db),
             series_count += 1
 
         for occ_start in occurrence_starts:
+            # Guard against re-submitting the same extraction (an impatient
+            # second click on Confirm) creating a parallel set of events.
+            already_exists = (
+                db.query(Event)
+                .filter(
+                    Event.user_id == user.id,
+                    Event.title == evt.title,
+                    Event.start_datetime == occ_start,
+                    Event.is_cancelled.is_(False),
+                )
+                .first()
+            )
+            if already_exists:
+                continue
+
             event = Event(
                 user_id=user.id,
                 title=evt.title,
