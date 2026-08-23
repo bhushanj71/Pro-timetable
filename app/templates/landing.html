@@ -1,11 +1,20 @@
-{% extends "base.html" %}
-{% block title %}ProfSchedule AI — Plan Smarter, Teach Better{% endblock %}
-
-{% block head %}
-<link rel="stylesheet" href="/static/css/landing.css?v={{ v }}">
-{% endblock %}
-
-{% block auth_content %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#e0785d">
+  <title>ProfSchedule AI — Plan Smarter, Teach Better</title>
+  <meta name="description" content="AI-powered timetable, task and reminder management for college professors. Describe your classes in plain English and get reminders on your phone.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css?v={{ v }}">
+  <link rel="stylesheet" href="/static/css/landing.css?v={{ v }}">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
+</head>
+<body>
 <div class="landing">
 
   <!-- ==================== Nav ==================== -->
@@ -23,8 +32,12 @@
       <a href="#notifications">Reminders</a>
     </nav>
     <div class="lp-nav-cta">
+      {% if user %}
+      <a class="btn btn-primary" href="/dashboard">Open dashboard →</a>
+      {% else %}
       <a class="btn btn-ghost" href="/login">Log in</a>
       <a class="btn btn-primary" href="/register">Get started free</a>
+      {% endif %}
     </div>
   </header>
 
@@ -40,14 +53,23 @@
       </p>
 
       <div class="lp-cta-row">
+        {% if user %}
+        <a class="btn btn-primary btn-lg" href="/dashboard">Go to my dashboard →</a>
+        <a class="btn btn-lg" href="/timetable">View my timetable</a>
+        {% else %}
         <a class="btn btn-primary btn-lg" href="/register">Create your timetable →</a>
         <a class="btn btn-lg" href="/login">I already have an account</a>
+        {% endif %}
       </div>
 
       <div class="lp-trust">
+        {% if user %}
+        <span>👋 Signed in as {{ user.name }}</span>
+        {% else %}
         <span>✓ Free to use</span>
         <span>✓ No credit card</span>
         <span>✓ Works on any phone</span>
+        {% endif %}
       </div>
     </div>
 
@@ -182,7 +204,11 @@
           <li><strong>Email</strong> — straight to the address you signed in with</li>
           <li><strong>Lock-screen push</strong> — works even when the site is closed</li>
         </ul>
+        {% if user %}
+        <a class="btn btn-primary" href="/profile" style="margin-top:22px">Set up my reminders</a>
+        {% else %}
         <a class="btn btn-primary" href="/register" style="margin-top:22px">Get started free</a>
+        {% endif %}
       </div>
 
       <div class="lp-phone">
@@ -210,24 +236,38 @@
 
   <!-- ==================== Final CTA ==================== -->
   <section class="lp-final">
+    {% if user %}
+    <h2 class="lp-h2" style="color:#fff">Your week is waiting</h2>
+    <p>Pick up where you left off.</p>
+    <div class="lp-cta-row" style="justify-content:center">
+      <a class="btn btn-lg" href="/dashboard" style="background:#fff;color:var(--primary);border-color:#fff">Open dashboard</a>
+      <a class="btn btn-lg lp-btn-outline" href="/timetable">My timetable</a>
+    </div>
+    {% else %}
     <h2 class="lp-h2" style="color:#fff">Ready to stop managing your calendar by hand?</h2>
     <p>Join the professors running their whole academic week through one prompt box.</p>
     <div class="lp-cta-row" style="justify-content:center">
       <a class="btn btn-lg" href="/register" style="background:#fff;color:var(--primary);border-color:#fff">Create free account</a>
       <a class="btn btn-lg lp-btn-outline" href="/login">Log in</a>
     </div>
+    {% endif %}
   </section>
 
   <footer class="lp-footer">
     <div>© {{ now_year }} ProfSchedule AI · Built for college faculty</div>
     <div class="lp-footer-links">
+      {% if user %}
+      <a href="/dashboard">Dashboard</a>
+      <a href="/timetable">Timetable</a>
+      <a href="/profile">Profile</a>
+      {% else %}
       <a href="/login">Log in</a>
       <a href="/register">Sign up</a>
+      {% endif %}
     </div>
   </footer>
 </div>
-{% endblock %}
 
-{% block scripts %}
-<script src="/static/js/landing.js?v={{ v }}"></script>
-{% endblock %}
+  <script src="/static/js/landing.js?v={{ v }}"></script>
+</body>
+</html>

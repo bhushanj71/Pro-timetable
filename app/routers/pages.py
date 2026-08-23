@@ -33,10 +33,13 @@ def _ctx(request: Request, user: User | None, **extra):
 
 @router.get("/")
 def index(request: Request, user: User | None = Depends(get_current_user_optional)):
-    # Signed-in professors go straight to work; everyone else gets the pitch.
-    if user:
-        return RedirectResponse(url="/dashboard")
-    return templates.TemplateResponse("landing.html", _ctx(request, None))
+    """The homepage is the default page for everyone.
+
+    Signed-in professors still see it, but the calls to action switch to
+    "Open my dashboard" rather than sign-up prompts, so it stays one click
+    from work instead of being a dead end.
+    """
+    return templates.TemplateResponse("landing.html", _ctx(request, user))
 
 
 @router.get("/login")

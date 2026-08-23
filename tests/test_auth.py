@@ -124,7 +124,12 @@ def test_landing_does_not_render_app_only_scripts(client):
     assert 'id="onboarding-modal"' not in body
 
 
-def test_signed_in_user_skips_the_landing_page(auth_client):
+def test_homepage_is_the_default_page_when_signed_in_too(auth_client):
+    """The homepage is the default for everyone; signed-in professors see it
+    with dashboard links instead of sign-up prompts."""
     resp = auth_client.get("/", follow_redirects=False)
-    assert resp.status_code in (302, 307)
-    assert resp.headers["location"] == "/dashboard"
+    assert resp.status_code == 200
+    body = resp.text
+    assert "lp-title" in body
+    assert 'href="/dashboard"' in body
+    assert "Get started free" not in body, "signed-in users shouldn't be asked to sign up"
