@@ -26,7 +26,15 @@ from app.schemas import (
 )
 from app.services.ai_service import get_ai_service
 from app.services.conflict_service import find_conflicts
-from app.services.nlp_dates import WEEKDAYS, combine, get_tz, resolve_date, resolve_time, weekday_code
+from app.services.nlp_dates import (
+    WEEKDAYS,
+    combine,
+    ensure_aware_utc,
+    get_tz,
+    resolve_date,
+    resolve_time,
+    weekday_code,
+)
 from app.services.recurrence import generate_occurrence_starts
 from app.services.reminder_service import create_reminder_for_event, create_reminder_for_task
 from app.services.scheduler import find_free_slots, generate_timetable
@@ -77,6 +85,72 @@ def _schedule_event_to_datetimes(evt: ScheduleEvent, tz_name: str) -> tuple[date
     return start_dt, end_dt, recurrence_rule
 
 
+
+def _find_target_events(db: Session, user: User, extraction: AIExtractionResult) -> list[Event]:
+    """Resolve which existing events an update/delete refers to.
+
+    Prefers upcoming occurrences — "cancel my ANN lecture" almost never means
+    one that already happened.
+    """
+    title = (extraction.target_event_title or "").strip()
+    if not title:
+        return []
+
+    now = datetime.now(timezone.utc)
+
+    def base_query(phrase: str):
+        return db.query(Event).filter(
+            Event.user_id == user.id,
+            Event.is_cancelled.is_(False),
+            Event.title.ilike(f"%{phrase}%"),
+        )
+
+    # Natural phrasing carries filler the title doesn't have ("Lab Session
+    # classes"). Narrow the phrase until something matches rather than
+    # requiring the professor to quote the title exactly.
+    words = title.split()
+    query = None
+    for length in range(len(words), 0, -1):
+        candidate = " ".join(words[:length])
+        if base_query(candidate).first():
+            query = base_query(candidate)
+            break
+    if query is None:
+        return []
+
+    if extraction.target_day:
+        target_date = resolve_date(extraction.target_day, user.timezone)
+        day_start = combine(target_date, time.min, user.timezone)
+        query = query.filter(
+            Event.start_datetime >= day_start,
+            Event.start_datetime < day_start + timedelta(days=1),
+        )
+        return query.order_by(Event.start_datetime).all()
+
+    upcoming = query.filter(Event.start_datetime >= now).order_by(Event.start_datetime).all()
+    if upcoming:
+        # Without an explicit "all", act on the next occurrence only.
+        return upcoming if extraction.apply_to_series else upcoming[:1]
+
+    # Nothing ahead: fall back to the most recent match so the professor gets
+    # a useful "did you mean this?" rather than silence.
+    return query.order_by(Event.start_datetime.desc()).limit(1).all()
+
+
+def _serialize_match(e: Event, tz_name: str) -> dict:
+    # ensure_aware_utc first: SQLite returns naive datetimes, and calling
+    # astimezone on those would treat them as machine-local rather than UTC.
+    local = ensure_aware_utc(e.start_datetime).astimezone(get_tz(tz_name))
+    return {
+        "id": e.id,
+        "title": e.title,
+        "start": e.start_datetime.isoformat(),
+        "when": local.strftime("%A, %d %b at %I:%M %p"),
+        "location": e.location,
+        "is_series": bool(e.recurrence_group_id),
+    }
+
+
 @router.post("/process-prompt", response_model=AIPromptResponse)
 def process_prompt(payload: AIPromptRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     ai = get_ai_service()
@@ -125,12 +199,48 @@ def process_prompt(payload: AIPromptRequest, db: Session = Depends(get_db), user
 
     requires_confirmation = extraction.intent not in ("QUERY_SCHEDULE", "FIND_FREE_TIME")
 
+    # Update/delete act on existing events, so resolve them now and describe
+    # exactly what would change — never act on a guess without showing it.
+    action = "create"
+    matches: list[dict] = []
+    if extraction.intent in ("DELETE_EVENT", "UPDATE_EVENT"):
+        action = "delete" if extraction.intent == "DELETE_EVENT" else "update"
+        found = _find_target_events(db, user, extraction)
+        matches = [_serialize_match(e, user.timezone) for e in found]
+
+        if not found:
+            summary = (
+                f"I couldn't find an event matching \"{extraction.target_event_title}\" in your schedule."
+                if extraction.target_event_title
+                else "I couldn't work out which event you meant."
+            )
+            requires_confirmation = False
+        elif action == "delete":
+            summary = f"Delete {len(found)} event(s): " + ", ".join(m["title"] + " — " + m["when"] for m in matches[:3])
+        else:
+            changes = []
+            if extraction.new_day or extraction.new_date:
+                changes.append(f"move to {extraction.new_day or extraction.new_date}")
+            if extraction.new_start_time:
+                changes.append(f"start at {extraction.new_start_time}")
+            if extraction.new_end_time:
+                changes.append(f"end at {extraction.new_end_time}")
+            summary = (
+                f"Update {matches[0]['title']} ({matches[0]['when']}): " + ", ".join(changes)
+                if changes
+                else f"I found {matches[0]['title']} but couldn't tell what to change."
+            )
+            if not changes:
+                requires_confirmation = False
+
     return AIPromptResponse(
         intent=extraction.intent,
         extraction=extraction,
         summary=summary,
         conflicts=conflicts_out,
         requires_confirmation=requires_confirmation,
+        matches=matches,
+        action=action,
     )
 
 
@@ -139,6 +249,76 @@ def confirm_extraction(payload: AIConfirmRequest, db: Session = Depends(get_db),
     extraction = payload.extraction
     created_events, created_reminders, created_tasks = [], [], []
     series_count = 0  # user-facing count: one per distinct weekly slot, not per materialized occurrence
+
+    # Update and delete operate on existing events. Handled first and returned
+    # early: previously every intent fell through to the create path, so
+    # "cancel my meeting" created a meeting instead of removing one.
+    if extraction.intent == "DELETE_EVENT":
+        targets = _find_target_events(db, user, extraction)
+        if not targets:
+            return {"ok": False, "message": "Couldn't find that event.", "deleted": 0}
+
+        # Collect first, de-duplicated: expanding a series can otherwise queue
+        # the same row twice. Deleting through the ORM (rather than a bulk
+        # query delete) is what cascades to each event's reminders.
+        doomed: dict[str, Event] = {}
+        for event in targets:
+            if extraction.apply_to_series and event.recurrence_group_id:
+                for sibling in (
+                    db.query(Event)
+                    .filter(
+                        Event.user_id == user.id,
+                        Event.recurrence_group_id == event.recurrence_group_id,
+                    )
+                    .all()
+                ):
+                    doomed[sibling.id] = sibling
+            else:
+                doomed[event.id] = event
+
+        for event in doomed.values():
+            db.delete(event)
+        deleted = len(doomed)
+        db.commit()
+        return {"ok": True, "action": "deleted", "deleted": deleted}
+
+    if extraction.intent == "UPDATE_EVENT":
+        targets = _find_target_events(db, user, extraction)
+        if not targets:
+            return {"ok": False, "message": "Couldn't find that event.", "updated": 0}
+
+        updated = 0
+        for event in targets:
+            start = ensure_aware_utc(event.start_datetime).astimezone(get_tz(user.timezone))
+            end = ensure_aware_utc(event.end_datetime).astimezone(get_tz(user.timezone))
+            duration = end - start
+
+            new_date = start.date()
+            if extraction.new_date or extraction.new_day:
+                new_date = resolve_date(extraction.new_date or extraction.new_day, user.timezone)
+
+            new_start_t = resolve_time(extraction.new_start_time, default=start.time())
+            new_start = combine(new_date, new_start_t, user.timezone)
+
+            if extraction.new_end_time:
+                new_end = combine(new_date, resolve_time(extraction.new_end_time), user.timezone)
+                if new_end <= new_start:
+                    new_end = new_start + duration
+            else:
+                new_end = new_start + duration
+
+            event.start_datetime = new_start
+            event.end_datetime = new_end
+
+            # Reminders hang off the old time, so re-anchor them.
+            for rem in event.reminders:
+                if not rem.is_sent:
+                    lead = timedelta(minutes=user.default_reminder_minutes or 30)
+                    rem.reminder_datetime = new_start - lead
+            updated += 1
+
+        db.commit()
+        return {"ok": True, "action": "updated", "updated": updated}
 
     # Models often express "every Mon, Thu and Fri" as three separate event
     # objects that EACH carry all three recurrence_days, which would expand to

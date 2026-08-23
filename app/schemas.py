@@ -351,6 +351,18 @@ class AIExtractionResult(BaseModel):
     """Top-level structured response returned by the AI service."""
 
     intent: str
+    # For UPDATE_EVENT / DELETE_EVENT: which existing event the professor
+    # means. Matched case-insensitively against their schedule.
+    target_event_title: Optional[str] = None
+    # Restricts the match when they name a day ("cancel Friday's lecture").
+    target_day: Optional[str] = None
+    # UPDATE_EVENT only: where the event should move to. Any left unset keeps
+    # the current value.
+    new_date: Optional[str] = None
+    new_day: Optional[str] = None
+    new_start_time: Optional[str] = None
+    new_end_time: Optional[str] = None
+    apply_to_series: bool = False
     events: list[ScheduleEvent] = Field(default_factory=list)
     reminders: list[AIReminder] = Field(default_factory=list)
     tasks: list[AITask] = Field(default_factory=list)
@@ -370,6 +382,10 @@ class AIPromptResponse(BaseModel):
     summary: str  # human-readable confirmation text for the UI
     conflicts: list[dict] = Field(default_factory=list)
     requires_confirmation: bool = True
+    # Existing events an update/delete would affect, so the professor can see
+    # exactly what is about to change before confirming.
+    matches: list[dict] = Field(default_factory=list)
+    action: str = "create"  # create | update | delete
 
 
 class AIConfirmRequest(BaseModel):

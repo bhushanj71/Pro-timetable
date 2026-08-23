@@ -15,29 +15,46 @@ function renderExtractionPreview(response) {
   }
 
   let lines = "";
-  // The model often omits end_time; the server derives a default duration, so
-  // mirror that here rather than rendering a literal "null".
-  const impliedEnd = (start, end) => {
-    if (end) return end;
-    if (!start || !/^\d{1,2}:\d{2}$/.test(start)) return "";
-    const [h, m] = start.split(":").map(Number);
-    return `${String((h + 1) % 24).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-  };
 
-  extraction.events.forEach((e) => {
-    const when = [e.day, e.date].filter(Boolean).join(" ");
-    const end = impliedEnd(e.start_time, e.end_time);
-    const range = [e.start_time, end].filter(Boolean).join("–");
-    const days = e.recurrence_days?.length ? e.recurrence_days.join(", ") : null;
-    const repeat = e.recurrence ? ` (every ${days || e.recurrence.replace("weekly", "week")})` : "";
-    lines += `<div class="event-line">📌 <strong>${e.title}</strong> — ${days || when} ${range}${repeat}</div>`;
-  });
-  extraction.reminders.forEach((r) => {
-    lines += `<div class="event-line">⏰ Reminder: <strong>${r.title}</strong> ${r.date || ""} ${r.time || ""}</div>`;
-  });
-  extraction.tasks.forEach((t) => {
-    lines += `<div class="event-line">✅ Task: <strong>${t.title}</strong> ${t.due_date ? "due " + t.due_date : ""}</div>`;
-  });
+  // Update and delete act on events that already exist, so show those rather
+  // than the "will be created" list.
+  if (response.action === "delete" || response.action === "update") {
+    if (!response.matches.length) {
+      box.innerHTML = `<div class="ai-result-card">🔍 ${summary}</div>`;
+      return;
+    }
+    const verb = response.action === "delete" ? "🗑️ Delete" : "✏️ Update";
+    lines = response.matches
+      .map((m) => `<div class="event-line">${verb} <strong>${m.title}</strong> — ${m.when}${m.location ? " · " + m.location : ""}</div>`)
+      .join("");
+
+    const ex = extraction;
+    if (response.action === "update") {
+      const bits = [];
+      if (ex.new_day || ex.new_date) bits.push(`move to <strong>${ex.new_day || ex.new_date}</strong>`);
+      if (ex.new_start_time) bits.push(`start <strong>${ex.new_start_time}</strong>`);
+      if (ex.new_end_time) bits.push(`end <strong>${ex.new_end_time}</strong>`);
+      if (bits.length) lines += `<div class="event-line">→ ${bits.join(", ")}</div>`;
+    }
+    if (ex.apply_to_series) {
+      lines += `<div class="event-line">⚠️ Applies to the entire repeating series</div>`;
+    }
+
+    box.innerHTML = `
+      <div class="ai-result-card">
+        <div><strong>I understood the following:</strong></div>
+        ${lines}
+        ${ex.notes ? `<div class="event-line" style="opacity:.75">${ex.notes}</div>` : ""}
+        <div class="modal-actions">
+          <button class="btn ${response.action === "delete" ? "btn-danger" : "btn-primary"}" id="ai-confirm-btn">
+            ${response.action === "delete" ? "Yes, delete" : "Apply change"}
+          </button>
+          <button class="btn" id="ai-cancel-btn">Cancel</button>
+        </div>
+      </div>`;
+    wireConfirmButtons(box, response.action);
+    return;
+  }
 
   let conflictHtml = "";
   if (conflicts && conflicts.length) {
@@ -62,6 +79,10 @@ function renderExtractionPreview(response) {
       }
     </div>`;
 
+  wireConfirmButtons(box, "create");
+}
+
+function wireConfirmButtons(box, action) {
   document.getElementById("ai-confirm-btn")?.addEventListener("click", async (ev) => {
     const confirmBtn = ev.currentTarget;
     const cancelBtn = document.getElementById("ai-cancel-btn");
@@ -69,10 +90,22 @@ function renderExtractionPreview(response) {
     if (cancelBtn) cancelBtn.disabled = true;
     try {
       const result = await apiFetch("/api/ai/confirm", { method: "POST", body: { extraction: lastExtraction } });
-      showToast(
-        `✓ Schedule created — ${result.events_created} event(s), ${result.reminders_created} reminder(s), ${result.tasks_created} task(s).`,
-        "success"
-      );
+      if (result.ok === false) {
+        showToast(result.message || "Nothing matched", "error");
+        setButtonLoading(confirmBtn, false);
+        if (cancelBtn) cancelBtn.disabled = false;
+        return;
+      }
+      if (action === "delete") {
+        showToast(`✓ Deleted ${result.deleted} event(s).`, "success");
+      } else if (action === "update") {
+        showToast(`✓ Updated ${result.updated} event(s).`, "success");
+      } else {
+        showToast(
+          `✓ Schedule created — ${result.events_created} event(s), ${result.reminders_created} reminder(s), ${result.tasks_created} task(s).`,
+          "success"
+        );
+      }
       box.innerHTML = "";
       document.getElementById("ai-prompt-input").value = "";
       window.dispatchEvent(new CustomEvent("schedule-updated"));

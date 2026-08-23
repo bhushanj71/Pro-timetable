@@ -58,6 +58,13 @@ Convert the professor's natural-language request into STRICT JSON matching this 
   "tasks": [
     {"title": "string", "due_date": "YYYY-MM-DD or null", "priority": "low | medium | high | urgent"}
   ],
+  "target_event_title": "for UPDATE_EVENT / DELETE_EVENT: the name of the EXISTING event to change, e.g. 'ANN lecture'. null otherwise",
+  "target_day": "for UPDATE_EVENT / DELETE_EVENT: the weekday or date of the existing event if the user named one, e.g. 'Monday' or 'tomorrow'. null otherwise",
+  "new_date": "UPDATE_EVENT only: YYYY-MM-DD to move it to, or null",
+  "new_day": "UPDATE_EVENT only: weekday to move it to, e.g. 'Tuesday', or null",
+  "new_start_time": "UPDATE_EVENT only: HH:MM 24-hour, or null",
+  "new_end_time": "UPDATE_EVENT only: HH:MM 24-hour, or null",
+  "apply_to_series": "true if the user clearly means every occurrence ('cancel all my ANN lectures'), else false",
   "query_text": "string or null (for QUERY_SCHEDULE)",
   "duration_minutes": integer or null (for FIND_FREE_TIME),
   "target_date": "YYYY-MM-DD or null (for FIND_FREE_TIME / QUERY_SCHEDULE)",
@@ -65,6 +72,9 @@ Convert the professor's natural-language request into STRICT JSON matching this 
 }
 
 Rules:
+- Choose DELETE_EVENT when the user says cancel, delete, remove, drop or call off an existing event. Do NOT emit any "events" for a delete — only fill target_event_title (and target_day if given).
+- Choose UPDATE_EVENT when the user says move, reschedule, shift, change or postpone an existing event. Put the EXISTING event's name in target_event_title and only what changes in new_date / new_day / new_start_time / new_end_time. Leave "events" empty.
+- Only use CREATE_EVENT / CREATE_RECURRING_EVENT when the user is adding something new.
 - Today's date and the professor's timezone are given in the user message context — resolve relative dates ("tomorrow", "next Friday") yourself into actual YYYY-MM-DD dates.
 - For recurring weekly lectures across multiple days, put ALL days in recurrence_days and set recurrence="weekly"; still include start_time/end_time.
 - Only output valid JSON. No markdown fences, no commentary outside the JSON object.
@@ -152,8 +162,15 @@ class AIService:
         event_type_words = ("lecture", "class", "meeting", "lab", "review", "exam", "workshop", "conference", "fdp")
         has_event_signal = bool(days_found) or "every" in lower or any(w in lower for w in event_type_words) or len(times) >= 2
 
+        cancel_words = ("cancel", "delete", "remove", "drop", "call off")
+        move_words = ("move", "reschedule", "shift", "postpone", "change")
+
         intent = "CREATE_EVENT"
-        if has_event_signal:
+        if any(w in lower for w in cancel_words):
+            intent = "DELETE_EVENT"
+        elif any(w in lower for w in move_words):
+            intent = "UPDATE_EVENT"
+        elif has_event_signal:
             intent = "CREATE_RECURRING_EVENT" if (days_found or "every" in lower) else "CREATE_EVENT"
         elif "remind" in lower:
             intent = "CREATE_REMINDER"
@@ -202,6 +219,49 @@ class AIService:
         title_guess = re.sub(r"\d{1,2}(:\d{2})?\s?(am|pm)\b", "", title_guess, flags=re.IGNORECASE)
         title_guess = re.sub(r"\s+", " ", title_guess).strip(" .,:")
         title_guess = title_guess[:120] or "New Event"
+
+        if intent in ("DELETE_EVENT", "UPDATE_EVENT"):
+            # Strip command verbs and scheduling noise to leave the name of the
+            # event being referred to. Works from the original text so the
+            # title keeps its capitalisation.
+            target = re.sub(
+                r"\b(cancel|delete|remove|drop|call off|move|reschedule|shift|"
+                r"postpone|change|my|the|please|for|on|at|from|to|next|this|all)\b",
+                " ", text, flags=re.IGNORECASE,
+            )
+            for day in WEEKDAYS:
+                target = re.sub(rf"\b{day}s?\b", " ", target, flags=re.IGNORECASE)
+            # Strip both "4 PM" and bare 24-hour times such as "15:00".
+            target = re.sub(r"\d{1,2}(:\d{2})?\s?(am|pm)\b", " ", target, flags=re.IGNORECASE)
+            target = re.sub(r"\b\d{1,2}:\d{2}\b", " ", target)
+            target = re.sub(r"\b(tomorrow|today|tonight)\b", " ", target, flags=re.IGNORECASE)
+            target = re.sub(
+                r"\b(classes|class|lectures|sessions|meetings|events)\b\s*$",
+                " ", target, flags=re.IGNORECASE,
+            )
+            target = re.sub(r"\s+", " ", target).strip(" .,:?")
+
+            payload = {
+                "intent": intent,
+                "events": [],
+                "reminders": [],
+                "tasks": [],
+                "target_event_title": target or None,
+                "target_day": ("tomorrow" if "tomorrow" in lower else (day_field or None)),
+                "apply_to_series": "all" in lower or "every" in lower,
+                "notes": f"Rule-based fallback understood this as {intent.replace('_', ' ').lower()}.",
+            }
+            if intent == "UPDATE_EVENT":
+                # Times may be written as "4 PM" or as bare 24-hour "15:00".
+                h24 = re.findall(r"\b([01]?\d|2[0-3]):([0-5]\d)\b", text)
+                payload["new_day"] = days_found[-1] if days_found else None
+                if times:
+                    payload["new_start_time"] = start_time
+                    payload["new_end_time"] = end_time if len(times) > 1 else None
+                elif h24:
+                    payload["new_start_time"] = f"{int(h24[0][0]):02d}:{h24[0][1]}"
+                    payload["new_end_time"] = f"{int(h24[1][0]):02d}:{h24[1][1]}" if len(h24) > 1 else None
+            return payload
 
         if intent == "CREATE_REMINDER":
             target_day = "tomorrow" if "tomorrow" in lower else (day_field or "today")
