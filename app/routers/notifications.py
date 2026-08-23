@@ -22,6 +22,7 @@ from app.services.notifier import email_configured, push_configured, send_email,
 
 router = APIRouter(prefix="/api", tags=["notifications"])
 logger = logging.getLogger(__name__)
+CRLF_SPACE = chr(13) + chr(10) + " "  # RFC 5545 line-fold separator
 settings = get_settings()
 
 
@@ -123,6 +124,29 @@ def send_test_notification(db: Session = Depends(get_db), user: User = Depends(g
 # ---------------------------------------------------------------------------
 # Subscribable calendar feed
 # ---------------------------------------------------------------------------
+def _fold(line: str) -> str:
+    """Fold to 75 octets per RFC 5545.
+
+    Apple Calendar is stricter than Google here: an over-long SUMMARY can
+    make it reject the whole event rather than just truncating it.
+    """
+    if len(line.encode("utf-8")) <= 75:
+        return line
+
+    out, chunk = [], b""
+    for ch in line:
+        enc = ch.encode("utf-8")
+        # Continuation lines begin with a space, so they get one octet less.
+        limit = 75 if not out else 74
+        if len(chunk) + len(enc) > limit:
+            out.append(chunk.decode("utf-8"))
+            chunk = b""
+        chunk += enc
+    if chunk:
+        out.append(chunk.decode("utf-8"))
+    return CRLF_SPACE.join(out)
+
+
 def _ics_escape(text: str) -> str:
     return (
         str(text or "")
@@ -168,6 +192,8 @@ def calendar_feed(token: str, db: Session = Depends(get_db)):
         # Hint to clients how often to re-poll the feed.
         "REFRESH-INTERVAL;VALUE=DURATION:PT1H",
         "X-PUBLISHED-TTL:PT1H",
+        "X-APPLE-CALENDAR-COLOR:#E0785D",
+        f"X-WR-CALDESC:Classes and meetings from ProfSchedule AI",
     ]
 
     lead = user.default_reminder_minutes or 30
@@ -184,10 +210,22 @@ def calendar_feed(token: str, db: Session = Depends(get_db)):
             f"LOCATION:{_ics_escape(e.location or '')}",
             f"DESCRIPTION:{_ics_escape(e.description or e.subject or '')}",
             f"CATEGORIES:{_ics_escape(e.event_type)}",
+            "STATUS:CONFIRMED",
+            "TRANSP:OPAQUE",
+            "SEQUENCE:0",
+            # RELATED=START is implied by the spec, but stating it explicitly
+            # avoids ambiguity in stricter clients such as Apple Calendar.
             "BEGIN:VALARM",
-            f"TRIGGER:-PT{lead}M",
+            f"TRIGGER;RELATED=START:-PT{lead}M",
             "ACTION:DISPLAY",
             f"DESCRIPTION:{_ics_escape(e.title)}",
+            "END:VALARM",
+            # A second alert at start time, so a missed lead-time alarm still
+            # surfaces something.
+            "BEGIN:VALARM",
+            "TRIGGER;RELATED=START:PT0M",
+            "ACTION:DISPLAY",
+            f"DESCRIPTION:{_ics_escape(e.title)} is starting now",
             "END:VALARM",
             "END:VEVENT",
         ]
