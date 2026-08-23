@@ -17,7 +17,10 @@ templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent
 
 
 def _ctx(request: Request, user: User | None, **extra):
-    return {"request": request, "user": user, **extra}
+    # `v` busts the browser cache for static assets whenever they change.
+    from app.main import ASSET_VERSION
+
+    return {"request": request, "user": user, "v": ASSET_VERSION, **extra}
 
 
 @router.get("/")

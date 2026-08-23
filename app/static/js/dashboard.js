@@ -13,6 +13,7 @@ function endOfToday() {
 
 async function loadTodaySchedule() {
   const el = document.getElementById("today-schedule");
+  showSkeleton(el, 3);
   try {
     const events = await apiFetch(`/api/events?start=${startOfToday().toISOString()}&end=${endOfToday().toISOString()}`);
     el.innerHTML = events.length
@@ -38,6 +39,7 @@ async function loadTodaySchedule() {
 
 async function loadUpcomingEvents() {
   const el = document.getElementById("upcoming-events");
+  showSkeleton(el, 3);
   try {
     const start = new Date();
     const end = new Date();
@@ -65,6 +67,7 @@ async function loadUpcomingEvents() {
 
 async function loadPendingTasks() {
   const el = document.getElementById("pending-tasks");
+  showSkeleton(el, 3);
   try {
     const tasks = await apiFetch(`/api/tasks?status=pending`);
     el.innerHTML = tasks.length
@@ -110,6 +113,7 @@ function countdownLabel(dueDate) {
 
 async function loadDeadlines() {
   const el = document.getElementById("upcoming-deadlines");
+  showSkeleton(el, 2);
   try {
     const [tasks, events] = await Promise.all([
       apiFetch(`/api/tasks?status=pending`),

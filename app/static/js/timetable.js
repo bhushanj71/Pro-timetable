@@ -351,33 +351,63 @@ function renderGeneratorPreview(result) {
   el.innerHTML = html;
 }
 
-document.getElementById("run-generator-btn")?.addEventListener("click", async () => {
+document.getElementById("run-generator-btn")?.addEventListener("click", async (ev) => {
   const payload = collectGeneratorPayload();
   if (!payload.subjects.length) {
     showToast("Enter at least one subject name before generating (the example text in the box is just a placeholder).", "error");
     return;
   }
+  const btn = ev.currentTarget;
+  const progress = startProgress(document.getElementById("generator-result"), [
+    "Reading your subjects and constraints…",
+    "Fitting lectures around your working hours…",
+    "Keeping your lunch break clear…",
+    "Balancing the week…",
+  ]);
+  setButtonLoading(btn, true);
   try {
     const result = await apiFetch("/api/timetable/generate", { method: "POST", body: payload });
+    progress.stop();
     renderGeneratorPreview(result);
   } catch (err) {
+    progress.stop();
+    document.getElementById("generator-result").innerHTML = "";
     showToast(err.message, "error");
+  } finally {
+    progress.stop();
+    setButtonLoading(btn, false);
   }
 });
 
-document.getElementById("commit-generator-btn")?.addEventListener("click", async () => {
+document.getElementById("commit-generator-btn")?.addEventListener("click", async (ev) => {
   const payload = collectGeneratorPayload();
   if (!payload.subjects.length) {
     showToast("Enter at least one subject name before generating (the example text in the box is just a placeholder).", "error");
     return;
   }
+  const btn = ev.currentTarget;
+  // Committing writes an occurrence per slot across the horizon, so this is
+  // the slowest action in the app — never leave it looking idle.
+  const progress = startProgress(document.getElementById("generator-result"), [
+    "Building your timetable…",
+    "Creating recurring classes…",
+    "Saving to your schedule…",
+  ]);
+  setButtonLoading(btn, true);
   try {
     const result = await apiFetch("/api/timetable/generate?commit=true", { method: "POST", body: payload });
+    progress.stop();
     showToast(`✓ Timetable saved — ${result.events_created} events created.`, "success");
     document.getElementById("generator-modal").classList.add("hidden");
+    document.getElementById("generator-result").innerHTML = "";
     renderTimetable();
   } catch (err) {
+    progress.stop();
+    document.getElementById("generator-result").innerHTML = "";
     showToast(err.message, "error");
+  } finally {
+    progress.stop();
+    setButtonLoading(btn, false);
   }
 });
 

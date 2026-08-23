@@ -88,6 +88,20 @@ app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
+# Cache-busting token for static assets. Browsers otherwise keep serving a
+# cached app.js/style.css after a deploy, so users run old JavaScript against
+# a new API. Derived from the newest static file's mtime, so it changes
+# exactly when the assets do.
+def _asset_version() -> str:
+    try:
+        newest = max(f.stat().st_mtime for f in _STATIC_DIR.rglob("*") if f.is_file())
+        return str(int(newest))
+    except ValueError:
+        return "0"
+
+
+ASSET_VERSION = _asset_version()
+
 app.include_router(auth.router)
 app.include_router(events.router)
 app.include_router(reminders.router)
