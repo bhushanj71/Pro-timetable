@@ -66,3 +66,23 @@ document.getElementById("pf-google-disconnect")?.addEventListener("click", async
 })();
 
 refreshGoogleCard();
+
+/* ---------------- Platform guide tabs ---------------- */
+
+// Open the tab matching the visitor's device, since that's the guide they need.
+(() => {
+  const buttons = document.querySelectorAll(".tab-btn");
+  if (!buttons.length) return;
+
+  const show = (name) => {
+    buttons.forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.toggle("hidden", p.id !== `tab-${name}`));
+  };
+
+  buttons.forEach((b) => b.addEventListener("click", () => show(b.dataset.tab)));
+
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    // iPadOS 13+ reports as Mac, so check for touch support too.
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  show(isIOS ? "ios" : "android");
+})();

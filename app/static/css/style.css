@@ -1217,3 +1217,48 @@ input, select, textarea, button { font-size: inherit; }
 .onb-state { font-size: 0.76rem; font-weight: 800; color: var(--success); white-space: nowrap; }
 .onb-options { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
 .onb-opt { animation: fadeUp var(--t) var(--ease-out) both; }
+
+/* ---------- Platform guide ---------- */
+.tabs { display: flex; gap: 4px; background: var(--bg-tint); padding: 4px; border-radius: 12px; margin-bottom: 16px; }
+.tab-btn {
+  flex: 1; padding: 9px 14px; border-radius: 9px;
+  font-weight: 700; font-size: 0.85rem; color: var(--text-soft);
+  transition: background var(--t) var(--ease), color var(--t) var(--ease), box-shadow var(--t) var(--ease);
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { background: var(--surface); color: var(--primary); box-shadow: var(--shadow-xs); }
+.tab-panel { animation: fadeUp var(--t) var(--ease-out) both; }
+
+.guide-note {
+  background: var(--primary-softer);
+  border-left: 3px solid var(--primary);
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 0.83rem;
+  color: var(--text-soft);
+  margin-bottom: 16px;
+}
+.guide-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 14px; }
+.guide-steps li { font-size: 0.87rem; }
+.guide-steps li::marker { color: var(--primary); font-weight: 800; }
+.guide-steps strong { display: block; margin-bottom: 3px; }
+.guide-steps p { font-size: 0.8rem; color: var(--text-soft); line-height: 1.55; }
+.guide-steps em { color: var(--text); font-style: normal; font-weight: 600; }
+
+.guide-alt {
+  margin-top: 18px; padding-top: 16px;
+  border-top: 1px dashed var(--border);
+  font-size: 0.85rem;
+}
+.guide-alt p { font-size: 0.8rem; color: var(--text-soft); margin-top: 4px; line-height: 1.55; }
+.guide-alt em { color: var(--text); font-style: normal; font-weight: 600; }
+
+.guide-warn {
+  margin-top: 12px;
+  background: var(--danger-soft);
+  border-radius: 10px;
+  padding: 11px 13px;
+  font-size: 0.79rem;
+  color: var(--text);
+  line-height: 1.6;
+}

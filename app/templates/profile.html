@@ -131,6 +131,104 @@
   </div>
 </div>
 
+
+<div class="card card-hover" style="max-width:640px;margin-top:20px">
+  <div class="card-head">
+    <div class="card-title"><span class="t-ico">📲</span> Get reminders on your phone</div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab-btn" data-tab="android" role="tab">🤖 Android</button>
+    <button class="tab-btn" data-tab="ios" role="tab">🍎 iPhone / iPad</button>
+  </div>
+
+  <!-- ---------------- Android ---------------- -->
+  <div class="tab-panel" id="tab-android">
+    <div class="guide-note">
+      Recommended: connect Google Calendar. Google delivers the alert itself, so it
+      works even when ProfSchedule is closed or the server is asleep.
+    </div>
+
+    <ol class="guide-steps">
+      <li>
+        <strong>Connect your Google account</strong>
+        <p>Use the <em>Connect Google Calendar</em> button above. Sign in and tap
+           <em>Allow</em> when Google asks to manage events.</p>
+      </li>
+      <li>
+        <strong>Open the Google Calendar app</strong>
+        <p>It's pre-installed on most Android phones. Your classes appear within a
+           minute or two — pull down to refresh if not.</p>
+      </li>
+      <li>
+        <strong>Check notifications are on</strong>
+        <p>Google Calendar app → <em>☰ menu → Settings → General → Notifications</em>.
+           Make sure <em>Notify on this device</em> is enabled.</p>
+      </li>
+      <li>
+        <strong>Allow the app to alert you</strong>
+        <p>Android <em>Settings → Apps → Calendar → Notifications</em> → on.
+           On Samsung and Xiaomi, also disable battery optimisation for Calendar,
+           or alerts can be delayed.</p>
+      </li>
+    </ol>
+
+    <div class="guide-alt">
+      <strong>Or: alerts from ProfSchedule directly</strong>
+      <p>Use <em>Enable on this device</em> above. Works in Chrome without installing
+         anything, but only fires while our server is awake.</p>
+    </div>
+  </div>
+
+  <!-- ---------------- iOS ---------------- -->
+  <div class="tab-panel hidden" id="tab-ios">
+    <div class="guide-note">
+      iPhone works best with the Google Calendar app. Apple's own Calendar can
+      subscribe to your feed, but it strips reminders by default — see the note below.
+    </div>
+
+    <ol class="guide-steps">
+      <li>
+        <strong>Connect your Google account</strong>
+        <p>Use the <em>Connect Google Calendar</em> button above, then tap <em>Allow</em>.</p>
+      </li>
+      <li>
+        <strong>Install Google Calendar from the App Store</strong>
+        <p>Sign in with the same Google account. Classes and their alerts arrive
+           automatically — this is the most reliable option on iPhone.</p>
+      </li>
+      <li>
+        <strong>Allow notifications</strong>
+        <p>iOS <em>Settings → Google Calendar → Notifications</em> → Allow, and turn on
+           <em>Sounds</em> and <em>Banners</em>.</p>
+      </li>
+    </ol>
+
+    <div class="guide-alt">
+      <strong>Prefer Apple's built-in Calendar?</strong>
+      <p>You can add your Google account to it instead:
+         <em>Settings → Apps → Calendar → Accounts → Add Account → Google</em>.</p>
+      <p style="margin-top:8px">
+        Or subscribe to the feed link above via
+        <em>Add Account → Other → Add Subscribed Calendar</em>.
+      </p>
+      <div class="guide-warn">
+        ⚠️ If you subscribe to the feed, iOS turns <strong>“Remove Alarms” ON by default</strong> —
+        which deletes every reminder and is the usual reason no notification arrives.
+        Turn it <strong>off</strong> in
+        <em>Settings → Apps → Calendar → Accounts → (your subscribed calendar)</em>,
+        then remove and re-add the subscription. Also set the refresh to
+        <em>Every Hour</em>.
+      </div>
+    </div>
+  </div>
+
+  <div class="guide-note" style="margin-top:14px;background:var(--warning-soft);color:var(--text)">
+    <strong>Testing tip:</strong> create a class at least <strong>2 hours ahead</strong>.
+    A reminder whose time has already passed will never fire.
+  </div>
+</div>
+
 {% endblock %}
 {% block scripts %}
 <script src="/static/js/google.js?v={{ v }}"></script>
