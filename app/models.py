@@ -74,7 +74,8 @@ class User(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     name: Mapped[str] = mapped_column(String(255))
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255))
+    # Null for accounts created via Google Sign-In, which have no local password.
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     timezone: Mapped[str] = mapped_column(String(64), default="Asia/Kolkata")
 
     # Profile
@@ -102,6 +103,15 @@ class User(Base):
     # Secret path segment for the read-only ICS feed, so a calendar app can
     # subscribe without cookies. Rotatable from the profile page.
     calendar_token: Mapped[str] = mapped_column(String(64), default=lambda: uuid.uuid4().hex, index=True)
+
+    # --- Google account linkage ---
+    google_id: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
+    avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    # Encrypted at rest; grants offline access so events can be pushed to the
+    # professor's Google Calendar without them being present.
+    google_refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    google_calendar_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    google_sync_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -136,6 +146,10 @@ class Event(Base):
 
     is_all_day: Mapped[bool] = mapped_column(Boolean, default=False)
     is_cancelled: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Id of the mirrored event in the professor's Google Calendar, so edits
+    # and deletions here propagate rather than creating duplicates.
+    google_event_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)

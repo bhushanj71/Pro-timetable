@@ -230,6 +230,61 @@ reminder lead time.
 The token in the URL *is* the credential, so treat it like a password. It can
 be rotated from the profile page, which immediately invalidates the old link.
 
+### 4. Google Sign-In and Google Calendar sync
+
+The most reliable route to a phone notification: write the class into the
+professor's own Google Calendar and let Google deliver the alert. No push
+keys, no SMTP, and it works with the Calendar app they already use.
+
+Professors can also create an account with one tap instead of a password.
+
+**Google Cloud Console setup**
+
+1. Create a project at [console.cloud.google.com](https://console.cloud.google.com).
+2. **APIs & Services → Library** → enable **Google Calendar API**.
+3. **OAuth consent screen** → External. Add your email as a test user. Add
+   scopes `openid`, `email`, `profile`, and
+   `https://www.googleapis.com/auth/calendar.events`.
+4. **Credentials → Create credentials → OAuth client ID → Web application**.
+   Add the authorised redirect URI:
+
+   ```
+   https://your-app.onrender.com/auth/google/callback
+   ```
+
+   (and `http://localhost:8000/auth/google/callback` for local development)
+5. Set the printed values in the environment:
+
+   ```env
+   GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=...
+   PUBLIC_BASE_URL=https://your-app.onrender.com
+   ```
+
+The **Continue with Google** button and the Calendar card appear on their own
+once these are set, and stay hidden otherwise, so a missing config never
+shows a dead link.
+
+**How it behaves**
+
+- Signing in with Google creates the account if it's new, or links to an
+  existing one with the same email — a professor who registered with a
+  password can then use either method.
+- Connecting Calendar mirrors every create, edit and delete into their Google
+  Calendar, with popup reminders at their configured lead time plus 5 minutes.
+- **Profile → Sync upcoming events now** backfills existing classes.
+- Refresh tokens are encrypted at rest with a key derived from `SECRET_KEY`,
+  so a leaked database row does not hand over calendar access.
+- Disconnecting is refused for accounts that have no password, since it would
+  lock the professor out.
+
+> **On Google's verification screen:** while the OAuth consent screen is in
+> Testing mode, Google shows an "unverified app" warning and only the test
+> users you list can sign in (up to 100). That's fine for a department. To
+> remove the warning and open it to anyone, submit the app for verification —
+> the calendar scope is classed as sensitive, so this requires a privacy
+> policy and a verified domain, and review takes time.
+
 ### Keeping delivery on time
 
 Reminders only fire when the server is awake. Render's free tier sleeps after

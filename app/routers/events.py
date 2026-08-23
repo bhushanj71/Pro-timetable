@@ -153,6 +153,15 @@ def create_event(
     db.commit()
     for e in created:
         db.refresh(e)
+
+    # Mirror into Google Calendar so Google delivers the phone notification.
+    # Best-effort: a sync failure must never fail the event creation.
+    if user.google_sync_enabled:
+        from app.services.google import sync_event
+
+        for e in created[:60]:  # cap the burst from a long recurring series
+            sync_event(db, user, e)
+
     return created
 
 
@@ -209,6 +218,13 @@ def update_event(
 
     db.commit()
     db.refresh(event)
+
+    if user.google_sync_enabled:
+        from app.services.google import sync_event
+
+        for target in targets[:60]:
+            sync_event(db, user, target)
+
     return event
 
 
@@ -223,10 +239,21 @@ def delete_event(
     if not event:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
 
-    if apply_to_series and event.recurrence_group_id:
-        db.query(Event).filter(Event.recurrence_group_id == event.recurrence_group_id).delete()
-    else:
-        db.delete(event)
+    doomed = (
+        db.query(Event).filter(Event.recurrence_group_id == event.recurrence_group_id).all()
+        if apply_to_series and event.recurrence_group_id
+        else [event]
+    )
+
+    if user.google_sync_enabled:
+        from app.services.google import delete_event as google_delete
+
+        for e in doomed[:60]:
+            if e.google_event_id:
+                google_delete(user, e.google_event_id)
+
+    for e in doomed:
+        db.delete(e)
     db.commit()
     return None
 

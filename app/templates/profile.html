@@ -97,8 +97,43 @@
   <div id="pf-test-result" class="form-hint"></div>
 </div>
 
+
+<div class="card card-hover" id="google-card" style="max-width:640px;margin-top:20px">
+  <div class="card-head">
+    <div class="card-title"><span class="t-ico">🗓️</span> Google Calendar</div>
+    <span class="connected-badge hidden" id="google-connected-badge">✓ Connected</span>
+  </div>
+
+  <p class="muted-text" style="margin-bottom:14px">
+    Push your classes straight into your Google Calendar. Google then delivers the
+    reminder to your phone natively — no extra app, and it works even when
+    ProfSchedule is closed.
+  </p>
+
+  <div id="google-not-connected">
+    <a class="btn btn-primary" href="/auth/google/link">Connect Google Calendar</a>
+    <small class="form-hint">You'll be asked to allow ProfSchedule AI to manage events on your calendar.</small>
+  </div>
+
+  <div id="google-connected" class="hidden">
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:9px;cursor:pointer">
+        <input type="checkbox" id="pf-google-sync" style="width:auto">
+        <span>Keep my Google Calendar in sync</span>
+      </label>
+      <small class="form-hint">New, edited and deleted classes are mirrored automatically.</small>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="pf-google-sync-now">Sync upcoming events now</button>
+      <button class="btn btn-danger" id="pf-google-disconnect">Disconnect</button>
+    </div>
+    <div id="pf-google-result" class="form-hint"></div>
+  </div>
+</div>
+
 {% endblock %}
 {% block scripts %}
 <script src="/static/js/push.js?v={{ v }}"></script>
+<script src="/static/js/google.js?v={{ v }}"></script>
 <script src="/static/js/profile.js?v={{ v }}"></script>
 {% endblock %}

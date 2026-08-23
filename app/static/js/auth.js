@@ -79,3 +79,33 @@ document.getElementById("register-form")?.addEventListener("submit", async (e) =
     errorEl.textContent = err.message || "Registration failed";
   }
 });
+
+/* ---------------- Google Sign-In ---------------- */
+
+// Only show the button when the server actually has OAuth credentials,
+// otherwise it would lead to a 503.
+(async () => {
+  const block = document.getElementById("google-signin-block");
+  if (!block) return;
+  try {
+    const { enabled } = await fetch("/auth/google/status").then((r) => r.json());
+    if (enabled) block.classList.remove("hidden");
+  } catch (_) {}
+})();
+
+// Surface why a Google sign-in bounced back.
+(() => {
+  const reason = new URLSearchParams(location.search).get("google_error");
+  if (!reason) return;
+  const messages = {
+    cancelled: "Google sign-in was cancelled.",
+    missing_code: "Google didn't return an authorisation code. Please try again.",
+    exchange_failed: "Could not complete Google sign-in. Please try again.",
+    no_email: "Your Google account didn't share an email address.",
+    unverified_email: "That Google email isn't verified.",
+    deactivated: "This account has been deactivated.",
+    account_missing: "Your session expired. Please sign in again.",
+  };
+  const el = document.getElementById("login-error") || document.getElementById("register-error");
+  if (el) el.textContent = messages[reason] || "Google sign-in failed.";
+})();

@@ -23,6 +23,7 @@ from app.routers import (
     cron,
     events,
     export,
+    google_auth,
     notifications,
     pages,
     reminders,
@@ -125,6 +126,7 @@ app.include_router(export.router)
 app.include_router(cron.router)
 app.include_router(admin.router)
 app.include_router(notifications.router)
+app.include_router(google_auth.router)
 app.include_router(pages.router)
 
 

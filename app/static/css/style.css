@@ -1155,3 +1155,34 @@ input, select, textarea, button { font-size: inherit; }
     transform: none;
   }
 }
+
+/* ---------- Google Sign-In ---------- */
+.btn-google {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  font-weight: 700; font-size: 0.9rem; color: var(--text);
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease), background var(--t) var(--ease);
+}
+.btn-google:hover { transform: translateY(-2px); box-shadow: var(--shadow); background: var(--surface-alt); }
+.btn-google:active { transform: translateY(0) scale(0.99); }
+.btn-google svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+.or-divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 18px 0; color: var(--text-muted); font-size: 0.78rem; font-weight: 600;
+}
+.or-divider::before, .or-divider::after {
+  content: ""; flex: 1; height: 1px; background: var(--border);
+}
+
+.connected-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--success-soft); color: var(--success);
+  padding: 5px 12px; border-radius: var(--radius-pill);
+  font-size: 0.76rem; font-weight: 800;
+}

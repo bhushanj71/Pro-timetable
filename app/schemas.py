@@ -82,6 +82,8 @@ class UserOut(BaseModel):
     is_admin: bool = False
     notify_email: bool = True
     notify_push: bool = True
+    google_sync_enabled: bool = False
+    avatar_url: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

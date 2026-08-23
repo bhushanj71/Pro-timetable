@@ -56,8 +56,16 @@ class Settings(BaseSettings):
     VAPID_PRIVATE_KEY: Optional[str] = None
     VAPID_CONTACT_EMAIL: Optional[str] = None
 
-    # Absolute base URL, used to build the subscribable calendar feed link.
+    # Absolute base URL, used to build the subscribable calendar feed link
+    # and the Google OAuth redirect.
     PUBLIC_BASE_URL: Optional[str] = None
+
+    # Google Sign-In + Calendar sync (Google Cloud Console -> Credentials).
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
+    # Requesting the calendar scope lets us write events into the professor's
+    # own Google Calendar, so Google delivers the phone notification.
+    GOOGLE_CALENDAR_SYNC: bool = True
 
     DEFAULT_TIMEZONE: str = "Asia/Kolkata"
 

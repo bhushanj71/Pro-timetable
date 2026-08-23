@@ -140,6 +140,14 @@ _ADDITIVE_COLUMNS = {
         ("notify_email", "BOOLEAN DEFAULT 1 NOT NULL"),
         ("notify_push", "BOOLEAN DEFAULT 1 NOT NULL"),
         ("calendar_token", "VARCHAR(64)"),
+        ("google_id", "VARCHAR(64)"),
+        ("avatar_url", "VARCHAR(512)"),
+        ("google_refresh_token", "TEXT"),
+        ("google_calendar_id", "VARCHAR(255)"),
+        ("google_sync_enabled", "BOOLEAN DEFAULT 0 NOT NULL"),
+    ],
+    "events": [
+        ("google_event_id", "VARCHAR(255)"),
     ],
 }
 
