@@ -116,6 +116,18 @@
         </div>
       </header>
 
+      <!-- Shown until this specific device can receive push. Notifications are
+           per-device, so enabling on a laptop does nothing for a phone. -->
+      <div id="push-banner" class="push-banner hidden">
+        <span class="pb-ico">🔔</span>
+        <div class="pb-copy">
+          <strong id="pb-title">Turn on phone notifications</strong>
+          <span id="pb-sub">Get reminded before every class, even when the app is closed.</span>
+        </div>
+        <button class="btn btn-sm btn-primary" id="pb-enable">Enable</button>
+        <button class="icon-btn pb-close" id="pb-dismiss" aria-label="Dismiss">✕</button>
+      </div>
+
       {% block body %}
       <main class="content full">
         <div class="content-main">
@@ -221,6 +233,7 @@
   <script src="/static/js/pwa.js?v={{ v }}"></script>
   <script src="/static/js/push.js?v={{ v }}"></script>
   <script src="/static/js/onboarding.js?v={{ v }}"></script>
+  <script src="/static/js/push-banner.js?v={{ v }}"></script>
   {% endif %}
   {% block scripts %}{% endblock %}
 </body>

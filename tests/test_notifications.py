@@ -343,3 +343,87 @@ def test_polling_flush_is_scoped_to_the_requesting_user(client, db_session):
 
     a_reminder = db_session.query(Reminder).filter(Reminder.title == "A overdue").first()
     assert a_reminder.is_sent is False, "one user's poll must not deliver another's reminders"
+
+
+# --- Push send path -------------------------------------------------------
+
+def test_push_is_actually_dispatched_to_registered_devices(auth_client, db_session, monkeypatch):
+    """Verifies the whole chain: due reminder -> notifier -> webpush call,
+    with the payload the service worker expects."""
+    from app.services import notifier
+
+    sent = []
+
+    class _FakeWebPushException(Exception):
+        pass
+
+    def fake_webpush(**kwargs):
+        sent.append(kwargs)
+
+    monkeypatch.setattr(notifier, "push_configured", lambda: True)
+    monkeypatch.setattr(
+        notifier.settings, "VAPID_PRIVATE_KEY", "test-key", raising=False
+    )
+    # pywebpush is imported inside the function, so patch the module itself.
+    import pywebpush
+    monkeypatch.setattr(pywebpush, "webpush", fake_webpush)
+    monkeypatch.setattr(pywebpush, "WebPushException", _FakeWebPushException)
+
+    auth_client.post("/api/push/subscribe", json={
+        "endpoint": "https://fcm.googleapis.com/fcm/send/test-device",
+        "keys": {"p256dh": "BKxQ" + "a" * 40, "auth": "sEcRe7abcdefgh"},
+    })
+
+    auth_client.post("/api/reminders", json={
+        "title": "ANN Lecture starts in 30 minutes",
+        "reminder_datetime": "2020-01-01T09:00:00Z",
+        "reminder_type": "in_app",
+    })
+
+    result = auth_client.post("/api/cron/process-reminders").json()
+
+    assert result["pushes"] == 1, f"expected one push, got {result}"
+    assert len(sent) == 1
+
+    import json as _json
+    payload = _json.loads(sent[0]["data"])
+    assert payload["title"] == "ANN Lecture starts in 30 minutes"
+    assert payload["body"], "the service worker renders body as the notification text"
+    assert payload["url"].startswith("/")
+    assert sent[0]["subscription_info"]["endpoint"].endswith("test-device")
+
+
+def test_expired_device_subscriptions_are_pruned(auth_client, db_session, monkeypatch):
+    """A push service reporting 410 Gone means the user uninstalled or revoked;
+    keeping the row would retry forever."""
+    from app.models import PushSubscription
+    from app.services import notifier
+
+    class _Resp:
+        status_code = 410
+
+    import pywebpush
+
+    class _Gone(Exception):
+        def __init__(self):
+            self.response = _Resp()
+
+    def fake_webpush(**kwargs):
+        raise _Gone()
+
+    # notifications.py imported push_configured at module load, so patching the
+    # notifier attribute wouldn't reach it — set the underlying settings.
+    monkeypatch.setattr(notifier.settings, "VAPID_PUBLIC_KEY", "pub", raising=False)
+    monkeypatch.setattr(notifier.settings, "VAPID_PRIVATE_KEY", "priv", raising=False)
+    monkeypatch.setattr(pywebpush, "webpush", fake_webpush)
+    monkeypatch.setattr(pywebpush, "WebPushException", _Gone)
+
+    auth_client.post("/api/push/subscribe", json={
+        "endpoint": "https://fcm.googleapis.com/fcm/send/dead-device",
+        "keys": {"p256dh": "BKxQ" + "a" * 40, "auth": "sEcRe7abcdefgh"},
+    })
+    assert db_session.query(PushSubscription).count() == 1
+
+    auth_client.post("/api/notifications/test")
+    db_session.expire_all()
+    assert db_session.query(PushSubscription).count() == 0, "expired device should be removed"

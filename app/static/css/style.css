@@ -1422,3 +1422,35 @@ pre {
   user-select: text;
   cursor: auto;
 }
+
+/* ---------- Enable-notifications banner ---------- */
+.push-banner {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin: 0 26px 4px;
+  padding: 13px 16px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--primary-softer) 0%, var(--primary-soft) 100%);
+  border: 1px solid var(--border);
+  animation: fadeUp var(--t-slow) var(--ease-out) both;
+}
+.pb-ico {
+  width: 38px; height: 38px; flex-shrink: 0;
+  border-radius: 12px;
+  background: var(--surface);
+  display: grid; place-items: center;
+  font-size: 1.05rem;
+  box-shadow: var(--shadow-xs);
+}
+.pb-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pb-copy strong { font-size: 0.885rem; }
+.pb-copy span { font-size: 0.775rem; color: var(--text-soft); }
+.pb-close { width: 32px; height: 32px; font-size: 0.8rem; background: transparent; border: none; box-shadow: none; }
+.pb-close:hover { background: rgba(0, 0, 0, 0.06); transform: none; }
+
+@media (max-width: 768px) {
+  .push-banner { margin: 0 15px 4px; flex-wrap: wrap; }
+  .pb-copy { flex: 1 1 60%; }
+  #pb-enable { order: 3; width: 100%; }
+}
