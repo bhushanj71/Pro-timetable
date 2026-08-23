@@ -98,13 +98,6 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
      Topbar: tighter, search collapses to an icon
      ------------------------------------------------------------------ */
   .topbar { padding: 10px 15px; gap: 8px; }
-  .searchbar { position: static; }
-  .searchbar input {
-    padding: 10px 12px 10px 38px;
-    font-size: 0.88rem;
-  }
-  .searchbar .search-ico { left: 13px; }
-  .search-results { left: 15px; width: calc(100vw - 30px); top: 60px; }
   .user-chip { padding: 3px; }
   .user-avatar { width: 32px; height: 32px; }
 

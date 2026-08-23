@@ -160,39 +160,6 @@ if (document.getElementById("notif-bell")) {
   setInterval(pollNotifications, 45000);
 }
 
-/* ---------------- Global search ---------------- */
-let searchDebounce;
-document.getElementById("global-search")?.addEventListener("input", (e) => {
-  clearTimeout(searchDebounce);
-  const q = e.target.value.trim();
-  const results = document.getElementById("search-results");
-  if (!q) {
-    results.classList.add("hidden");
-    return;
-  }
-  searchDebounce = setTimeout(async () => {
-    try {
-      const data = await apiFetch(`/api/search?q=${encodeURIComponent(q)}`);
-      const items = [
-        ...data.events.map((e) => `<div class="result-item">📅 ${e.title} <small>(${fmtDate(e.start)})</small></div>`),
-        ...data.tasks.map((t) => `<div class="result-item">✅ ${t.title}</div>`),
-      ];
-      results.innerHTML = items.length ? items.join("") : `<div class="result-item">No results</div>`;
-      results.classList.remove("hidden");
-    } catch (_) {
-      results.classList.add("hidden");
-    }
-  }, 250);
-});
-
-document.addEventListener("click", (e) => {
-  const results = document.getElementById("search-results");
-  const input = document.getElementById("global-search");
-  if (results && !results.contains(e.target) && e.target !== input) {
-    results.classList.add("hidden");
-  }
-});
-
 /* ---------------- Loading helpers ---------------- */
 
 // Nothing renders for the first 300ms: most requests finish inside that, and
@@ -331,18 +298,13 @@ if (_topbar) {
   onScroll();
 }
 
-// Keyboard: Cmd/Ctrl+K focuses search, Escape closes overlays.
+// Escape closes any open overlay.
 document.addEventListener("keydown", (e) => {
-  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-    e.preventDefault();
-    document.getElementById("global-search")?.focus();
-  }
-  if (e.key === "Escape") {
-    document.getElementById("search-results")?.classList.add("hidden");
-    document.getElementById("notif-panel")?.classList.add("hidden");
-    document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((m) => m.classList.add("hidden"));
-    if (window.innerWidth <= 768) toggleSidebar(false);
-  }
+  if (e.key !== "Escape") return;
+  document.getElementById("notif-panel")?.classList.add("hidden");
+  document.getElementById("theme-menu")?.classList.add("hidden");
+  document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((m) => m.classList.add("hidden"));
+  if (window.innerWidth <= 768) toggleSidebar(false);
 });
 
 // Reflect pending reminders on the sidebar badge too.

@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="/static/css/style.css?v={{ v }}">
   <link rel="stylesheet" href="/static/css/mobile.css?v={{ v }}">
   <link rel="stylesheet" href="/static/css/theme.css?v={{ v }}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <link rel="icon" type="image/png" href="/static/favicon.png?v={{ v }}">
   {% block head %}{% endblock %}
   <script>
@@ -95,13 +96,6 @@
     <div class="main-col">
       <header class="topbar" id="topbar">
         <button class="icon-btn menu-btn" id="menu-btn" aria-label="Open menu">☰</button>
-
-        <div class="searchbar">
-          <span class="search-ico">🔍</span>
-          <input type="search" id="global-search" placeholder="Search lectures, meetings, tasks..." autocomplete="off" aria-label="Search">
-          <span class="kbd-hint">⌘K</span>
-          <div id="search-results" class="search-results hidden"></div>
-        </div>
 
         <div class="topbar-actions">
           <button class="icon-btn" id="theme-btn" aria-label="Theme">☀️</button>
