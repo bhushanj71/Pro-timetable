@@ -1291,3 +1291,17 @@ input, select, textarea, button { font-size: inherit; }
   border-left: 3px solid var(--primary);
   font-weight: 600;
 }
+
+/* Manage action beside each upcoming event */
+.ue-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ue-manage {
+  opacity: 0;
+  transition: opacity var(--t) var(--ease), transform var(--t) var(--ease), background var(--t) var(--ease);
+}
+.ue-item:hover .ue-manage,
+.ue-manage:focus-visible { opacity: 1; }
+.ue-manage:hover { background: var(--primary-soft); color: var(--primary-hover); border-color: var(--primary); }
+/* Touch devices have no hover, so the button must always be visible. */
+@media (hover: none) {
+  .ue-manage { opacity: 1; }
+}

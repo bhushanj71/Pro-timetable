@@ -72,7 +72,10 @@ async function loadUpcomingEvents() {
           <div class="ue-meta">${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} • ${fmtTime(e.start_datetime)}</div>
           ${e.location ? `<div class="ue-meta">${esc(e.location)}</div>` : ""}
         </div>
-        <span class="tag" style="background:${categorySoft(e.event_type)};color:${categoryColor(e.event_type)}">${labelFor(e.event_type)}</span>
+        <div class="ue-actions">
+          <span class="tag" style="background:${categorySoft(e.event_type)};color:${categoryColor(e.event_type)}">${labelFor(e.event_type)}</span>
+          <button class="btn btn-sm ue-manage" data-manage="${e.id}" title="Manage this event">Manage</button>
+        </div>
       </div>`;
     }).join("");
   } catch (_) {
@@ -317,3 +320,128 @@ function refreshDashboard() {
 
 window.addEventListener("schedule-updated", refreshDashboard);
 refreshDashboard();
+
+
+/* ==========================================================================
+   Manage an upcoming event
+   ========================================================================== */
+
+function evmLocalDate(dt) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+}
+function evmLocalTime(dt) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+}
+
+async function openManageModal(eventId) {
+  let ev;
+  try {
+    ev = await apiFetch(`/api/events/${eventId}`);
+  } catch (err) {
+    showToast(err.message, "error");
+    return;
+  }
+
+  const start = new Date(ev.start_datetime);
+  const end = new Date(ev.end_datetime);
+  const isSeries = !!ev.recurrence_group_id;
+
+  document.getElementById("evm-id").value = ev.id;
+  document.getElementById("evm-group").value = ev.recurrence_group_id || "";
+  document.getElementById("evm-title").value = ev.title || "";
+  document.getElementById("evm-date").value = evmLocalDate(start);
+  document.getElementById("evm-start").value = evmLocalTime(start);
+  document.getElementById("evm-end").value = evmLocalTime(end);
+  document.getElementById("evm-location").value = ev.location || "";
+  document.getElementById("evm-subtitle").textContent =
+    `${start.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })} · ${fmtTime(ev.start_datetime)}`;
+
+  document.getElementById("evm-series-note").classList.toggle("hidden", !isSeries);
+  document.getElementById("evm-delete-series").classList.toggle("hidden", !isSeries);
+  document.getElementById("ev-manage-modal").classList.remove("hidden");
+}
+
+// Delegated so the handler survives the list re-rendering.
+document.getElementById("upcoming-events")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-manage]");
+  if (btn) openManageModal(btn.dataset.manage);
+});
+
+const closeManage = () => document.getElementById("ev-manage-modal")?.classList.add("hidden");
+document.getElementById("evm-cancel")?.addEventListener("click", closeManage);
+document.getElementById("ev-manage-modal")?.addEventListener("click", (e) => {
+  if (e.target.id === "ev-manage-modal") closeManage();
+});
+
+document.getElementById("evm-save")?.addEventListener("click", async (e) => {
+  const id = document.getElementById("evm-id").value;
+  const title = document.getElementById("evm-title").value.trim();
+  const date = document.getElementById("evm-date").value;
+  const startT = document.getElementById("evm-start").value;
+  const endT = document.getElementById("evm-end").value;
+
+  if (!title) return showToast("Title is required", "error");
+  if (!date || !startT || !endT) return showToast("Date and times are required", "error");
+
+  const start = new Date(`${date}T${startT}`);
+  let end = new Date(`${date}T${endT}`);
+  // An end before the start means it runs past midnight.
+  if (end <= start) end.setDate(end.getDate() + 1);
+
+  setButtonLoading(e.currentTarget, true);
+  try {
+    // force=true: the professor is deliberately moving this event, so a clash
+    // shouldn't block the save — it's surfaced elsewhere.
+    await apiFetch(`/api/events/${id}?force=true`, {
+      method: "PUT",
+      body: {
+        title,
+        start_datetime: start.toISOString(),
+        end_datetime: end.toISOString(),
+        location: document.getElementById("evm-location").value.trim() || null,
+      },
+    });
+    showToast("Event updated", "success");
+    closeManage();
+    refreshDashboard();
+  } catch (err) {
+    showToast(err.message, "error");
+  } finally {
+    setButtonLoading(e.currentTarget, false);
+  }
+});
+
+document.getElementById("evm-delete")?.addEventListener("click", async (e) => {
+  const id = document.getElementById("evm-id").value;
+  if (!confirm("Delete this event?")) return;
+  setButtonLoading(e.currentTarget, true);
+  try {
+    await apiFetch(`/api/events/${id}`, { method: "DELETE" });
+    showToast("Event deleted", "success");
+    closeManage();
+    refreshDashboard();
+  } catch (err) {
+    showToast(err.message, "error");
+  } finally {
+    setButtonLoading(e.currentTarget, false);
+  }
+});
+
+document.getElementById("evm-delete-series")?.addEventListener("click", async (e) => {
+  const id = document.getElementById("evm-id").value;
+  const msg = "Delete EVERY occurrence of this repeating event?\n\nThis cannot be undone.";
+  if (!confirm(msg)) return;
+  setButtonLoading(e.currentTarget, true);
+  try {
+    await apiFetch(`/api/events/${id}?apply_to_series=true`, { method: "DELETE" });
+    showToast("Series deleted", "success");
+    closeManage();
+    refreshDashboard();
+  } catch (err) {
+    showToast(err.message, "error");
+  } finally {
+    setButtonLoading(e.currentTarget, false);
+  }
+});

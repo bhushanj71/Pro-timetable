@@ -135,6 +135,56 @@
     </div>
   </aside>
 </main>
+
+<!-- Manage a single upcoming event -->
+<div id="ev-manage-modal" class="modal-backdrop hidden">
+  <div class="modal-card" style="max-width:460px">
+    <h3 id="evm-title-text">Manage event</h3>
+    <p class="muted-text" id="evm-subtitle" style="margin-bottom:16px"></p>
+
+    <input type="hidden" id="evm-id">
+    <input type="hidden" id="evm-group">
+
+    <div class="form-group">
+      <label for="evm-title">Title</label>
+      <input type="text" id="evm-title">
+    </div>
+
+    <div class="form-group">
+      <label for="evm-date">Date</label>
+      <input type="date" id="evm-date">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="evm-start">Starts</label>
+        <input type="time" id="evm-start">
+      </div>
+      <div class="form-group">
+        <label for="evm-end">Ends</label>
+        <input type="time" id="evm-end">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="evm-location">Location</label>
+      <input type="text" id="evm-location" placeholder="Room A-301">
+    </div>
+
+    <div id="evm-series-note" class="hidden guide-note" style="margin-bottom:14px">
+      This is part of a repeating series. Changes apply to this occurrence only,
+      unless you delete the whole series.
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="evm-save">Save changes</button>
+      <button class="btn btn-danger" id="evm-delete">Delete</button>
+      <button class="btn btn-danger hidden" id="evm-delete-series">Delete series</button>
+      <button class="btn" id="evm-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
