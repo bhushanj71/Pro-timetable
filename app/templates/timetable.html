@@ -11,7 +11,9 @@
     <button class="btn" id="export-csv-btn">⬇ CSV</button>
     <button class="btn" id="export-ics-btn">⬇ ICS</button>
     <button class="btn" id="export-pdf-btn">⬇ PDF</button>
+    <button class="btn btn-primary" id="tt-add-btn">+ Add Class</button>
     <button class="btn btn-primary" id="open-generator-btn">✨ Generate Timetable</button>
+    <button class="btn btn-danger" id="tt-reset-btn">🗑 Reset</button>
   </div>
 </div>
 
@@ -53,6 +55,90 @@
       <button class="btn" id="commit-generator-btn">Save to Timetable</button>
     </div>
     <div id="generator-result" style="margin-top:14px"></div>
+  </div>
+</div>
+
+<!-- Add / edit a single class -->
+<div id="tt-event-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:150;display:flex;align-items:center;justify-content:center;padding:16px">
+  <div class="card" style="width:100%;max-width:480px;max-height:90vh;overflow-y:auto">
+    <h3 id="tt-modal-title">Add Class</h3>
+    <input type="hidden" id="tt-ev-id">
+    <input type="hidden" id="tt-ev-group">
+    <div class="form-group"><label>Title</label><input type="text" id="tt-ev-title" placeholder="Data Structures Lecture"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Subject</label><input type="text" id="tt-ev-subject" placeholder="Data Structures"></div>
+      <div class="form-group"><label>Type</label>
+        <select id="tt-ev-type">
+          <option value="lecture">Lecture</option>
+          <option value="lab">Lab</option>
+          <option value="meeting">Meeting</option>
+          <option value="project_review">Project Review</option>
+          <option value="examination">Examination</option>
+          <option value="research">Research</option>
+          <option value="personal">Personal</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Start</label><input type="datetime-local" id="tt-ev-start"></div>
+      <div class="form-group"><label>End</label><input type="datetime-local" id="tt-ev-end"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Location</label><input type="text" id="tt-ev-location" placeholder="Room A-301"></div>
+      <div class="form-group"><label>Priority</label>
+        <select id="tt-ev-priority">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+          <option value="urgent">Urgent</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" id="tt-repeat-group">
+      <label>Repeat weekly on</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <label style="font-weight:400"><input type="checkbox" class="tt-day" value="MON"> Mon</label>
+        <label style="font-weight:400"><input type="checkbox" class="tt-day" value="TUE"> Tue</label>
+        <label style="font-weight:400"><input type="checkbox" class="tt-day" value="WED"> Wed</label>
+        <label style="font-weight:400"><input type="checkbox" class="tt-day" value="THU"> Thu</label>
+        <label style="font-weight:400"><input type="checkbox" class="tt-day" value="FRI"> Fri</label>
+        <label style="font-weight:400"><input type="checkbox" class="tt-day" value="SAT"> Sat</label>
+      </div>
+      <small class="schedule-sub">Leave all unchecked for a one-off class.</small>
+    </div>
+    <div class="ai-confirm-actions" style="flex-wrap:wrap">
+      <button class="btn btn-primary" id="tt-ev-save">Save</button>
+      <button class="btn btn-danger hidden" id="tt-ev-delete">Delete this</button>
+      <button class="btn btn-danger hidden" id="tt-ev-delete-series">Delete whole series</button>
+      <button class="btn" id="tt-ev-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reset / bulk delete -->
+<div id="tt-reset-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:150;display:flex;align-items:center;justify-content:center;padding:16px">
+  <div class="card" style="width:100%;max-width:440px">
+    <h3>🗑 Reset Schedule</h3>
+    <p class="schedule-sub">This permanently deletes events and cannot be undone.</p>
+    <div class="form-group">
+      <label>What to delete</label>
+      <select id="tt-reset-scope">
+        <option value="week">Only the week currently shown</option>
+        <option value="future">All upcoming events (from now on)</option>
+        <option value="past">All past events</option>
+        <option value="all">Everything — my entire schedule</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Limit to one subject (optional)</label>
+      <input type="text" id="tt-reset-subject" placeholder="Leave blank for all subjects">
+    </div>
+    <p id="tt-reset-warning" class="form-error"></p>
+    <div class="ai-confirm-actions">
+      <button class="btn btn-danger" id="tt-reset-confirm">Delete</button>
+      <button class="btn" id="tt-reset-cancel">Cancel</button>
+    </div>
   </div>
 </div>
 

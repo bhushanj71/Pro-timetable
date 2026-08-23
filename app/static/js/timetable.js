@@ -72,17 +72,194 @@ async function renderTimetable() {
   }
 }
 
-function showEventActions(e) {
-  const del = confirm(`${e.title}\n${fmtDate(e.start)} ${fmtTime(e.start)}–${fmtTime(e.end)}\n\nDelete this event?`);
-  if (del) {
-    apiFetch(`/api/events/${e.id}`, { method: "DELETE" })
-      .then(() => {
-        showToast("Event deleted", "success");
-        renderTimetable();
-      })
-      .catch((err) => showToast(err.message, "error"));
-  }
+function ttIsoLocal(dt) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
 }
+
+function ttSetDays(codes) {
+  document.querySelectorAll(".tt-day").forEach((cb) => {
+    cb.checked = (codes || []).includes(cb.value);
+  });
+}
+
+function ttGetDays() {
+  return Array.from(document.querySelectorAll(".tt-day:checked")).map((cb) => cb.value);
+}
+
+/** Open the editor for an existing class. Full details are fetched because the
+ *  grid payload is a trimmed projection. */
+async function showEventActions(e) {
+  let full;
+  try {
+    full = await apiFetch(`/api/events/${e.id}`);
+  } catch (err) {
+    showToast(err.message, "error");
+    return;
+  }
+
+  document.getElementById("tt-modal-title").textContent = "Edit Class";
+  document.getElementById("tt-ev-id").value = full.id;
+  document.getElementById("tt-ev-group").value = full.recurrence_group_id || "";
+  document.getElementById("tt-ev-title").value = full.title || "";
+  document.getElementById("tt-ev-subject").value = full.subject || "";
+  document.getElementById("tt-ev-type").value = full.event_type || "lecture";
+  document.getElementById("tt-ev-start").value = ttIsoLocal(new Date(full.start_datetime));
+  document.getElementById("tt-ev-end").value = ttIsoLocal(new Date(full.end_datetime));
+  document.getElementById("tt-ev-location").value = full.location || "";
+  document.getElementById("tt-ev-priority").value = full.priority || "medium";
+
+  // Recurrence is fixed once a series exists; changing it would mean
+  // rebuilding every occurrence, so editing applies to this event (or the
+  // whole series via the dedicated button) instead.
+  document.getElementById("tt-repeat-group").classList.add("hidden");
+  ttSetDays([]);
+
+  document.getElementById("tt-ev-delete").classList.remove("hidden");
+  document.getElementById("tt-ev-delete-series").classList.toggle("hidden", !full.recurrence_group_id);
+  document.getElementById("tt-event-modal").classList.remove("hidden");
+}
+
+function openAddClassModal() {
+  document.getElementById("tt-modal-title").textContent = "Add Class";
+  document.getElementById("tt-ev-id").value = "";
+  document.getElementById("tt-ev-group").value = "";
+  document.getElementById("tt-ev-title").value = "";
+  document.getElementById("tt-ev-subject").value = "";
+  document.getElementById("tt-ev-type").value = "lecture";
+  document.getElementById("tt-ev-location").value = "";
+  document.getElementById("tt-ev-priority").value = "medium";
+
+  // Default to the next hour on the Monday of the week being viewed.
+  const base = new Date();
+  base.setDate(base.getDate() - ((base.getDay() + 6) % 7) + ttWeekOffset * 7);
+  base.setHours(9, 0, 0, 0);
+  const end = new Date(base.getTime() + 60 * 60000);
+  document.getElementById("tt-ev-start").value = ttIsoLocal(base);
+  document.getElementById("tt-ev-end").value = ttIsoLocal(end);
+
+  document.getElementById("tt-repeat-group").classList.remove("hidden");
+  ttSetDays([]);
+  document.getElementById("tt-ev-delete").classList.add("hidden");
+  document.getElementById("tt-ev-delete-series").classList.add("hidden");
+  document.getElementById("tt-event-modal").classList.remove("hidden");
+}
+
+document.getElementById("tt-add-btn")?.addEventListener("click", openAddClassModal);
+document.getElementById("tt-ev-cancel")?.addEventListener("click", () =>
+  document.getElementById("tt-event-modal").classList.add("hidden")
+);
+
+document.getElementById("tt-ev-save")?.addEventListener("click", async () => {
+  const id = document.getElementById("tt-ev-id").value;
+  const title = document.getElementById("tt-ev-title").value.trim();
+  const startVal = document.getElementById("tt-ev-start").value;
+  const endVal = document.getElementById("tt-ev-end").value;
+
+  if (!title) return showToast("Title is required", "error");
+  if (!startVal || !endVal) return showToast("Start and end time are required", "error");
+  if (new Date(endVal) <= new Date(startVal)) return showToast("End time must be after the start time", "error");
+
+  const payload = {
+    title,
+    subject: document.getElementById("tt-ev-subject").value.trim() || null,
+    event_type: document.getElementById("tt-ev-type").value,
+    start_datetime: new Date(startVal).toISOString(),
+    end_datetime: new Date(endVal).toISOString(),
+    location: document.getElementById("tt-ev-location").value.trim() || null,
+    priority: document.getElementById("tt-ev-priority").value,
+  };
+
+  try {
+    if (id) {
+      await apiFetch(`/api/events/${id}?force=true`, { method: "PUT", body: payload });
+      showToast("Class updated", "success");
+    } else {
+      const days = ttGetDays();
+      if (days.length) payload.recurrence_rule = `weekly:${days.join(",")}`;
+      await apiFetch("/api/events?force=true", { method: "POST", body: payload });
+      showToast(days.length ? "Recurring class added" : "Class added", "success");
+    }
+    document.getElementById("tt-event-modal").classList.add("hidden");
+    renderTimetable();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+});
+
+document.getElementById("tt-ev-delete")?.addEventListener("click", async () => {
+  const id = document.getElementById("tt-ev-id").value;
+  if (!id || !confirm("Delete just this one class?")) return;
+  try {
+    await apiFetch(`/api/events/${id}`, { method: "DELETE" });
+    showToast("Class deleted", "success");
+    document.getElementById("tt-event-modal").classList.add("hidden");
+    renderTimetable();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+});
+
+document.getElementById("tt-ev-delete-series")?.addEventListener("click", async () => {
+  const id = document.getElementById("tt-ev-id").value;
+  if (!id || !confirm("Delete EVERY occurrence of this recurring class?\n\nThis cannot be undone.")) return;
+  try {
+    await apiFetch(`/api/events/${id}?apply_to_series=true`, { method: "DELETE" });
+    showToast("Series deleted", "success");
+    document.getElementById("tt-event-modal").classList.add("hidden");
+    renderTimetable();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+});
+
+/* ---------------- Reset / bulk delete ---------------- */
+const TT_RESET_LABELS = {
+  week: "the week currently shown",
+  future: "ALL upcoming events",
+  past: "all past events",
+  all: "your ENTIRE schedule",
+};
+
+function ttUpdateResetWarning() {
+  const scope = document.getElementById("tt-reset-scope").value;
+  const subject = document.getElementById("tt-reset-subject").value.trim();
+  document.getElementById("tt-reset-warning").textContent =
+    `This will delete ${TT_RESET_LABELS[scope]}${subject ? ` for subject matching "${subject}"` : ""}.`;
+}
+
+document.getElementById("tt-reset-btn")?.addEventListener("click", () => {
+  document.getElementById("tt-reset-subject").value = "";
+  ttUpdateResetWarning();
+  document.getElementById("tt-reset-modal").classList.remove("hidden");
+});
+document.getElementById("tt-reset-cancel")?.addEventListener("click", () =>
+  document.getElementById("tt-reset-modal").classList.add("hidden")
+);
+document.getElementById("tt-reset-scope")?.addEventListener("change", ttUpdateResetWarning);
+document.getElementById("tt-reset-subject")?.addEventListener("input", ttUpdateResetWarning);
+
+document.getElementById("tt-reset-confirm")?.addEventListener("click", async () => {
+  const scope = document.getElementById("tt-reset-scope").value;
+  const subject = document.getElementById("tt-reset-subject").value.trim();
+
+  // Deleting everything is unrecoverable, so require typing the word.
+  if (scope === "all" && !subject) {
+    const typed = prompt('This deletes your ENTIRE schedule and cannot be undone.\n\nType DELETE to confirm:');
+    if (typed !== "DELETE") return showToast("Cancelled — nothing was deleted", "error");
+  }
+
+  try {
+    const qs = new URLSearchParams({ confirm: "true", scope, week_offset: String(ttWeekOffset) });
+    if (subject) qs.set("subject", subject);
+    const res = await apiFetch(`/api/events?${qs}`, { method: "DELETE" });
+    showToast(`Deleted ${res.deleted} event(s)`, "success");
+    document.getElementById("tt-reset-modal").classList.add("hidden");
+    renderTimetable();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+});
 
 /* ---------------- Generator ---------------- */
 document.getElementById("open-generator-btn")?.addEventListener("click", () => {

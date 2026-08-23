@@ -1,7 +1,7 @@
 """
 CRUD for events, with recurrence materialization and conflict detection.
 """
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -40,6 +40,48 @@ def list_events(
     if subject:
         query = query.filter(Event.subject.ilike(f"%{subject}%"))
     return query.order_by(Event.start_datetime).all()
+
+
+@router.delete("")
+def clear_events(
+    confirm: bool = Query(default=False, description="Must be true; guards against an accidental wipe"),
+    scope: str = Query(default="all", pattern="^(all|future|past|week)$"),
+    week_offset: int = Query(default=0, ge=-52, le=52, description="For scope=week: which week, relative to this one"),
+    subject: str | None = Query(default=None, description="Limit the delete to one subject"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Bulk-delete this user's events.
+
+    Always scoped to the calling user. `confirm=true` is required so a stray
+    DELETE on the collection URL cannot wipe a schedule by accident.
+    """
+    if not confirm:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Refusing to delete without confirm=true",
+        )
+
+    now = datetime.now(timezone.utc)
+    query = db.query(Event).filter(Event.user_id == user.id)
+
+    if scope == "future":
+        query = query.filter(Event.start_datetime >= now)
+    elif scope == "past":
+        query = query.filter(Event.start_datetime < now)
+    elif scope == "week":
+        today = now.date()
+        monday = datetime.combine(
+            today - timedelta(days=today.weekday()) + timedelta(weeks=week_offset), time.min, tzinfo=timezone.utc
+        )
+        query = query.filter(Event.start_datetime >= monday, Event.start_datetime < monday + timedelta(days=7))
+
+    if subject:
+        query = query.filter(Event.subject.ilike(f"%{subject}%"))
+
+    deleted = query.delete(synchronize_session=False)
+    db.commit()
+    return {"deleted": deleted, "scope": scope, "subject": subject}
 
 
 @router.get("/{event_id}", response_model=EventOut)
