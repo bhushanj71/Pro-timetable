@@ -70,7 +70,10 @@
         await apiFetch("/api/notifications/test", { method: "POST" });
       }
     } catch (err) {
-      showToast(err.message || "Could not enable notifications", "error");
+      // enablePush already toasts a specific reason for known failures; this
+      // only covers genuinely unexpected ones.
+      console.warn("Enable push failed:", err);
+      showToast(err.message || "Could not enable notifications on this device", "error");
     } finally {
       setButtonLoading(e.currentTarget, false);
     }

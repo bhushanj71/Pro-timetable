@@ -68,10 +68,38 @@ async function enablePush() {
   // Reuse an existing subscription if the browser already has one.
   let sub = await reg.pushManager.getSubscription();
   if (!sub) {
-    sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
-    });
+    try {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    } catch (err) {
+      // Chrome reports several unrelated conditions as the same opaque
+      // "Registration failed - push service error", so translate it.
+      const detail = `${err.name}: ${err.message}`;
+      let advice;
+
+      if (/push service error|AbortError/i.test(detail)) {
+        advice =
+          "Your browser could not reach its push service. This is usually a network " +
+          "or browser-profile problem rather than the app: try a different network, " +
+          "or test on your phone instead of this laptop.";
+      } else if (/permission/i.test(detail)) {
+        advice = "Notification permission was refused for this site.";
+      } else if (/applicationServerKey|InvalidAccessError|InvalidStateError/i.test(detail)) {
+        // A key change invalidates existing subscriptions; clearing lets the
+        // next attempt succeed.
+        advice = "This device holds a subscription from a different key. Clearing it — please try again.";
+        const stale = await reg.pushManager.getSubscription();
+        if (stale) await stale.unsubscribe();
+      } else {
+        advice = "Could not subscribe this device.";
+      }
+
+      console.warn("Push subscribe failed:", detail);
+      showToast(`${advice} (${err.name})`, "error");
+      return false;
+    }
   }
 
   const json = sub.toJSON();
