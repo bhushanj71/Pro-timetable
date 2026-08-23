@@ -25,6 +25,15 @@ os.environ["SECRET_KEY"] = "test-secret"
 os.environ["AI_PROVIDER"] = "none"
 os.environ["AI_API_KEY"] = ""
 os.environ["CRON_SECRET"] = ""
+# Pin every outbound-delivery credential too, so a developer's populated .env
+# can't make the suite attempt real emails or push requests.
+os.environ["SMTP_HOST"] = ""
+os.environ["SMTP_USER"] = ""
+os.environ["SMTP_PASSWORD"] = ""
+os.environ["VAPID_PUBLIC_KEY"] = ""
+os.environ["VAPID_PRIVATE_KEY"] = ""
+os.environ["BOOTSTRAP_ADMIN_EMAIL"] = ""
+os.environ["BOOTSTRAP_ADMIN_PASSWORD"] = ""
 
 import pytest
 from fastapi.testclient import TestClient

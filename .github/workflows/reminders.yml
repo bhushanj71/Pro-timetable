@@ -1,0 +1,38 @@
+# Pings the reminder processor on a schedule.
+#
+# Render's free tier sleeps after ~15 minutes idle, which stops the in-process
+# scheduler, so reminders would fire late. This ping both delivers due
+# reminders and keeps the instance awake.
+#
+# Setup: add a repository secret named CRON_SECRET matching the CRON_SECRET
+# environment variable on the server (Settings -> Secrets and variables ->
+# Actions -> New repository secret).
+name: Process reminders
+
+on:
+  schedule:
+    # Every 10 minutes. GitHub queues scheduled jobs, so the real interval
+    # can drift by a few minutes under load.
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger reminder delivery
+        run: |
+          echo "Pinging reminder endpoint..."
+          code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
+            --max-time 90 --retry 2 --retry-delay 20 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://profschedule-ai.onrender.com/api/cron/process-reminders")
+          echo "HTTP $code"
+          cat /tmp/out.json || true
+          echo
+          # A cold Render instance can take ~60s to wake; treat only real
+          # failures as errors.
+          if [ "$code" != "200" ]; then
+            echo "::error::Reminder ping failed with HTTP $code"
+            exit 1
+          fi

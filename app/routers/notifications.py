@@ -1,0 +1,216 @@
+"""
+Push subscription management and the subscribable calendar feed.
+
+The calendar feed is intentionally unauthenticated: calendar clients
+(Google Calendar, Apple Calendar, Outlook) cannot present a session cookie.
+The secret token in the URL is the credential, it grants read-only access to
+one professor's events, and it can be rotated from the profile page.
+"""
+import logging
+from datetime import datetime, timedelta, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import Response
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.config import get_settings
+from app.database import get_db
+from app.deps import get_current_user
+from app.models import Event, PushSubscription, User
+from app.services.notifier import email_configured, push_configured, send_email, send_push_to_user
+
+router = APIRouter(prefix="/api", tags=["notifications"])
+logger = logging.getLogger(__name__)
+settings = get_settings()
+
+
+class PushKeys(BaseModel):
+    p256dh: str
+    auth: str
+
+
+class PushSubscribeRequest(BaseModel):
+    endpoint: str
+    keys: PushKeys
+
+
+@router.get("/push/public-key")
+def push_public_key():
+    """VAPID public key the browser needs to create a subscription."""
+    return {"public_key": settings.VAPID_PUBLIC_KEY, "enabled": push_configured()}
+
+
+@router.post("/push/subscribe", status_code=status.HTTP_201_CREATED)
+def push_subscribe(
+    payload: PushSubscribeRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    existing = db.query(PushSubscription).filter(PushSubscription.endpoint == payload.endpoint).first()
+    if existing:
+        # Re-subscribing on the same device (or after it moved accounts):
+        # refresh the keys and ownership rather than creating a duplicate.
+        existing.user_id = user.id
+        existing.p256dh = payload.keys.p256dh
+        existing.auth = payload.keys.auth
+        db.commit()
+        return {"ok": True, "updated": True}
+
+    db.add(
+        PushSubscription(
+            user_id=user.id,
+            endpoint=payload.endpoint,
+            p256dh=payload.keys.p256dh,
+            auth=payload.keys.auth,
+            user_agent=(request.headers.get("user-agent") or "")[:255],
+        )
+    )
+    db.commit()
+    return {"ok": True, "updated": False}
+
+
+@router.post("/push/unsubscribe")
+def push_unsubscribe(
+    payload: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    endpoint = payload.get("endpoint")
+    if endpoint:
+        db.query(PushSubscription).filter(
+            PushSubscription.endpoint == endpoint, PushSubscription.user_id == user.id
+        ).delete()
+        db.commit()
+    return {"ok": True}
+
+
+@router.post("/notifications/test")
+def send_test_notification(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Fire a reminder through every enabled channel right now, so a professor
+    can confirm delivery works before relying on it."""
+    results = {"email": "skipped", "push": "skipped"}
+
+    if user.notify_email:
+        if not email_configured():
+            results["email"] = "not configured on the server"
+        else:
+            from app.services.notifier import reminder_email_html
+
+            ok = send_email(
+                user.email,
+                "🔔 ProfSchedule AI test notification",
+                "This is a test. Your email reminders are working.",
+                reminder_email_html("Test notification", "Right now", None),
+            )
+            results["email"] = "sent" if ok else "failed"
+
+    if user.notify_push:
+        if not push_configured():
+            results["push"] = "not configured on the server"
+        else:
+            n = send_push_to_user(db, user, "🔔 Test notification", "Your push reminders are working.")
+            devices = db.query(PushSubscription).filter(PushSubscription.user_id == user.id).count()
+            results["push"] = f"sent to {n} device(s)" if n else (
+                "no devices registered — enable notifications on your phone first" if devices == 0 else "failed"
+            )
+
+    results["devices"] = db.query(PushSubscription).filter(PushSubscription.user_id == user.id).count()
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Subscribable calendar feed
+# ---------------------------------------------------------------------------
+def _ics_escape(text: str) -> str:
+    return (
+        str(text or "")
+        .replace("\\", "\\\\")
+        .replace(",", "\\,")
+        .replace(";", "\\;")
+        .replace("\n", "\\n")
+    )
+
+
+@router.get("/calendar/{token}.ics")
+def calendar_feed(token: str, db: Session = Depends(get_db)):
+    """Read-only ICS feed for one professor, addressed by secret token.
+
+    Each event carries a VALARM, so the subscribing calendar app raises its
+    own native reminder on the phone — no push infrastructure required.
+    """
+    user = db.query(User).filter(User.calendar_token == token).first()
+    if not user or not user.is_active:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Calendar not found")
+
+    now = datetime.now(timezone.utc)
+    events = (
+        db.query(Event)
+        .filter(
+            Event.user_id == user.id,
+            Event.is_cancelled.is_(False),
+            Event.start_datetime >= now - timedelta(days=30),
+            Event.start_datetime <= now + timedelta(days=180),
+        )
+        .order_by(Event.start_datetime)
+        .all()
+    )
+
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//ProfSchedule AI//EN",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        f"X-WR-CALNAME:{_ics_escape(user.name)} — Teaching Schedule",
+        f"X-WR-TIMEZONE:{user.timezone}",
+        # Hint to clients how often to re-poll the feed.
+        "REFRESH-INTERVAL;VALUE=DURATION:PT1H",
+        "X-PUBLISHED-TTL:PT1H",
+    ]
+
+    lead = user.default_reminder_minutes or 30
+    for e in events:
+        start = e.start_datetime if e.start_datetime.tzinfo else e.start_datetime.replace(tzinfo=timezone.utc)
+        end = e.end_datetime if e.end_datetime.tzinfo else e.end_datetime.replace(tzinfo=timezone.utc)
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:{e.id}@profschedule.ai",
+            f"DTSTAMP:{now.strftime('%Y%m%dT%H%M%SZ')}",
+            f"DTSTART:{start.astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
+            f"DTEND:{end.astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
+            f"SUMMARY:{_ics_escape(e.title)}",
+            f"LOCATION:{_ics_escape(e.location or '')}",
+            f"DESCRIPTION:{_ics_escape(e.description or e.subject or '')}",
+            f"CATEGORIES:{_ics_escape(e.event_type)}",
+            "BEGIN:VALARM",
+            f"TRIGGER:-PT{lead}M",
+            "ACTION:DISPLAY",
+            f"DESCRIPTION:{_ics_escape(e.title)}",
+            "END:VALARM",
+            "END:VEVENT",
+        ]
+
+    lines.append("END:VCALENDAR")
+    return Response(
+        content="\r\n".join(lines),
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": 'inline; filename="profschedule.ics"', "Cache-Control": "max-age=900"},
+    )
+
+
+@router.get("/calendar-feed-url")
+def calendar_feed_url(request: Request, user: User = Depends(get_current_user)):
+    base = (settings.PUBLIC_BASE_URL or str(request.base_url)).rstrip("/")
+    return {"url": f"{base}/api/calendar/{user.calendar_token}.ics"}
+
+
+@router.post("/calendar-feed-url/rotate")
+def rotate_calendar_token(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Invalidate the old feed link (e.g. if it was shared by accident)."""
+    import uuid
+
+    user.calendar_token = uuid.uuid4().hex
+    db.commit()
+    return {"ok": True, "token": user.calendar_token}

@@ -41,7 +41,64 @@
   <button class="btn btn-primary" id="pf-save-btn">Save Changes</button>
 </div>
 
+<div class="card card-hover" style="max-width:640px;margin-top:20px">
+  <div class="card-head">
+    <div class="card-title"><span class="t-ico">🔔</span> Phone Notifications</div>
+  </div>
+  <p class="muted-text" style="margin-bottom:16px">
+    Choose how reminders for lectures, events and tasks reach you.
+  </p>
+
+  <!-- Email -->
+  <div class="form-group">
+    <label style="display:flex;align-items:center;gap:9px;cursor:pointer">
+      <input type="checkbox" id="pf-notify-email" {% if user.notify_email %}checked{% endif %} style="width:auto">
+      <span>📧 Email reminders to <strong>{{ user.email }}</strong></span>
+    </label>
+    <small class="form-hint">Your phone's mail app shows its own notification when these arrive.</small>
+  </div>
+
+  <!-- Push -->
+  <div class="form-group">
+    <label style="display:flex;align-items:center;gap:9px;cursor:pointer">
+      <input type="checkbox" id="pf-notify-push" {% if user.notify_push %}checked{% endif %} style="width:auto">
+      <span>📱 Push notifications (lock screen)</span>
+    </label>
+    <small class="form-hint" id="push-status">Checking…</small>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn btn-sm btn-primary hidden" id="push-enable-btn">Enable on this device</button>
+      <button class="btn btn-sm hidden" id="push-disable-btn">Disable on this device</button>
+    </div>
+  </div>
+
+  <hr class="auth-divider">
+
+  <!-- Calendar feed -->
+  <div class="form-group">
+    <label>📅 Subscribe in Google / Apple Calendar</label>
+    <small class="form-hint" style="margin-bottom:8px">
+      Add this link to the calendar app on your phone and it will show your classes
+      and fire its own native reminders — even if the app is closed.
+    </small>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="pf-calendar-url" readonly value="Loading…" style="font-size:0.78rem">
+      <button class="btn btn-sm" id="pf-copy-url">Copy</button>
+    </div>
+    <small class="form-hint">
+      Treat this like a password — anyone with the link can see your schedule.
+      <a href="#" id="pf-rotate-url" style="color:var(--primary);font-weight:700">Reset link</a>
+    </small>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" id="pf-save-notify">Save Preferences</button>
+    <button class="btn" id="pf-test-notify">Send test notification</button>
+  </div>
+  <div id="pf-test-result" class="form-hint"></div>
+</div>
+
 {% endblock %}
 {% block scripts %}
+<script src="/static/js/push.js?v={{ v }}"></script>
 <script src="/static/js/profile.js?v={{ v }}"></script>
 {% endblock %}

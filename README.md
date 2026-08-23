@@ -183,6 +183,67 @@ AI_MODEL=llama3.1
 
 If `AI_API_KEY` is empty (or the call fails), the app falls back to a built-in rule-based extractor so scheduling still works, with reduced accuracy on ambiguous prompts.
 
+## Phone notifications
+
+Reminders reach a professor's phone through three independent channels. Each
+is optional and toggled per user in **Profile → Phone Notifications**.
+
+> A server cannot push to a phone merely because the user is signed into that
+> email on the device — email delivery and push are separate channels. The
+> options below are the three that genuinely work.
+
+### 1. Email — to the address they signed in with
+
+Set the SMTP variables and reminders arrive in their inbox; the phone's mail
+app raises its own notification. Nothing for the professor to install.
+
+With Gmail, create an **App Password** (Google Account → Security →
+2-Step Verification → App passwords) and use that as `SMTP_PASSWORD`. A
+normal account password will be rejected.
+
+### 2. Web Push — lock-screen notifications
+
+True push, delivered even when the site is closed. Generate a keypair once:
+
+```bash
+python generate_vapid_keys.py
+```
+
+Set the printed `VAPID_*` values in the environment. The professor then opens
+**Profile → Enable on this device** and accepts the browser prompt.
+
+- **Android / Chrome / desktop** — works immediately.
+- **iPhone** — iOS only exposes push to installed web apps. They must tap
+  **Share → Add to Home Screen** and open the app from that icon first
+  (iOS 16.4+). The profile page says so when it detects iOS.
+
+Requires HTTPS, which Render provides.
+
+### 3. Calendar subscription — native reminders, no app
+
+Profile shows a personal `.ics` feed URL. Adding it in Google Calendar
+(**Other calendars → From URL**) or iPhone (**Settings → Calendar → Accounts
+→ Add Subscribed Calendar**) makes the phone's own calendar fire native
+reminders. Each event carries a `VALARM` set to the professor's default
+reminder lead time.
+
+The token in the URL *is* the credential, so treat it like a password. It can
+be rotated from the profile page, which immediately invalidates the old link.
+
+### Keeping delivery on time
+
+Reminders only fire when the server is awake. Render's free tier sleeps after
+~15 minutes idle, so the in-process scheduler stops.
+
+`.github/workflows/reminders.yml` pings `/api/cron/process-reminders` every
+10 minutes, which both delivers due reminders and keeps the instance awake.
+Add a repository secret `CRON_SECRET` matching the server's `CRON_SECRET`
+value, and update the URL in that workflow to your own deployment.
+
+Delivery is idempotent (`is_sent`), so the cron ping and the in-process
+scheduler can both run without double-sending. Failed sends retry on later
+ticks up to three times before being retired.
+
 ## Deploying to Render
 
 The repo ships a `render.yaml` blueprint, so the fastest path is:

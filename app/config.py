@@ -51,6 +51,14 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: Optional[str] = None
     SMTP_FROM: Optional[str] = None
 
+    # Web Push (VAPID). Generate a keypair with:  python generate_vapid_keys.py
+    VAPID_PUBLIC_KEY: Optional[str] = None
+    VAPID_PRIVATE_KEY: Optional[str] = None
+    VAPID_CONTACT_EMAIL: Optional[str] = None
+
+    # Absolute base URL, used to build the subscribable calendar feed link.
+    PUBLIC_BASE_URL: Optional[str] = None
+
     DEFAULT_TIMEZONE: str = "Asia/Kolkata"
 
 

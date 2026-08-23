@@ -3,6 +3,7 @@ SQLAlchemy engine/session setup. Works with SQLite locally and
 Postgres (Vercel Postgres / Neon / Supabase) in production via DATABASE_URL.
 """
 import logging
+import uuid
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
@@ -136,6 +137,9 @@ _ADDITIVE_COLUMNS = {
         ("is_admin", "BOOLEAN DEFAULT 0 NOT NULL"),
         ("is_active", "BOOLEAN DEFAULT 1 NOT NULL"),
         ("last_login_at", "TIMESTAMP"),
+        ("notify_email", "BOOLEAN DEFAULT 1 NOT NULL"),
+        ("notify_push", "BOOLEAN DEFAULT 1 NOT NULL"),
+        ("calendar_token", "VARCHAR(64)"),
     ],
 }
 
@@ -164,6 +168,18 @@ def _apply_additive_migrations():
                 if is_postgres:
                     ddl = ddl.replace("DEFAULT 0", "DEFAULT FALSE").replace("DEFAULT 1", "DEFAULT TRUE")
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+
+        # Columns whose value must be unique per row can't come from a DDL
+        # default, so backfill them explicitly for pre-existing accounts.
+        if "users" in existing_tables:
+            missing = conn.execute(
+                text("SELECT id FROM users WHERE calendar_token IS NULL OR calendar_token = ''")
+            ).fetchall()
+            for (user_id,) in missing:
+                conn.execute(
+                    text("UPDATE users SET calendar_token = :tok WHERE id = :uid"),
+                    {"tok": uuid.uuid4().hex, "uid": user_id},
+                )
 
 
 def init_db():

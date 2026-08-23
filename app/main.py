@@ -23,6 +23,7 @@ from app.routers import (
     cron,
     events,
     export,
+    notifications,
     pages,
     reminders,
     tasks,
@@ -123,6 +124,7 @@ app.include_router(analytics.router)
 app.include_router(export.router)
 app.include_router(cron.router)
 app.include_router(admin.router)
+app.include_router(notifications.router)
 app.include_router(pages.router)
 
 
@@ -140,6 +142,26 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def unhandled_exception_handler(request: Request, exc: Exception):
     # Never leak internal error details (stack traces, DB errors, API keys) to the client.
     return JSONResponse(status_code=500, content={"detail": "An unexpected error occurred. Please try again."})
+
+
+@app.get("/sw.js", include_in_schema=False)
+def service_worker():
+    """Served from the root so the worker's scope covers the whole site —
+    a worker at /static/js/sw.js could only control /static/js/*."""
+    from fastapi.responses import FileResponse
+
+    return FileResponse(
+        _STATIC_DIR / "sw.js",
+        media_type="application/javascript",
+        headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
+    )
+
+
+@app.get("/manifest.json", include_in_schema=False)
+def web_manifest():
+    from fastapi.responses import FileResponse
+
+    return FileResponse(_STATIC_DIR / "manifest.json", media_type="application/manifest+json")
 
 
 @app.get("/api/health")

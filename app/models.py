@@ -95,6 +95,14 @@ class User(Base):
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # Notification preferences. Reminders are delivered to whichever channels
+    # are enabled; in-app is always available in the notification centre.
+    notify_email: Mapped[bool] = mapped_column(Boolean, default=True)
+    notify_push: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Secret path segment for the read-only ICS feed, so a calendar app can
+    # subscribe without cookies. Rotatable from the profile page.
+    calendar_token: Mapped[str] = mapped_column(String(64), default=lambda: uuid.uuid4().hex, index=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -102,6 +110,7 @@ class User(Base):
     tasks: Mapped[list["Task"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     reminders: Mapped[list["Reminder"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     conversations: Mapped[list["AIConversation"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    push_subscriptions: Mapped[list["PushSubscription"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class Event(Base):
@@ -176,6 +185,30 @@ class Task(Base):
 
     user: Mapped["User"] = relationship(back_populates="tasks")
     reminders: Mapped[list["Reminder"]] = relationship(back_populates="task", cascade="all, delete-orphan")
+
+
+class PushSubscription(Base):
+    """A browser/device Web Push endpoint.
+
+    One professor can have several (phone, laptop, tablet), so reminders fan
+    out to every registered device. Endpoints expire or get revoked, at which
+    point the push service returns 404/410 and we delete the row.
+    """
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+
+    endpoint: Mapped[str] = mapped_column(Text, unique=True)
+    p256dh: Mapped[str] = mapped_column(String(255))
+    auth: Mapped[str] = mapped_column(String(255))
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped["User"] = relationship(back_populates="push_subscriptions")
 
 
 class AIConversation(Base):

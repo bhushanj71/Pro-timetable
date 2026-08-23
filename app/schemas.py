@@ -62,6 +62,8 @@ class UserOut(BaseModel):
     default_reminder_minutes: int
     preferred_ai_provider: Optional[str] = None
     is_admin: bool = False
+    notify_email: bool = True
+    notify_push: bool = True
 
     model_config = {"from_attributes": True}
 
@@ -123,6 +125,8 @@ class AdminStats(BaseModel):
 
 class UserProfileUpdate(BaseModel):
     name: Optional[str] = None
+    notify_email: Optional[bool] = None
+    notify_push: Optional[bool] = None
     timezone: Optional[str] = None
     department: Optional[str] = None
     designation: Optional[str] = None
