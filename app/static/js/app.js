@@ -36,6 +36,10 @@ function labelFor(type) {
   return CATEGORY_LABELS[type] || "Other";
 }
 
+// Set while signing out, so background polling that 401s mid-logout can't
+// hijack the redirect and send the user to /login instead of the homepage.
+let isSigningOut = false;
+
 async function apiFetch(url, options = {}) {
   const opts = {
     credentials: "same-origin",
@@ -46,7 +50,9 @@ async function apiFetch(url, options = {}) {
 
   const res = await fetch(url, opts);
   if (res.status === 401) {
-    window.location.href = "/login";
+    // A 401 on a page that needs a session means it expired — send them to
+    // sign in again, unless they're deliberately on their way out.
+    if (!isSigningOut) window.location.href = "/login";
     throw new Error("Not authenticated");
   }
   if (!res.ok) {
@@ -83,8 +89,15 @@ function fmtDate(iso) {
 
 /* ---------------- Logout ---------------- */
 document.getElementById("logout-btn")?.addEventListener("click", async () => {
-  await apiFetch("/api/auth/logout", { method: "POST" });
-  window.location.href = "/login";
+  isSigningOut = true;
+  try {
+    await apiFetch("/api/auth/logout", { method: "POST" });
+  } catch (_) {
+    // The cookie may already be gone; still send them to the homepage rather
+    // than leaving them on a page they can no longer load.
+  }
+  // replace() so Back doesn't return to the signed-in page they just left.
+  window.location.replace("/");
 });
 
 /* ---------------- Notification bell ---------------- */

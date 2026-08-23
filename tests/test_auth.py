@@ -133,3 +133,16 @@ def test_homepage_is_the_default_page_when_signed_in_too(auth_client):
     assert "lp-title" in body
     assert 'href="/dashboard"' in body
     assert "Get started free" not in body, "signed-in users shouldn't be asked to sign up"
+
+
+def test_logout_clears_the_session_cookie(auth_client):
+    """After logout the homepage must render its signed-out state, since that
+    is where the user is sent."""
+    assert auth_client.get("/api/auth/me").status_code == 200
+
+    auth_client.post("/api/auth/logout")
+    assert auth_client.get("/api/auth/me").status_code == 401
+
+    body = auth_client.get("/").text
+    assert "Get started free" in body
+    assert "Open dashboard" not in body
