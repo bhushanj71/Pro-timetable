@@ -26,41 +26,6 @@ document.getElementById("pf-save-btn")?.addEventListener("click", async () => {
 
 /* ---------------- Notification preferences ---------------- */
 
-async function loadCalendarUrl() {
-  const input = document.getElementById("pf-calendar-url");
-  if (!input) return;
-  try {
-    const { url } = await apiFetch("/api/calendar-feed-url");
-    input.value = url;
-  } catch (_) {
-    input.value = "Could not load link";
-  }
-}
-
-document.getElementById("pf-copy-url")?.addEventListener("click", async () => {
-  const input = document.getElementById("pf-calendar-url");
-  try {
-    await navigator.clipboard.writeText(input.value);
-    showToast("Calendar link copied", "success");
-  } catch (_) {
-    // Clipboard API needs a secure context; fall back to selecting the text.
-    input.select();
-    showToast("Press Ctrl/Cmd+C to copy", "info");
-  }
-});
-
-document.getElementById("pf-rotate-url")?.addEventListener("click", async (e) => {
-  e.preventDefault();
-  if (!confirm("Reset the calendar link?\n\nAny calendar app already subscribed will stop updating and must be re-added.")) return;
-  try {
-    await apiFetch("/api/calendar-feed-url/rotate", { method: "POST" });
-    await loadCalendarUrl();
-    showToast("Calendar link reset", "success");
-  } catch (err) {
-    showToast(err.message, "error");
-  }
-});
-
 document.getElementById("pf-save-notify")?.addEventListener("click", async (e) => {
   setButtonLoading(e.currentTarget, true);
   try {
@@ -93,4 +58,41 @@ document.getElementById("pf-test-notify")?.addEventListener("click", async (e) =
   }
 });
 
-loadCalendarUrl();
+
+
+/* ---------------- Install to home screen ---------------- */
+
+function refreshInstallStep() {
+  const sub = document.getElementById("pf-install-status");
+  const btn = document.getElementById("pf-install-btn");
+  const iosHelp = document.getElementById("pf-ios-help");
+  if (!sub) return;
+
+  sub.textContent = installStatusText();
+
+  if (isStandalone()) {
+    document.getElementById("pf-install-step")?.classList.add("done");
+    document.getElementById("pf-install-state")?.classList.remove("hidden");
+    btn?.classList.add("hidden");
+    iosHelp?.classList.add("hidden");
+    return;
+  }
+  // iOS can't be prompted programmatically, so show the manual steps instead.
+  iosHelp?.classList.toggle("hidden", !isIOSDevice());
+  btn?.classList.toggle("hidden", !deferredInstallPrompt);
+}
+
+document.getElementById("pf-install-btn")?.addEventListener("click", async (e) => {
+  setButtonLoading(e.currentTarget, true);
+  try {
+    const result = await promptInstall();
+    if (result === "ios") document.getElementById("pf-ios-help")?.classList.remove("hidden");
+  } finally {
+    setButtonLoading(e.currentTarget, false);
+    refreshInstallStep();
+  }
+});
+
+document.addEventListener("pwa-installable", refreshInstallStep);
+document.addEventListener("pwa-installed", refreshInstallStep);
+if (document.getElementById("pf-install-status")) refreshInstallStep();

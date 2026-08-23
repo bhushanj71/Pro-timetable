@@ -1,88 +1,107 @@
-/* First-login notification setup.
-   Shown once, right after signing in, so reminders get configured without the
-   professor having to discover the settings page. Each step reflects live
-   state and disappears once satisfied. */
+/* First-login setup: install the app, then turn on notifications.
+
+   Reminders are delivered by Web Push from the installed app, so these two
+   steps are the whole configuration — no external calendar involved. */
 
 (() => {
   const modal = document.getElementById("onboarding-modal");
   if (!modal) return;
 
+  const el = (id) => document.getElementById(id);
   let status = null;
 
-  const el = (id) => document.getElementById(id);
   const markDone = (stepId, stateId, btnId, label) => {
     el(stepId)?.classList.add("done");
     const state = el(stateId);
     if (state) {
-      state.textContent = label || "✓ On";
+      state.textContent = label || "✓ Done";
       state.classList.remove("hidden");
     }
     el(btnId)?.classList.add("hidden");
   };
 
-  async function loadStatus() {
-    status = await apiFetch("/api/onboarding/status");
-    return status;
+  /* ---------------- Step 1: install ---------------- */
+  function renderInstall() {
+    const sub = el("onb-install-sub");
+    const btn = el("onb-install-btn");
+    const iosHelp = el("onb-ios-help");
+
+    if (isStandalone()) {
+      if (sub) sub.textContent = "Running from your home screen";
+      markDone("onb-install", "onb-install-state", "onb-install-btn");
+      iosHelp?.classList.add("hidden");
+      return;
+    }
+
+    if (isIOSDevice()) {
+      if (sub) sub.textContent = "Required on iPhone before notifications can work";
+      btn?.classList.add("hidden");
+      iosHelp?.classList.remove("hidden");
+      return;
+    }
+
+    if (deferredInstallPrompt) {
+      if (sub) sub.textContent = "Keeps ProfSchedule one tap away";
+      btn?.classList.remove("hidden");
+    } else {
+      // Desktop Chrome, or a browser with no install support.
+      if (sub) sub.textContent = "Optional here — notifications work in this browser too";
+      btn?.classList.add("hidden");
+    }
   }
 
-  function renderEmail() {
-    const sub = el("onb-email-sub");
-    if (status.email.server_ready) return; // default markup already says "On"
-    // Be honest rather than promising delivery the server can't do yet.
-    el("onb-email")?.classList.remove("done");
-    if (sub) sub.textContent = `${status.email.address} — email delivery isn't set up on the server yet`;
-    const state = el("onb-email-state");
-    if (state) { state.textContent = "Unavailable"; state.style.color = "var(--text-muted)"; }
-  }
+  // Chrome may fire beforeinstallprompt after this script runs.
+  document.addEventListener("pwa-installable", renderInstall);
+  document.addEventListener("pwa-installed", renderInstall);
 
+  el("onb-install-btn")?.addEventListener("click", async (e) => {
+    setButtonLoading(e.currentTarget, true);
+    try {
+      const result = await promptInstall();
+      if (result === "ios") el("onb-ios-help")?.classList.remove("hidden");
+      if (result === "installed" || result === "prompted") renderInstall();
+    } finally {
+      setButtonLoading(e.currentTarget, false);
+    }
+  });
+
+  /* ---------------- Step 2: notifications ---------------- */
   async function renderPush() {
-    const btn = el("onb-push-btn");
     const sub = el("onb-push-sub");
+    const btn = el("onb-push-btn");
 
     if (!status.push.server_ready) {
       if (sub) sub.textContent = "Push isn't configured on the server yet";
       btn?.classList.add("hidden");
       return;
     }
-    if (typeof pushSupported === "function" && !pushSupported()) {
-      if (sub) sub.textContent = "This browser doesn't support push notifications";
+    if (!pushSupported()) {
+      if (sub) sub.textContent = "This browser doesn't support notifications";
       btn?.classList.add("hidden");
       return;
     }
-    if (typeof iosNeedsInstall === "function" && iosNeedsInstall()) {
-      if (sub) sub.textContent = "On iPhone: tap Share → Add to Home Screen, then reopen from that icon";
+    // iOS refuses the Push API until the app is installed, so don't offer a
+    // button that is guaranteed to fail.
+    if (isIOSDevice() && !isStandalone()) {
+      if (sub) sub.textContent = "Add to your home screen first (step 1), then reopen and allow";
       btn?.classList.add("hidden");
       return;
     }
 
-    // Already subscribed on this device?
     const reg = await navigator.serviceWorker?.getRegistration();
-    const sub_ = await reg?.pushManager.getSubscription();
-    if (sub_ && Notification.permission === "granted") {
-      markDone("onb-push", "onb-push-state", "onb-push-btn");
+    const existing = await reg?.pushManager.getSubscription();
+    if (existing && Notification.permission === "granted") {
+      markDone("onb-push", "onb-push-state", "onb-push-btn", "✓ On");
     } else if (Notification.permission === "denied") {
       if (sub) sub.textContent = "Blocked — allow notifications for this site in your browser settings";
       btn?.classList.add("hidden");
     }
   }
 
-  function renderCalendar() {
-    const btn = el("onb-cal-btn");
-    if (status.google.connected) {
-      markDone("onb-cal", "onb-cal-state", "onb-cal-btn", "✓ Google");
-      return;
-    }
-    // Without Google OAuth configured there's nothing to "connect" to, so go
-    // straight to the subscription feed rather than showing a dead button.
-    if (!status.google.available) {
-      btn.textContent = "Set up";
-    }
-  }
-
   el("onb-push-btn")?.addEventListener("click", async (e) => {
     setButtonLoading(e.currentTarget, true);
     try {
-      if (await enablePush()) markDone("onb-push", "onb-push-state", "onb-push-btn");
+      if (await enablePush()) markDone("onb-push", "onb-push-state", "onb-push-btn", "✓ On");
     } catch (err) {
       showToast(err.message || "Could not enable notifications", "error");
     } finally {
@@ -90,26 +109,20 @@
     }
   });
 
-  el("onb-cal-btn")?.addEventListener("click", () => {
-    const options = el("onb-cal-options");
-    options.classList.remove("hidden");
-    el("onb-google-opt")?.classList.toggle("hidden", !status.google.available);
-    const input = el("onb-feed-url");
-    if (input) input.value = status.calendar_feed_url;
-    options.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  });
-
-  el("onb-copy-feed")?.addEventListener("click", async () => {
-    const input = el("onb-feed-url");
-    try {
-      await navigator.clipboard.writeText(input.value);
-      showToast("Calendar link copied", "success");
-    } catch (_) {
-      input.select();
-      showToast("Press Ctrl/Cmd+C to copy", "info");
+  /* ---------------- Email ---------------- */
+  function renderEmail() {
+    if (status.email.server_ready) return;
+    el("onb-email")?.classList.remove("done");
+    const sub = el("onb-email-sub");
+    if (sub) sub.textContent = `${status.email.address} — not set up on the server yet`;
+    const state = el("onb-email-state");
+    if (state) {
+      state.textContent = "Unavailable";
+      state.style.color = "var(--text-muted)";
     }
-  });
+  }
 
+  /* ---------------- Dismiss ---------------- */
   async function finish() {
     modal.classList.add("hidden");
     try {
@@ -121,22 +134,21 @@
 
   el("onb-done")?.addEventListener("click", finish);
   el("onb-skip")?.addEventListener("click", finish);
-  // Clicking the backdrop counts as dismissing.
   modal.addEventListener("click", (e) => { if (e.target === modal) finish(); });
 
   (async () => {
     try {
-      await loadStatus();
+      status = await apiFetch("/api/onboarding/status");
     } catch (_) {
-      return; // not signed in, or the API is unavailable
+      return;
     }
-    if (!status.needs_setup) return;
+    if (status.completed || status.push.devices > 0) return;
 
-    renderEmail();
+    renderInstall();
     await renderPush();
-    renderCalendar();
+    renderEmail();
 
-    // Let the page settle first so the modal doesn't fight the entry animation.
+    // Let the page settle so the modal doesn't fight the entry animation.
     setTimeout(() => modal.classList.remove("hidden"), 700);
   })();
 })();

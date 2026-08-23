@@ -203,3 +203,45 @@ def test_registering_a_device_satisfies_the_push_step(auth_client):
 
 def test_onboarding_status_requires_auth(client):
     assert client.get("/api/onboarding/status").status_code == 401
+
+
+# --- PWA installability ----------------------------------------------------
+
+def test_service_worker_is_served_from_root_with_full_scope(client):
+    """A worker under /static could only control /static, so it must be at /
+    with the Service-Worker-Allowed header."""
+    resp = client.get("/sw.js")
+    assert resp.status_code == 200
+    assert "javascript" in resp.headers["content-type"]
+    assert resp.headers.get("service-worker-allowed") == "/"
+
+
+def test_service_worker_has_a_fetch_handler(client):
+    """Chrome will not fire beforeinstallprompt without one, so there would be
+    no way to add the app to the home screen."""
+    body = client.get("/sw.js").text
+    assert 'addEventListener("fetch"' in body
+    assert 'addEventListener("push"' in body
+
+
+def test_service_worker_never_caches_api_responses(client):
+    """A cached timetable would show stale classes."""
+    body = client.get("/sw.js").text
+    assert '/api/' in body and "return;" in body
+
+
+def test_manifest_meets_install_criteria(client):
+    resp = client.get("/manifest.json")
+    assert resp.status_code == 200
+    m = resp.json()
+    assert m["display"] == "standalone"
+    assert m["name"] and m["short_name"] and m["start_url"]
+    sizes = {i["sizes"] for i in m["icons"]}
+    assert {"192x192", "512x512"} <= sizes, "install prompts require 192 and 512 icons"
+
+
+def test_onboarding_leads_with_install_not_calendar(auth_client):
+    body = auth_client.get("/dashboard").text
+    assert 'id="onb-install"' in body
+    assert 'id="onb-ios-help"' in body
+    assert "onb-cal-btn" not in body, "external calendar step should be gone"

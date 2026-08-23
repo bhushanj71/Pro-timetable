@@ -1,11 +1,53 @@
 /* ProfSchedule AI service worker.
-   Scope is the site root, which is why this file must be served from /sw.js
-   rather than /static/js/ — a worker can only control paths at or below its
-   own location. */
+   Served from the site root so its scope covers every page — a worker under
+   /static/ could only control /static/. */
 
-self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
+const CACHE = "profschedule-v1";
+const SHELL = ["/static/css/style.css", "/static/js/app.js", "/static/icon-192.png"];
 
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {})
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+    )
+  );
+  self.clients.claim();
+});
+
+/* A fetch handler is REQUIRED for installability — Chrome will not fire
+   beforeinstallprompt without one, so there'd be no "Add to Home Screen".
+   Network-first: the schedule must never be served stale, but cached static
+   assets keep the shell usable on a flaky connection. */
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+  if (request.method !== "GET") return;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+  // Never cache API responses — a stale timetable is worse than no timetable.
+  if (url.pathname.startsWith("/api/")) return;
+
+  event.respondWith(
+    fetch(request)
+      .then((response) => {
+        if (response.ok && (url.pathname.startsWith("/static/") || url.pathname === "/manifest.json")) {
+          const copy = response.clone();
+          caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+        }
+        return response;
+      })
+      .catch(() => caches.match(request).then((hit) => hit || caches.match("/static/css/style.css")))
+  );
+});
+
+/* ---------------- Push ---------------- */
 self.addEventListener("push", (event) => {
   let data = { title: "ProfSchedule AI", body: "You have a reminder.", url: "/dashboard" };
   try {
@@ -33,8 +75,7 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const target = event.notification.data?.url || "/dashboard";
 
-  // Focus an existing tab if the app is already open, rather than piling up
-  // new windows every time a reminder is tapped.
+  // Focus an existing window rather than piling up new ones.
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
       for (const client of list) {

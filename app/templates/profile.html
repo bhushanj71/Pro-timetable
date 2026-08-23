@@ -46,23 +46,37 @@
     <div class="card-title"><span class="t-ico">🔔</span> Phone Notifications</div>
   </div>
   <p class="muted-text" style="margin-bottom:16px">
-    Choose how reminders for lectures, events and tasks reach you.
+    Install ProfSchedule on your phone and reminders arrive as normal notifications —
+    no other app or calendar needed.
   </p>
 
-  <!-- Email -->
-  <div class="form-group">
-    <label style="display:flex;align-items:center;gap:9px;cursor:pointer">
-      <input type="checkbox" id="pf-notify-email" {% if user.notify_email %}checked{% endif %} style="width:auto">
-      <span>📧 Email reminders to <strong>{{ user.email }}</strong></span>
-    </label>
-    <small class="form-hint">Your phone's mail app shows its own notification when these arrive.</small>
+  <!-- Step 1: install -->
+  <div class="onb-step" id="pf-install-step" style="margin-bottom:12px">
+    <div class="onb-ico">📲</div>
+    <div style="flex:1;min-width:0">
+      <div class="onb-title">App on home screen</div>
+      <div class="onb-sub" id="pf-install-status">Checking…</div>
+    </div>
+    <button class="btn btn-sm btn-primary hidden" id="pf-install-btn">Install</button>
+    <span class="onb-state hidden" id="pf-install-state">✓ Done</span>
   </div>
 
-  <!-- Push -->
+  <div id="pf-ios-help" class="hidden ios-help" style="margin-bottom:12px">
+    <strong>On iPhone / iPad</strong>
+    <ol>
+      <li>Open this site in <strong>Safari</strong></li>
+      <li>Tap <strong>Share</strong>, then <strong>Add to Home Screen</strong></li>
+      <li>Open ProfSchedule from the new icon</li>
+      <li>Return here and tap <strong>Enable on this device</strong></li>
+    </ol>
+    <small>iOS only permits notifications from apps launched this way.</small>
+  </div>
+
+  <!-- Step 2: notifications -->
   <div class="form-group">
     <label style="display:flex;align-items:center;gap:9px;cursor:pointer">
       <input type="checkbox" id="pf-notify-push" {% if user.notify_push %}checked{% endif %} style="width:auto">
-      <span>📱 Push notifications (lock screen)</span>
+      <span>📱 Push notifications</span>
     </label>
     <small class="form-hint" id="push-status">Checking…</small>
     <div class="btn-row" style="margin-top:10px">
@@ -71,23 +85,13 @@
     </div>
   </div>
 
-  <hr class="auth-divider">
-
-  <!-- Calendar feed -->
+  <!-- Email fallback -->
   <div class="form-group">
-    <label>📅 Subscribe in Google / Apple Calendar</label>
-    <small class="form-hint" style="margin-bottom:8px">
-      Add this link to the calendar app on your phone and it will show your classes
-      and fire its own native reminders — even if the app is closed.
-    </small>
-    <div style="display:flex;gap:8px">
-      <input type="text" id="pf-calendar-url" readonly value="Loading…" style="font-size:0.78rem">
-      <button class="btn btn-sm" id="pf-copy-url">Copy</button>
-    </div>
-    <small class="form-hint">
-      Treat this like a password — anyone with the link can see your schedule.
-      <a href="#" id="pf-rotate-url" style="color:var(--primary);font-weight:700">Reset link</a>
-    </small>
+    <label style="display:flex;align-items:center;gap:9px;cursor:pointer">
+      <input type="checkbox" id="pf-notify-email" {% if user.notify_email %}checked{% endif %} style="width:auto">
+      <span>📧 Also email me at <strong>{{ user.email }}</strong></span>
+    </label>
+    <small class="form-hint">A useful backup if your phone is offline.</small>
   </div>
 
   <div class="btn-row">
@@ -97,140 +101,7 @@
   <div id="pf-test-result" class="form-hint"></div>
 </div>
 
-
-<div class="card card-hover" id="google-card" style="max-width:640px;margin-top:20px">
-  <div class="card-head">
-    <div class="card-title"><span class="t-ico">🗓️</span> Google Calendar</div>
-    <span class="connected-badge hidden" id="google-connected-badge">✓ Connected</span>
-  </div>
-
-  <p class="muted-text" style="margin-bottom:14px">
-    Push your classes straight into your Google Calendar. Google then delivers the
-    reminder to your phone natively — no extra app, and it works even when
-    ProfSchedule is closed.
-  </p>
-
-  <div id="google-not-connected">
-    <a class="btn btn-primary" href="/auth/google/link">Connect Google Calendar</a>
-    <small class="form-hint">You'll be asked to allow ProfSchedule AI to manage events on your calendar.</small>
-  </div>
-
-  <div id="google-connected" class="hidden">
-    <div class="form-group">
-      <label style="display:flex;align-items:center;gap:9px;cursor:pointer">
-        <input type="checkbox" id="pf-google-sync" style="width:auto">
-        <span>Keep my Google Calendar in sync</span>
-      </label>
-      <small class="form-hint">New, edited and deleted classes are mirrored automatically.</small>
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-primary" id="pf-google-sync-now">Sync upcoming events now</button>
-      <button class="btn btn-danger" id="pf-google-disconnect">Disconnect</button>
-    </div>
-    <div id="pf-google-result" class="form-hint"></div>
-  </div>
-</div>
-
-
-<div class="card card-hover" style="max-width:640px;margin-top:20px">
-  <div class="card-head">
-    <div class="card-title"><span class="t-ico">📲</span> Get reminders on your phone</div>
-  </div>
-
-  <div class="tabs" role="tablist">
-    <button class="tab-btn" data-tab="android" role="tab">🤖 Android</button>
-    <button class="tab-btn" data-tab="ios" role="tab">🍎 iPhone / iPad</button>
-  </div>
-
-  <!-- ---------------- Android ---------------- -->
-  <div class="tab-panel" id="tab-android">
-    <div class="guide-note">
-      Recommended: connect Google Calendar. Google delivers the alert itself, so it
-      works even when ProfSchedule is closed or the server is asleep.
-    </div>
-
-    <ol class="guide-steps">
-      <li>
-        <strong>Connect your Google account</strong>
-        <p>Use the <em>Connect Google Calendar</em> button above. Sign in and tap
-           <em>Allow</em> when Google asks to manage events.</p>
-      </li>
-      <li>
-        <strong>Open the Google Calendar app</strong>
-        <p>It's pre-installed on most Android phones. Your classes appear within a
-           minute or two — pull down to refresh if not.</p>
-      </li>
-      <li>
-        <strong>Check notifications are on</strong>
-        <p>Google Calendar app → <em>☰ menu → Settings → General → Notifications</em>.
-           Make sure <em>Notify on this device</em> is enabled.</p>
-      </li>
-      <li>
-        <strong>Allow the app to alert you</strong>
-        <p>Android <em>Settings → Apps → Calendar → Notifications</em> → on.
-           On Samsung and Xiaomi, also disable battery optimisation for Calendar,
-           or alerts can be delayed.</p>
-      </li>
-    </ol>
-
-    <div class="guide-alt">
-      <strong>Or: alerts from ProfSchedule directly</strong>
-      <p>Use <em>Enable on this device</em> above. Works in Chrome without installing
-         anything, but only fires while our server is awake.</p>
-    </div>
-  </div>
-
-  <!-- ---------------- iOS ---------------- -->
-  <div class="tab-panel hidden" id="tab-ios">
-    <div class="guide-note">
-      iPhone works best with the Google Calendar app. Apple's own Calendar can
-      subscribe to your feed, but it strips reminders by default — see the note below.
-    </div>
-
-    <ol class="guide-steps">
-      <li>
-        <strong>Connect your Google account</strong>
-        <p>Use the <em>Connect Google Calendar</em> button above, then tap <em>Allow</em>.</p>
-      </li>
-      <li>
-        <strong>Install Google Calendar from the App Store</strong>
-        <p>Sign in with the same Google account. Classes and their alerts arrive
-           automatically — this is the most reliable option on iPhone.</p>
-      </li>
-      <li>
-        <strong>Allow notifications</strong>
-        <p>iOS <em>Settings → Google Calendar → Notifications</em> → Allow, and turn on
-           <em>Sounds</em> and <em>Banners</em>.</p>
-      </li>
-    </ol>
-
-    <div class="guide-alt">
-      <strong>Prefer Apple's built-in Calendar?</strong>
-      <p>You can add your Google account to it instead:
-         <em>Settings → Apps → Calendar → Accounts → Add Account → Google</em>.</p>
-      <p style="margin-top:8px">
-        Or subscribe to the feed link above via
-        <em>Add Account → Other → Add Subscribed Calendar</em>.
-      </p>
-      <div class="guide-warn">
-        ⚠️ If you subscribe to the feed, iOS turns <strong>“Remove Alarms” ON by default</strong> —
-        which deletes every reminder and is the usual reason no notification arrives.
-        Turn it <strong>off</strong> in
-        <em>Settings → Apps → Calendar → Accounts → (your subscribed calendar)</em>,
-        then remove and re-add the subscription. Also set the refresh to
-        <em>Every Hour</em>.
-      </div>
-    </div>
-  </div>
-
-  <div class="guide-note" style="margin-top:14px;background:var(--warning-soft);color:var(--text)">
-    <strong>Testing tip:</strong> create a class at least <strong>2 hours ahead</strong>.
-    A reminder whose time has already passed will never fire.
-  </div>
-</div>
-
 {% endblock %}
 {% block scripts %}
-<script src="/static/js/google.js?v={{ v }}"></script>
 <script src="/static/js/profile.js?v={{ v }}"></script>
 {% endblock %}
