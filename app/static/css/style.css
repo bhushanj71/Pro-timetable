@@ -14,7 +14,11 @@
   /* Text */
   --text: #2f2a27;
   --text-soft: #6b6058;
-  --text-muted: #9c8e85;
+  /* Darkened when the surfaces became translucent: over glass this was
+     2.97:1, and it was only 3.17:1 on the old opaque white, so it never
+     met AA. #786b62 reaches 4.82:1 on a card and 4.63:1 on the fainter
+     panels while staying clearly secondary to --text-soft. */
+  --text-muted: #786b62;
 
   /* Brand — warm coral */
   --primary: #e0785d;

@@ -1,0 +1,234 @@
+/* ==========================================================================
+   Liquid glass materials
+   Loaded after theme.css, so it builds on the theme tokens and can still be
+   overridden per theme below.
+
+   Glass only reads as glass when there is something behind it to refract. The
+   application background is a flat wash, so this file also lays down a fixed
+   field of soft colour for the panels to pick up. Without that, translucency
+   just looks like a slightly wrong shade of the background.
+   ========================================================================== */
+
+:root {
+  /* The pane itself. Deliberately far from clear: text sits on these surfaces
+     and has to stay readable over whatever scrolls underneath, so this is a
+     frosted pane, not a window. */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-strong: rgba(255, 255, 255, 0.86);
+  --glass-bg-faint: rgba(255, 255, 255, 0.55);
+
+  /* Saturation is what stops a blur looking like grey haze: it pulls the
+     colour out of whatever is behind and keeps the warmth of the palette. */
+  --glass-blur: saturate(180%) blur(20px);
+  --glass-blur-sm: saturate(160%) blur(12px);
+  --glass-blur-lg: saturate(190%) blur(34px);
+
+  /* The lit top edge that gives a pane thickness. */
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  --glass-edge-soft: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --glass-rim: rgba(255, 255, 255, 0.55);
+
+  --glass-shadow: 0 6px 24px rgba(76, 52, 42, 0.10), 0 1px 2px rgba(76, 52, 42, 0.05);
+  --glass-shadow-lg: 0 24px 60px rgba(76, 52, 42, 0.18), 0 2px 6px rgba(76, 52, 42, 0.07);
+
+  /* The ambient field behind the glass. */
+  --amb-1: rgba(224, 120, 93, 0.20);
+  --amb-2: rgba(139, 123, 184, 0.16);
+  --amb-3: rgba(74, 157, 127, 0.14);
+  --amb-4: rgba(217, 160, 91, 0.14);
+}
+
+/* ---------- Dark ---------- */
+:root[data-theme="dark"] {
+  --glass-bg: rgba(38, 32, 28, 0.72);
+  --glass-bg-strong: rgba(38, 32, 28, 0.88);
+  --glass-bg-faint: rgba(38, 32, 28, 0.55);
+
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --glass-edge-soft: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --glass-rim: rgba(255, 255, 255, 0.13);
+
+  --glass-shadow: 0 6px 24px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.30);
+  --glass-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.58), 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --glass-bg: rgba(38, 32, 28, 0.72);
+    --glass-bg-strong: rgba(38, 32, 28, 0.88);
+    --glass-bg-faint: rgba(38, 32, 28, 0.55);
+
+    --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    --glass-edge-soft: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+    --glass-rim: rgba(255, 255, 255, 0.13);
+
+    --glass-shadow: 0 6px 24px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.30);
+    --glass-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.58), 0 2px 6px rgba(0, 0, 0, 0.35);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Ambient field
+   Fixed, behind everything, pointer-events:none so it never intercepts a tap.
+   Four soft blooms rather than one gradient, so a panel moving over it picks
+   up a changing colour instead of a uniform tint.
+   -------------------------------------------------------------------------- */
+body.app-shell::before {
+  content: "";
+  position: fixed;
+  inset: -20vmax;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(38vmax 38vmax at 12% 8%, var(--amb-1), transparent 62%),
+    radial-gradient(42vmax 42vmax at 88% 14%, var(--amb-2), transparent 64%),
+    radial-gradient(36vmax 36vmax at 78% 88%, var(--amb-3), transparent 62%),
+    radial-gradient(34vmax 34vmax at 18% 82%, var(--amb-4), transparent 62%);
+  filter: blur(28px);
+}
+
+/* --------------------------------------------------------------------------
+   The material
+   -------------------------------------------------------------------------- */
+.card,
+.sidebar,
+.topbar,
+.popover,
+.modal-card,
+.assistant-card,
+.user-chip,
+.icon-btn,
+.bottom-nav,
+.notif-head,
+.device-row,
+.push-banner {
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+.card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-shadow), var(--glass-edge-soft);
+}
+
+/* A pane lifts toward the light rather than just growing a shadow. */
+.card:hover {
+  box-shadow: var(--glass-shadow-lg), var(--glass-edge);
+}
+
+.sidebar {
+  background: var(--glass-bg);
+  border-right: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-edge-soft);
+}
+
+.topbar {
+  background: var(--glass-bg-faint);
+  border-bottom: 1px solid var(--glass-rim);
+}
+
+.topbar.is-stuck {
+  background: var(--glass-bg-strong);
+  box-shadow: var(--glass-shadow), var(--glass-edge-soft);
+}
+
+.popover,
+.theme-menu,
+.tt-overflow-menu {
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: var(--glass-blur-lg);
+  backdrop-filter: var(--glass-blur-lg);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-shadow-lg), var(--glass-edge);
+}
+
+.modal-card {
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: var(--glass-blur-lg);
+  backdrop-filter: var(--glass-blur-lg);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-shadow-lg), var(--glass-edge);
+}
+
+.bottom-nav {
+  background: var(--glass-bg-strong);
+  border-top: 1px solid var(--glass-rim);
+  box-shadow: 0 -6px 24px rgba(76, 52, 42, 0.10), var(--glass-edge);
+}
+
+.icon-btn,
+.user-chip {
+  background: var(--glass-bg-faint);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-edge-soft);
+}
+
+.icon-btn:hover {
+  background: var(--glass-bg);
+  box-shadow: var(--glass-shadow), var(--glass-edge);
+}
+
+.assistant-card,
+.push-banner,
+.notif-head,
+.device-row {
+  background: var(--glass-bg-faint);
+  border: 1px solid var(--glass-rim);
+}
+
+/* Buttons get the thickness without the blur: they are small and numerous,
+   and a backdrop-filter on each one is the quickest way to make scrolling
+   stutter on a phone. */
+.btn {
+  box-shadow: var(--glass-edge-soft), var(--shadow-xs);
+}
+
+.btn-primary {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34), 0 4px 14px var(--primary-ring);
+}
+
+/* The backdrop behind a dialog: darkened and blurred, so the sheet in front
+   of it reads as the only thing in focus. */
+.modal-backdrop {
+  -webkit-backdrop-filter: saturate(120%) blur(10px);
+  backdrop-filter: saturate(120%) blur(10px);
+}
+
+/* --------------------------------------------------------------------------
+   Fallbacks
+   -------------------------------------------------------------------------- */
+
+/* No backdrop-filter (older Firefox, some Android WebViews): translucent
+   panels would show the ambient blooms straight through the text. Go opaque. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .card, .sidebar, .topbar, .popover, .modal-card, .bottom-nav,
+  .theme-menu, .tt-overflow-menu, .icon-btn, .user-chip,
+  .assistant-card, .push-banner, .notif-head, .device-row {
+    background: var(--surface);
+  }
+  body.app-shell::before { opacity: 0.45; }
+}
+
+/* Someone who has asked for less transparency has usually asked because the
+   effect makes text hard to read. Honour it literally. */
+@media (prefers-reduced-transparency: reduce) {
+  .card, .sidebar, .topbar, .popover, .modal-card, .bottom-nav,
+  .theme-menu, .tt-overflow-menu, .icon-btn, .user-chip,
+  .assistant-card, .push-banner, .notif-head, .device-row {
+    background: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  body.app-shell::before { display: none; }
+}
+
+/* Stacked blurs are the expensive part, and a phone pays for it on every
+   scroll frame. Lighten the radii rather than dropping the look. */
+@media (max-width: 768px) {
+  :root {
+    --glass-blur: saturate(170%) blur(14px);
+    --glass-blur-lg: saturate(180%) blur(22px);
+  }
+  body.app-shell::before { filter: blur(36px); }
+}
