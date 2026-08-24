@@ -226,8 +226,22 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   .modal-card {
     max-width: none; width: 100%;
     border-radius: 22px 22px 0 0;
-    max-height: 90vh; padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
+    max-height: 85vh; padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
     animation: sheetUp 300ms var(--ease-out) both;
+  }
+
+  /* A sheet slides up from the bottom edge -- exactly where the tab bar sits,
+     so the bar covered the sheet's own buttons (Save / Delete were clipped on
+     the event editor). Take the bar out while any dialog is open: it is not a
+     usable target mid-edit anyway, and this leaves the sheet the full bottom
+     edge to occupy rather than fighting over it.
+
+     Belt and braces, because these fail independently: :has() removes the bar,
+     and the padding below reserves its height for browsers without :has(). */
+  body:has(.modal-backdrop:not(.hidden)) .bottom-nav { display: none; }
+
+  @supports not selector(:has(*)) {
+    .modal-card { padding-bottom: calc(20px + 62px + env(safe-area-inset-bottom)); }
   }
   .modal-actions .btn { flex: 1; min-width: 44%; }
 
