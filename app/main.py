@@ -99,7 +99,22 @@ app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 # directory, so the app starts identically under uvicorn, Render, or Vercel
 # regardless of where it was launched from.
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
-app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+# StaticFiles raises at construction when the directory is missing, and this
+# runs at import — so on a host that did not bundle app/static (a serverless
+# build that only packages *.py, say) the whole application dies before a
+# single route is registered, and every request returns an opaque 500 with no
+# way to find out why. Degrade instead: skip the mount, record the reason, and
+# let /api/health report it.
+_assets_error: str | None = None
+if _STATIC_DIR.is_dir():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+else:
+    _assets_error = (
+        f"Static assets are missing from the deployment ({_STATIC_DIR} does not exist). "
+        "The API still works, but pages will render unstyled."
+    )
+    logger.error(_assets_error)
 
 # Cache-busting token for static assets. Browsers otherwise keep serving a
 # cached app.js/style.css after a deploy, so users run old JavaScript against
@@ -192,6 +207,7 @@ def health():
         "database": "connected" if db_ok else "unreachable",
         "database_error": db_error,
         "startup_error": _startup_error,
+        "assets_error": _assets_error,
         "config_error": CONFIG_ERROR,
     }
     if not db_ok:
