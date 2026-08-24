@@ -25,7 +25,7 @@ function renderExtractionPreview(response) {
     }
     const verb = response.action === "delete" ? "🗑️ Delete" : "✏️ Update";
     lines = response.matches
-      .map((m) => `<div class="event-line">${verb} <strong>${m.title}</strong> — ${m.when}${m.location ? " · " + m.location : ""}</div>`)
+      .map((m) => `<div class="event-line">${verb} <strong>${esc(m.title)}</strong> — ${esc(m.when)}${m.location ? " · " + esc(m.location) : ""}</div>`)
       .join("");
 
     const ex = extraction;
@@ -71,15 +71,15 @@ function renderExtractionPreview(response) {
     const range = [e.start_time, impliedEnd(e.start_time, e.end_time)].filter(Boolean).join("–");
     const days = e.recurrence_days?.length ? e.recurrence_days.join(", ") : null;
     const repeat = e.recurrence ? ` (every ${days || e.recurrence.replace("weekly", "week")})` : "";
-    lines += `<div class="event-line">📌 <strong>${e.title}</strong> — ${days || when} ${range}${repeat}</div>`;
+    lines += `<div class="event-line">📌 <strong>${esc(e.title)}</strong> — ${days || when} ${range}${repeat}</div>`;
   });
 
   extraction.reminders.forEach((r) => {
-    lines += `<div class="event-line">⏰ Reminder: <strong>${r.title}</strong> ${r.date || ""} ${r.time || ""}</div>`;
+    lines += `<div class="event-line">⏰ Reminder: <strong>${esc(r.title)}</strong> ${r.date || ""} ${r.time || ""}</div>`;
   });
 
   extraction.tasks.forEach((t) => {
-    lines += `<div class="event-line">✅ Task: <strong>${t.title}</strong> ${t.due_date ? "due " + t.due_date : ""}</div>`;
+    lines += `<div class="event-line">✅ Task: <strong>${esc(t.title)}</strong> ${t.due_date ? "due " + t.due_date : ""}</div>`;
   });
 
   let conflictHtml = "";
@@ -171,7 +171,7 @@ async function submitAIPrompt(promptText) {
     renderExtractionPreview(response);
   } catch (err) {
     progress.stop();
-    box.innerHTML = `<div class="ai-confirm-card">⚠️ ${err.message || "AI processing failed"}</div>`;
+    box.innerHTML = `<div class="ai-confirm-card">⚠️ ${esc(err.message || "AI processing failed")}</div>`;
   } finally {
     progress.stop();
     setButtonLoading(submitBtn, false);

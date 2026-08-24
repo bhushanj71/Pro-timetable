@@ -50,7 +50,7 @@ document.getElementById("pf-test-notify")?.addEventListener("click", async (e) =
   out.textContent = "";
   try {
     const r = await apiFetch("/api/notifications/test", { method: "POST" });
-    out.innerHTML = `Email: <strong>${r.email}</strong> · Push: <strong>${r.push}</strong> · Devices registered: <strong>${r.devices}</strong>`;
+    out.innerHTML = `Email: <strong>${esc(r.email)}</strong> · Push: <strong>${r.push}</strong> · Devices registered: <strong>${r.devices}</strong>`;
   } catch (err) {
     out.textContent = err.message;
   } finally {

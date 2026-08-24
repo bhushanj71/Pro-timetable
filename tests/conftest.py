@@ -47,6 +47,17 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 
 @pytest.fixture(autouse=True)
+def _fresh_rate_limits():
+    """Every test drives requests from the same address, so the limiter would
+    otherwise carry counts across tests and 429 the later ones."""
+    from app.rate_limit import reset_all
+
+    reset_all()
+    yield
+    reset_all()
+
+
+@pytest.fixture(autouse=True)
 def _fresh_db():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)

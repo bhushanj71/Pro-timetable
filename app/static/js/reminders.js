@@ -12,7 +12,7 @@ async function loadReminders() {
         <div class="task-row">
           <div class="tl-time">${fmtDate(r.reminder_datetime)}<br>${fmtTime(r.reminder_datetime)}</div>
           <div style="flex:1">
-            <div class="task-name">${r.title || "Reminder"}</div>
+            <div class="task-name">${esc(r.title || "Reminder")}</div>
             <div class="muted-text">${r.reminder_type} · ${r.is_sent ? "Sent" : "Pending"}</div>
           </div>
           <button class="btn btn-sm btn-danger" onclick="deleteReminder('${r.id}')">Delete</button>

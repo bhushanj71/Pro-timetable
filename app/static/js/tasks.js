@@ -11,7 +11,7 @@ async function loadTasks() {
             (t) => `
         <div class="task-row">
           <div style="flex:1">
-            <div class="task-name" style="${t.status === "completed" ? "text-decoration:line-through;opacity:.6" : ""}">${t.title}</div>
+            <div class="task-name" style="${t.status === "completed" ? "text-decoration:line-through;opacity:.6" : ""}">${esc(t.title)}</div>
             <div class="muted-text">${t.due_date ? "Due " + fmtDate(t.due_date) : "No due date"}</div>
           </div>
           <span class="pill priority-${t.priority}">${t.priority}</span>

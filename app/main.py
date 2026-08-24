@@ -95,6 +95,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 
+from app.security_headers import SecurityHeadersMiddleware  # noqa: E402
+
+app.add_middleware(SecurityHeadersMiddleware)
+
 # Resolve asset paths relative to this file rather than the process working
 # directory, so the app starts identically under uvicorn, Render, or Vercel
 # regardless of where it was launched from.

@@ -69,7 +69,7 @@ function renderThemeMenu() {
   const choice = storedTheme();
   menu.innerHTML = THEMES.map(
     (t) => `<button class="theme-option ${t.id === choice ? "active" : ""}" data-theme-choice="${t.id}">
-              <span>${t.icon}</span> ${t.label} <span class="tick">✓</span>
+              <span>${t.icon}</span> ${esc(t.label)} <span class="tick">✓</span>
             </button>`
   ).join("");
 }

@@ -3,13 +3,14 @@ Registration, login, logout. Issues a JWT stored in an httpOnly cookie.
 """
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
 from app.deps import COOKIE_NAME, get_current_user
 from app.models import User
+from app.rate_limit import login_limiter, register_limiter
 from app.schemas import Token, UserCreate, UserLogin, UserOut, UserProfileUpdate
 from app.security import create_access_token, hash_password, verify_password
 
@@ -30,7 +31,8 @@ def _set_auth_cookie(response: Response, token: str) -> None:
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def register(payload: UserCreate, response: Response, db: Session = Depends(get_db)):
+def register(payload: UserCreate, request: Request, response: Response, db: Session = Depends(get_db)):
+    register_limiter.check(request)
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "An account with this email already exists")
@@ -56,13 +58,21 @@ def register(payload: UserCreate, response: Response, db: Session = Depends(get_
 
 
 @router.post("/login", response_model=UserOut)
-def login(payload: UserLogin, response: Response, db: Session = Depends(get_db)):
+def login(payload: UserLogin, request: Request, response: Response, db: Session = Depends(get_db)):
+    # Throttled per address per email, so guessing one account's password
+    # cannot be run at network speed, and hammering many accounts from one
+    # address is limited too.
+    login_limiter.check(request, payload.email.lower())
+
     user = db.query(User).filter(User.email == payload.email).first()
     if not user or not verify_password(payload.password, user.password_hash):
+        # Deliberately identical for "no such user" and "wrong password":
+        # distinguishing them would confirm which addresses have accounts.
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
     if not user.is_active:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "This account has been deactivated")
 
+    login_limiter.reset(request, payload.email.lower())
     user.last_login_at = datetime.now(timezone.utc)
     db.commit()
 

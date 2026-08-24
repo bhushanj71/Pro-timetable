@@ -4,11 +4,6 @@
 function startOfToday() { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }
 function endOfToday() { const d = new Date(); d.setHours(23, 59, 59, 999); return d; }
 
-function esc(s) {
-  return String(s ?? "").replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
 function emptyState(emoji, text) {
   return `<div class="empty-state"><span class="emoji">${emoji}</span>${text}</div>`;
 }

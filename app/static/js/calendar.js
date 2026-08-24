@@ -61,7 +61,7 @@ function renderDayLike(container, events, days) {
       <div class="date-num">${d.toLocaleDateString([], { weekday: "short", day: "numeric" })}</div>
       ${dayEvents
         .map(
-          (e) => `<div class="tt-event" style="background:${categorySoft(e.event_type)};color:${categoryColor(e.event_type)}" onclick='openEditModal(${JSON.stringify(e).replace(/'/g, "&apos;")})'>${fmtTime(e.start_datetime)} ${e.title}</div>`
+          (e) => `<div class="tt-event" style="background:${categorySoft(e.event_type)};color:${categoryColor(e.event_type)}" onclick='openEditModal(${JSON.stringify(e).replace(/'/g, "&apos;")})'>${fmtTime(e.start_datetime)} ${esc(e.title)}</div>`
         )
         .join("")}
     </div>`;
@@ -90,7 +90,7 @@ function renderMonth(container, events, start) {
       <div class="date-num">${d.getDate()}</div>
       ${dayEvents
         .slice(0, 3)
-        .map((e) => `<div class="tt-event" style="background:${categorySoft(e.event_type)};color:${categoryColor(e.event_type)}" onclick='openEditModal(${JSON.stringify(e).replace(/'/g, "&apos;")})'>${e.title}</div>`)
+        .map((e) => `<div class="tt-event" style="background:${categorySoft(e.event_type)};color:${categoryColor(e.event_type)}" onclick='openEditModal(${JSON.stringify(e).replace(/'/g, "&apos;")})'>${esc(e.title)}</div>`)
         .join("")}
       ${dayEvents.length > 3 ? `<div class="muted-text">+${dayEvents.length - 3} more</div>` : ""}
     </div>`;
@@ -109,7 +109,7 @@ function renderAgenda(container, events) {
       (e) => `<div class="task-row" onclick='openEditModal(${JSON.stringify(e).replace(/'/g, "&apos;")})' style="cursor:pointer">
       <div class="tl-time">${fmtDate(e.start_datetime)}<br>${fmtTime(e.start_datetime)}</div>
       <div class="tl-dot" style="background:${categoryColor(e.event_type)}"></div>
-      <div style="flex:1"><div class="task-name">${e.title}</div><div class="muted-text">${e.location || ""}</div></div>
+      <div style="flex:1"><div class="task-name">${esc(e.title)}</div><div class="muted-text">${esc(e.location || "")}</div></div>
       <span class="pill priority-${e.priority}">${e.priority}</span>
     </div>`
     )

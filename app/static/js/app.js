@@ -1,6 +1,18 @@
 /* Core client utilities shared across all pages: authenticated fetch,
    toasts, notification bell polling, global search, category colors. */
 
+/* Escape before interpolating anything into innerHTML.
+
+   Event titles, subjects and locations are stored verbatim and can arrive
+   from an imported CSV as easily as from the professor's own typing, so a
+   title of `<img src=x onerror=...>` would otherwise run script in their
+   session with their cookie attached. */
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+const esc = escapeHtml;
+
 const CATEGORY_COLORS = {
   lecture: "var(--cat-lecture)",
   lab: "var(--cat-lab)",
@@ -130,7 +142,7 @@ async function pollNotifications() {
         ? data.items
             .map(
               (n) => `<div class="notif-item${n.is_read ? "" : " unread"}">
-              🔔 ${n.title || "Reminder"}
+              🔔 ${esc(n.title || "Reminder")}
               <br><small>${fmtDate(n.reminder_datetime)} · ${fmtTime(n.reminder_datetime)}</small>
             </div>`
             )

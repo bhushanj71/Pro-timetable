@@ -104,7 +104,7 @@ function renderMobileTimetable(data) {
         <div class="tl-time">${fmtTime(e.start)}<br><span class="to">${fmtTime(e.end)}</span></div>
         <div class="tl-rail"><span class="tl-dot" style="color:${categoryColor(e.event_type)}"></span></div>
         <div style="min-width:0">
-          <div class="tl-title">${e.title}</div>
+          <div class="tl-title">${esc(e.title)}</div>
           <div class="tl-meta">${[e.location, e.subject].filter(Boolean).join(" • ") || "—"}</div>
         </div>
         <span class="tag" style="background:${categorySoft(e.event_type)};color:${categoryColor(e.event_type)}">${labelFor(e.event_type)}</span>

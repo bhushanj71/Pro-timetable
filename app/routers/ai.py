@@ -9,7 +9,7 @@ show the professor what was understood -> POST /confirm persists it.
 from datetime import date, datetime, time, timedelta, timezone
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -35,6 +35,7 @@ from app.services.nlp_dates import (
     resolve_time,
     weekday_code,
 )
+from app.services.ai_guard import OUT_OF_SCOPE, check_prompt
 from app.services.recurrence import generate_occurrence_starts
 from app.services.reminder_service import (
     create_reminder_for_event,
@@ -157,6 +158,18 @@ def _serialize_match(e: Event, tz_name: str) -> dict:
 
 @router.post("/process-prompt", response_model=AIPromptResponse)
 def process_prompt(payload: AIPromptRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    # Refuse before spending a model call. This also holds when no API key is
+    # configured and the rule-based parser would otherwise invent an event out
+    # of an unrelated sentence.
+    allowed, refusal = check_prompt(payload.prompt)
+    if not allowed:
+        return AIPromptResponse(
+            intent=OUT_OF_SCOPE,
+            extraction=AIExtractionResult(intent=OUT_OF_SCOPE),
+            summary=refusal,
+            requires_confirmation=False,
+        )
+
     ai = get_ai_service()
     now = datetime.now(timezone.utc)
     context = {
@@ -165,6 +178,19 @@ def process_prompt(payload: AIPromptRequest, db: Session = Depends(get_db), user
         "timezone": user.timezone,
     }
     extraction = ai.process_prompt(payload.prompt, context)
+
+    # The model can also decline, which is the layer that catches phrasings the
+    # pattern check above does not know about.
+    if extraction.intent == OUT_OF_SCOPE:
+        return AIPromptResponse(
+            intent=OUT_OF_SCOPE,
+            extraction=extraction,
+            summary=(
+                "I only work on your timetable — lectures, labs, meetings, exams, "
+                "deadlines, tasks and reminders. Try naming what and when."
+            ),
+            requires_confirmation=False,
+        )
 
     conflicts_out = []
     for evt in extraction.events:
@@ -248,9 +274,17 @@ def process_prompt(payload: AIPromptRequest, db: Session = Depends(get_db), user
     )
 
 
+def _reject_out_of_scope(extraction) -> None:
+    """A refusal must not be confirmable: the confirm step writes to the
+    database, so it re-checks rather than trusting the client's round trip."""
+    if getattr(extraction, "intent", None) == OUT_OF_SCOPE:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That request is outside what this assistant does")
+
+
 @router.post("/confirm")
 def confirm_extraction(payload: AIConfirmRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     extraction = payload.extraction
+    _reject_out_of_scope(extraction)
     created_events, created_reminders, created_tasks = [], [], []
     series_count = 0  # user-facing count: one per distinct weekly slot, not per materialized occurrence
 
@@ -458,7 +492,7 @@ def ai_find_free_time(payload: FreeTimeRequest, db: Session = Depends(get_db), u
 
 @router.post("/resolve-conflict")
 def ai_resolve_conflict(event_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    from fastapi import HTTPException, status
+
 
     from app.services.conflict_service import suggest_resolution
 
@@ -478,6 +512,10 @@ def ai_resolve_conflict(event_id: str, db: Session = Depends(get_db), user: User
 @router.post("/query-schedule")
 def ai_query_schedule(payload: AIPromptRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Lightweight schedule query: relies on process_prompt's target_date, falls back to 'this week'."""
+    allowed, refusal = check_prompt(payload.prompt)
+    if not allowed:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, refusal)
+
     ai = get_ai_service()
     context = {"today": date.today().isoformat(), "weekday": date.today().strftime("%A"), "timezone": user.timezone}
     extraction = ai.process_prompt(payload.prompt, context)

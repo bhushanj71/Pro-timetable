@@ -91,7 +91,7 @@ async function renderTimetable() {
       evEl.style.background = categorySoft(e.event_type);
       evEl.style.color = categoryColor(e.event_type);
       evEl.title = e.title;
-      evEl.innerHTML = `${e.title}<div class="tt-event-time">${fmtTime(e.start)}–${fmtTime(e.end)}</div>`;
+      evEl.innerHTML = `${esc(e.title)}<div class="tt-event-time">${fmtTime(e.start)}–${fmtTime(e.end)}</div>`;
       evEl.addEventListener("click", () => showEventActions(e));
       cell.appendChild(evEl);
     });
@@ -299,7 +299,7 @@ function addSubjectRow(values = {}) {
   const row = document.createElement("div");
   row.className = "form-row subject-row";
   row.innerHTML = `
-    <div class="form-group"><label>Subject</label><input type="text" class="subj-name" value="${values.subject || ""}" placeholder="Artificial Neural Network"></div>
+    <div class="form-group"><label>Subject</label><input type="text" class="subj-name" value="${esc(values.subject || "")}" placeholder="Artificial Neural Network"></div>
     <div class="form-group" style="max-width:140px"><label>Lectures/wk</label><input type="number" class="subj-count" value="${values.count || 3}" min="1" max="10"></div>
     <div class="form-group" style="max-width:140px"><label>Duration (min)</label><input type="number" class="subj-duration" value="${values.duration || 60}" min="30" step="30"></div>
     <button class="btn btn-sm btn-danger" onclick="this.closest('.subject-row').remove()" style="align-self:flex-end;margin-bottom:14px">✕</button>
@@ -349,7 +349,7 @@ function renderGeneratorPreview(result) {
   html += `</table>`;
   if (result.unscheduled?.length) {
     html += `<p class="form-error">Could not fully place: ${result.unscheduled
-      .map((u) => `${u.subject} (${u.placed}/${u.requested})`)
+      .map((u) => `${esc(u.subject)} (${u.placed}/${u.requested})`)
       .join(", ")}</p>`;
   }
   el.innerHTML = html;

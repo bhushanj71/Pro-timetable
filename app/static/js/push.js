@@ -76,7 +76,7 @@ async function enablePush() {
     } catch (err) {
       // Chrome reports several unrelated conditions as the same opaque
       // "Registration failed - push service error", so translate it.
-      const detail = `${err.name}: ${err.message}`;
+      const detail = `${esc(err.name)}: ${esc(err.message)}`;
       let advice;
 
       if (/push service error|AbortError/i.test(detail)) {
@@ -97,7 +97,7 @@ async function enablePush() {
       }
 
       console.warn("Push subscribe failed:", detail);
-      showToast(`${advice} (${err.name})`, "error");
+      showToast(`${advice} (${esc(err.name)})`, "error");
       return false;
     }
   }
@@ -164,7 +164,7 @@ async function refreshDeviceList() {
       return `<div class="device-row">
         <span class="dv-ico">📱</span>
         <div class="dv-main">
-          <div class="dv-name">${d.label}${mine ? ` <span class="dv-this">· this device</span>` : ""}</div>
+          <div class="dv-name">${esc(d.label)}${mine ? ` <span class="dv-this">· this device</span>` : ""}</div>
           <div class="dv-when">Added ${fmtDate(d.added)}</div>
         </div>
         <button type="button" class="dv-forget" data-device="${d.id}">Forget</button>
