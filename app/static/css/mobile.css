@@ -51,7 +51,11 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   /* ------------------------------------------------------------------
      Shell: bottom tab bar replaces the drawer for primary navigation
      ------------------------------------------------------------------ */
-  .content { padding-bottom: 84px; }   /* clear the tab bar */
+  /* Clear the tab bar. The bar's own height grows by the home-indicator
+     inset (34px on recent iPhones, similar for Android gesture bars), so a
+     fixed reservation is short by exactly that much and the last element on
+     a long page ends up under the bar. Reserve the inset here too. */
+  .content { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
 
   .bottom-nav {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 70;
@@ -92,7 +96,7 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   }
 
   /* The drawer now only holds secondary items, reached via "More". */
-  .sidebar { padding-bottom: 90px; }
+  .sidebar { padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)); }
 
   /* ------------------------------------------------------------------
      Topbar: tighter, search collapses to an icon
