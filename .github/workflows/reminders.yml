@@ -24,17 +24,28 @@ jobs:
     steps:
       - name: Trigger reminder delivery
         run: |
-          echo "Pinging reminder endpoint..."
-          code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
-            --max-time 90 --retry 2 --retry-delay 20 \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://profschedule-ai.onrender.com/api/cron/process-reminders")
-          echo "HTTP $code"
-          cat /tmp/out.json || true
-          echo
-          # A cold Render instance can take ~60s to wake; treat only real
-          # failures as errors.
-          if [ "$code" != "200" ]; then
-            echo "::error::Reminder ping failed with HTTP $code"
+          # GitHub's scheduler drops runs: observed gaps on this repo were 17
+          # to 83 minutes against a requested 5. Render's free tier sleeps
+          # after 15 minutes idle, so a single ping per run leaves the service
+          # asleep for most of the gap -- reminders arrive late and visitors
+          # get Render's 30-second "service waking up" page. Ping repeatedly
+          # within the run so one invocation covers a longer window.
+          #
+          # This is a stopgap. A dedicated uptime monitor hitting the same
+          # endpoint every 5 minutes is the dependable fix; see the README.
+          fail=0
+          for i in $(seq 1 6); do
+            code=$(curl -sS -o /tmp/out.json -w "%{http_code}"               --max-time 90 --retry 1 --retry-delay 15               -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"               "https://profschedule-ai.onrender.com/api/cron/process-reminders" || echo 000)
+            echo "ping $i -> HTTP $code $(head -c 200 /tmp/out.json 2>/dev/null)"
+            [ "$code" = "200" ] || fail=$((fail+1))
+            [ "$i" -lt 6 ] && sleep 120
+          done
+          # A cold instance can take ~60s to wake, so tolerate a slow start and
+          # only fail the run when every ping failed.
+          if [ "$fail" -ge 6 ]; then
+            echo "::error::All reminder pings failed"
             exit 1
+          fi
+          if [ "$fail" -gt 0 ]; then
+            echo "::warning::$fail of 6 pings failed"
           fi

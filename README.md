@@ -356,30 +356,36 @@ If you'd rather create the service by hand instead of using the blueprint:
 Binding `0.0.0.0` and Render's `$PORT` is required — binding `127.0.0.1` or a
 hard-coded port makes the health check fail and the deploy hang.
 
-### Reminders on Render
+### Reminders on Render, and the "service waking up" page
 
-Unlike Vercel, Render runs a **persistent process**, so reminders are
-delivered by an in-process loop rather than an external cron ping. The
-blueprint enables it:
+Render's free tier **spins the instance down after 15 minutes idle**. The next
+visitor then waits ~30 seconds on Render's own "SERVICE WAKING UP" interstitial
+while a container is allocated and started.
 
-```env
-ENABLE_BACKGROUND_SCHEDULER=true
-REMINDER_POLL_SECONDS=60
-```
+That page cannot be removed in application code. It is served by Render's
+router before the app exists; timings from a real cold start were 22:48:08
+(request) to 22:48:34 (live) -- 26 seconds of platform work, against ~1.1s for
+this app's Python imports. The same sleep is why reminders arrive late: the
+in-process scheduler only ticks while the instance is awake.
 
-Delivery is idempotent (guarded by `is_sent`), so the
-`/api/cron/process-reminders` endpoint remains available and safe to call
-alongside it.
+The only fixes are to stop it sleeping:
 
-> **Two caveats on Render's free tier**
->
-> 1. Free web services **sleep after ~15 minutes of inactivity**. While
->    asleep the scheduler isn't running, so reminders fire late — they are
->    delivered on the next wake, not at their scheduled minute. Use a paid
->    instance (or an external uptime ping) if on-time reminders matter.
-> 2. The free disk is **ephemeral** — do not use SQLite in production there
->    or you will lose all data on every redeploy. Point `DATABASE_URL` at
->    Supabase or Render Postgres.
+1. **An uptime monitor (free, recommended).** Point UptimeRobot or
+   cron-job.org at
+   `https://<your-app>.onrender.com/api/cron/process-reminders` every
+   **5 minutes**, with the header `Authorization: Bearer <CRON_SECRET>`.
+   Under the 15-minute threshold, so the instance never sleeps -- and the same
+   request delivers due reminders.
+2. **A paid Render instance** (Starter, ~$7/month), which never spins down.
+3. **A host without sleep** -- Koyeb's free tier runs continuously, and an
+   Oracle Cloud Always Free VM never stops.
+
+`.github/workflows/reminders.yml` pings the endpoint too, and now pings six
+times at two-minute intervals per run rather than once, because GitHub drops
+scheduled runs -- observed gaps on this repo were 17 to 83 minutes against a
+requested 5. That widens the warm window but cannot close it: GitHub Actions
+is not a dependable scheduler, so treat the workflow as a backstop and use
+option 1 for real coverage.
 
 ## Vercel deployment
 
