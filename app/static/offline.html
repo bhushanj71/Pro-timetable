@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline — ProfSchedule AI</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/theme.css">
+  <style>
+    .offline-wrap {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 24px; text-align: center;
+    }
+    .offline-card { max-width: 380px; }
+    .offline-ico { font-size: 3rem; }
+    .offline-card h1 { margin: 14px 0 8px; font-size: 1.35rem; }
+    .offline-card p { color: var(--text-soft); margin: 0 0 18px; }
+  </style>
+</head>
+<body class="app-shell">
+  <div class="offline-wrap">
+    <div class="offline-card">
+      <div class="offline-ico">📡</div>
+      <h1>ProfSchedule AI is unreachable</h1>
+      <p>You appear to be offline, or the server isn't responding. Your schedule is safe — nothing has been lost.</p>
+      <button class="btn btn-primary" onclick="location.reload()">Try again</button>
+    </div>
+  </div>
+</body>
+</html>

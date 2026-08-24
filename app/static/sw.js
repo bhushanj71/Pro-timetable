@@ -2,8 +2,8 @@
    Served from the site root so its scope covers every page — a worker under
    /static/ could only control /static/. */
 
-const CACHE = "profschedule-v1";
-const SHELL = ["/static/css/style.css", "/static/js/app.js", "/static/icon-192.png"];
+const CACHE = "profschedule-v2";
+const SHELL = ["/static/css/style.css", "/static/js/app.js", "/static/icon-192.png", "/static/offline.html"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -43,7 +43,29 @@ self.addEventListener("fetch", (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(request).then((hit) => hit || caches.match("/static/css/style.css")))
+      .catch(async () => {
+        const hit = await caches.match(request);
+        if (hit) return hit;
+
+        // A failed *page* load must not be answered with whatever happens to
+        // be in the cache. The previous fallback returned the stylesheet as
+        // the document body, so a phone with the worker installed rendered a
+        // wall of CSS instead of the site whenever the network or the server
+        // hiccuped -- while a laptop without the worker just showed the real
+        // error.
+        if (request.mode === "navigate") {
+          return (
+            (await caches.match("/static/offline.html")) ||
+            new Response(
+              "<!doctype html><meta charset=utf-8><title>Offline</title>" +
+                "<p style='font:16px system-ui;padding:24px'>ProfSchedule AI is unreachable right now. " +
+                "Check your connection and reload.",
+              { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } }
+            )
+          );
+        }
+        return Response.error();
+      })
   );
 });
 
