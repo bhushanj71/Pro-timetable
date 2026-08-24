@@ -408,28 +408,38 @@ alongside it.
 
 ### Reminder scheduling on Vercel — read this before relying on it
 
-`vercel.json` asks for a five-minute cron:
+`vercel.json` schedules the reminder processor **once a day**:
 
 ```json
-"crons": [{ "path": "/api/cron/process-reminders", "schedule": "*/5 * * * *" }]
+"crons": [{ "path": "/api/cron/process-reminders", "schedule": "0 1 * * *" }]
 ```
 
-**On the Hobby (free) plan Vercel runs that once a day, not every five
-minutes.** Nothing errors — the schedule is simply throttled — so reminders
-appear to work and then arrive up to 24 hours late. Two ways out:
+That is deliberate, and it is not enough on its own. Hobby accounts are
+limited to daily cron jobs, and a sub-daily expression such as
+`*/5 * * * *` is rejected outright:
 
-- **Upgrade to Pro**, which honours the five-minute schedule; or
-- **point an external pinger at the same endpoint** — a free uptime monitor
-  such as UptimeRobot or cron-job.org, sending
-  `Authorization: Bearer <CRON_SECRET>` every five minutes.
+> Hobby accounts are limited to daily cron jobs. This cron expression
+> (`*/5 * * * *`) would run more than once per day. Upgrade to the Pro plan
+> to unlock all Cron Jobs features on Vercel.
 
-The external pinger is the more dependable option on either plan. GitHub
-Actions `schedule:` is *not* a good substitute — free runners silently drop
-scheduled jobs, and observed intervals for this repo ranged from 17 to 83
-minutes against a requested 5.
+So the daily entry exists only as a backstop that sweeps up anything missed.
+**Timely reminders need a second trigger.** Pick one:
+
+- **An external pinger** (recommended, free, works on any plan). Point
+  UptimeRobot, cron-job.org, or similar at
+  `https://<your-app>.vercel.app/api/cron/process-reminders` every 5 minutes,
+  with the header `Authorization: Bearer <CRON_SECRET>`.
+- **Vercel Pro**, which accepts `*/5 * * * *` — change the schedule back if
+  you upgrade.
+
+GitHub Actions `schedule:` is *not* a dependable substitute. Free runners
+silently drop scheduled jobs; observed intervals for this repo ranged from
+17 to 83 minutes against a requested 5, which is useless for a reminder
+that is supposed to arrive 5 minutes before a lecture.
 
 Delivery is idempotent (`is_sent` / `sent_at` / `retry_count`), so calling
-the endpoint more often than necessary is harmless.
+the endpoint more often than necessary is harmless — and calling it too
+rarely is the only way to actually lose a reminder's timing.
 
 ## API overview
 
