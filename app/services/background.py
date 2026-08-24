@@ -24,9 +24,23 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
+# Retrying a broken database every minute forever is actively harmful, not
+# merely useless: Supabase's pooler trips a circuit breaker after repeated
+# authentication failures ("ECIRCUITBREAKER: too many authentication failures")
+# and blocks *new* connections, so a misconfigured password turns into an
+# outage that this loop keeps alive by hammering. Back off instead, and give
+# the breaker room to reset once the credentials are fixed.
+MAX_BACKOFF_SECONDS = 15 * 60
+
+
+def _backoff(interval: int, failures: int) -> int:
+    return min(interval * (2 ** (failures - 1)), MAX_BACKOFF_SECONDS)
+
+
 async def reminder_loop() -> None:
     interval = max(30, settings.REMINDER_POLL_SECONDS)
     logger.info("Background reminder scheduler started (every %ss)", interval)
+    failures = 0
 
     while True:
         try:
@@ -35,15 +49,27 @@ async def reminder_loop() -> None:
             result = await asyncio.to_thread(_process_once)
             if result and result.get("sent"):
                 logger.info("Delivered %s reminder(s)", result["sent"])
+            failures = 0
+            delay = interval
         except asyncio.CancelledError:
             logger.info("Background reminder scheduler stopping")
             raise
-        except Exception:
+        except Exception as exc:
             # Never let a transient failure (e.g. a dropped DB connection)
             # kill the loop for the lifetime of the process.
-            logger.exception("Reminder processing failed; will retry next tick")
+            failures += 1
+            delay = _backoff(interval, failures)
+            if failures == 1:
+                # Full traceback once; after that a repeating stack trace every
+                # tick just buries the rest of the log.
+                logger.exception("Reminder processing failed; retrying in %ss", delay)
+            else:
+                logger.warning(
+                    "Reminder processing still failing (%s consecutive): %s: %s. Retrying in %ss",
+                    failures, type(exc).__name__, exc, delay,
+                )
 
-        await asyncio.sleep(interval)
+        await asyncio.sleep(delay)
 
 
 def _process_once() -> dict:
