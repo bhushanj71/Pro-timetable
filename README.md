@@ -383,20 +383,53 @@ alongside it.
 
 ## Vercel deployment
 
-1. Push this repo to GitHub and import it in Vercel.
-2. Set the environment variables above in the Vercel project settings (at minimum `SECRET_KEY`, `DATABASE_URL`, and your AI provider config).
-3. Provision a Postgres database (Vercel Postgres, Neon, or Supabase) and set `DATABASE_URL`.
-4. Deploy — `vercel.json` builds `api/index.py` with `@vercel/python` and routes all paths to it.
+1. Push this repo to GitHub and import it in Vercel (**Add New → Project →
+   Import Git Repository**). Framework preset: **Other** — `vercel.json`
+   already describes the build.
+2. Set the environment variables in **Project Settings → Environment
+   Variables** (Production). At minimum:
 
-### Reminder scheduling on Vercel
+   | Variable | Notes |
+   | --- | --- |
+   | `SECRET_KEY` | Any long random string. Changing it signs everyone out. |
+   | `DATABASE_URL` | Supabase **pooler** host, not `db.<ref>.supabase.co`. |
+   | `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL` | Omit to fall back to the rule-based parser. |
+   | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_CONTACT_EMAIL` | Required for phone push. Reuse the existing keys, or regenerate with `python generate_vapid_keys.py` — regenerating invalidates every registered device. |
+   | `CRON_SECRET` | Vercel sends it automatically as `Authorization: Bearer …` to scheduled functions. Without it, anyone can trigger reminder delivery. |
 
-`vercel.json` includes a cron entry hitting `/api/cron/process-reminders` every 5 minutes:
+   Do **not** set `ENABLE_BACKGROUND_SCHEDULER` on Vercel. Serverless
+   functions do not run persistent workers, so the in-process loop would
+   never tick; delivery comes from the cron path instead.
+3. Deploy. `vercel.json` builds `api/index.py` with `@vercel/python`, serves
+   `/static/*` straight from the CDN, and routes everything else to the
+   function. `/sw.js` and `/manifest.json` deliberately stay on the function
+   because the service worker needs a `Service-Worker-Allowed` header that
+   static hosting will not add.
+
+### Reminder scheduling on Vercel — read this before relying on it
+
+`vercel.json` asks for a five-minute cron:
 
 ```json
 "crons": [{ "path": "/api/cron/process-reminders", "schedule": "*/5 * * * *" }]
 ```
 
-**Vercel's Hobby plan only allows once-daily cron jobs.** On Hobby, either upgrade to Pro for higher-frequency crons, or point an external scheduler (cron-job.org, GitHub Actions on a schedule, etc.) at the same endpoint with the `Authorization: Bearer <CRON_SECRET>` header. Delivery is idempotent (`is_sent`/`sent_at`/`retry_count`), so calling it more often than necessary is harmless.
+**On the Hobby (free) plan Vercel runs that once a day, not every five
+minutes.** Nothing errors — the schedule is simply throttled — so reminders
+appear to work and then arrive up to 24 hours late. Two ways out:
+
+- **Upgrade to Pro**, which honours the five-minute schedule; or
+- **point an external pinger at the same endpoint** — a free uptime monitor
+  such as UptimeRobot or cron-job.org, sending
+  `Authorization: Bearer <CRON_SECRET>` every five minutes.
+
+The external pinger is the more dependable option on either plan. GitHub
+Actions `schedule:` is *not* a good substitute — free runners silently drop
+scheduled jobs, and observed intervals for this repo ranged from 17 to 83
+minutes against a requested 5.
+
+Delivery is idempotent (`is_sent` / `sent_at` / `retry_count`), so calling
+the endpoint more often than necessary is harmless.
 
 ## API overview
 

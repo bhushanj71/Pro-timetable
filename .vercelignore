@@ -1,0 +1,23 @@
+# Keep the serverless bundle small and free of local artefacts.
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.db
+.env
+tests/
+requirements-dev.txt
+
+# Render-only deployment files; Vercel does not read them.
+render.yaml
+Procfile
+runtime.txt
+
+# CI that pings the deployed app; not part of the bundle.
+.github/
+
+# Editor / tooling
+.claude/
+.vscode/
+.idea/

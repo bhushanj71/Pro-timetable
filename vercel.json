@@ -2,12 +2,21 @@
   "version": 2,
   "builds": [
     {
+      "src": "app/static/**",
+      "use": "@vercel/static"
+    },
+    {
       "src": "api/index.py",
       "use": "@vercel/python",
       "config": { "maxLambdaSize": "15mb" }
     }
   ],
   "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/app/static/$1",
+      "headers": { "cache-control": "public, max-age=31536000, immutable" }
+    },
     { "src": "/(.*)", "dest": "api/index.py" }
   ],
   "crons": [
