@@ -484,6 +484,7 @@ def work_notifications(db: Session = Depends(get_db), user: User = Depends(get_c
                 "id": r.id, "kind": r.kind, "title": r.title, "body": r.body,
                 "at": r.created_at.isoformat(), "read": r.read_at is not None,
                 "community_id": r.community_id, "task_id": r.task_id,
+                "assignment_id": r.assignment_id,
             }
             for r in rows
         ],
@@ -500,6 +501,59 @@ def mark_work_notifications_read(db: Session = Depends(get_db), user: User = Dep
     )
     db.commit()
     return {"ok": True, "marked_read": updated}
+
+
+class WorkPrefs(BaseModel):
+    notify_work_responses: bool | None = None
+    notify_work_progress: bool | None = None
+    notify_work_completion: bool | None = None
+    notify_work_deadlines: bool | None = None
+    notify_work_community: bool | None = None
+
+
+@router.get("/preferences")
+def get_prefs(user: User = Depends(get_current_user)):
+    return {
+        "notify_work_responses": user.notify_work_responses,
+        "notify_work_progress": user.notify_work_progress,
+        "notify_work_completion": user.notify_work_completion,
+        "notify_work_deadlines": user.notify_work_deadlines,
+        "notify_work_community": user.notify_work_community,
+        # Stated so the settings screen can explain the omission rather than
+        # leaving someone hunting for a switch that does not exist.
+        "always_on": ["task_assigned"],
+    }
+
+
+@router.put("/preferences")
+def set_prefs(payload: WorkPrefs, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        if value is not None:
+            setattr(user, field, value)
+    db.commit()
+    return get_prefs(user)
+
+
+@router.delete("/notifications/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
+def dismiss_notification(notification_id: str, db: Session = Depends(get_db),
+                         user: User = Depends(get_current_user)):
+    n = (
+        db.query(WorkNotification)
+        .filter(WorkNotification.id == notification_id, WorkNotification.user_id == user.id)
+        .first()
+    )
+    if not n:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Notification not found")
+    db.delete(n)
+    db.commit()
+    return None
+
+
+@router.post("/notifications/clear", status_code=status.HTTP_204_NO_CONTENT)
+def clear_notifications(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.query(WorkNotification).filter(WorkNotification.user_id == user.id).delete(synchronize_session=False)
+    db.commit()
+    return None
 
 
 @router.get("/people/search")

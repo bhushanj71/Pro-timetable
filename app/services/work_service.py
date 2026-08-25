@@ -96,13 +96,18 @@ def create_community(db: Session, user: User, name: str, description: str | None
 # Notifications
 # ---------------------------------------------------------------------------
 def notify(db: Session, user_id: str, kind: str, title: str, body: str | None = None,
-           community_id: str | None = None, task_id: str | None = None) -> None:
-    """Queue a work notification. Never notifies someone about their own action."""
-    db.add(
-        WorkNotification(
-            user_id=user_id, kind=kind, title=title, body=body,
-            community_id=community_id, task_id=task_id,
-        )
+           community_id: str | None = None, task_id: str | None = None,
+           actor: str | None = None, assignment_id: str | None = None) -> None:
+    """Queue a work notification.
+
+    A shim over work_notify.send so every call site gets self-suppression,
+    preference gating and de-duplication without having to remember them.
+    """
+    from app.services import work_notify
+
+    work_notify.send(
+        db, to=user_id, kind=kind, title=title, body=body, actor=actor,
+        community_id=community_id, task_id=task_id, assignment_id=assignment_id,
     )
 
 
@@ -185,10 +190,12 @@ def create_task(db: Session, community: Community, creator: User, *, title: str,
 
     for uid in dict.fromkeys(assignee_ids):   # de-duplicated, order preserved
         db.add(TaskAssignment(task_id=task.id, user_id=uid))
-        if uid != creator.id:
-            notify(db, uid, "task_assigned",
-                   f"{creator.name} assigned you “{task.title}”",
-                   f"in {community.name}", community_id=community.id, task_id=task.id)
+        notify(db, uid, "task_assigned",
+               f"{creator.name} assigned you “{task.title}”",
+               f"{community.name}"
+               + (f" · due {fields.get('due_date').strftime('%d %b')}" if fields.get("due_date") else "")
+               + (" · group task" if len(assignee_ids) > 1 else ""),
+               community_id=community.id, task_id=task.id, actor=creator.id)
 
     task.status = (
         WorkTaskStatus.PENDING_ACCEPTANCE.value if assignee_ids else WorkTaskStatus.DRAFT.value
@@ -214,12 +221,16 @@ def respond_to_assignment(db: Session, assignment: TaskAssignment, user: User,
     ))
 
     task = assignment.task
+    group = len(task.assignments) > 1
     notify(db, task.created_by,
            "task_accepted" if accept else "task_declined",
-           f"{user.name} {'accepted' if accept else 'declined'} “{task.title}”",
-           assignment.decline_reason, community_id=task.community_id, task_id=task.id)
+           f"{user.name} {'accepted' if accept else 'declined'}"
+           f"{' the group task' if group else ''} “{task.title}”",
+           assignment.decline_reason, community_id=task.community_id, task_id=task.id,
+           actor=user.id, assignment_id=assignment.id)
 
     _refresh_task_status(db, task)
+    _announce_if_finished(db, task, user)
     return assignment
 
 
@@ -258,11 +269,21 @@ def update_progress(db: Session, assignment: TaskAssignment, user: User,
 
     task = assignment.task
     if progress is not None and progress != before:
-        notify(db, task.created_by, "task_progress",
-               f"{user.name} moved “{task.title}” to {assignment.progress}%",
-               (note or "").strip() or None, community_id=task.community_id, task_id=task.id)
+        # Starting and finishing are different events from "moved a slider":
+        # they are the two a task's owner actually wants to hear about.
+        if assignment.progress >= 100:
+            kind, headline = "task_completed", f"{user.name} completed “{task.title}”"
+        elif before == 0:
+            kind, headline = "task_started", f"{user.name} started “{task.title}”"
+        else:
+            kind, headline = "task_progress", f"{user.name} moved “{task.title}” {before}% \u2192 {assignment.progress}%"
+
+        notify(db, task.created_by, kind, headline,
+               (note or "").strip() or None, community_id=task.community_id, task_id=task.id,
+               actor=user.id, assignment_id=assignment.id)
 
     _refresh_task_status(db, task)
+    _announce_if_finished(db, task, user)
     return assignment
 
 
@@ -278,6 +299,28 @@ def _refresh_task_status(db: Session, task: WorkTask) -> None:
         task.status = WorkTaskStatus.ACTIVE.value
     else:
         task.status = WorkTaskStatus.PENDING_ACCEPTANCE.value
+
+
+def _announce_if_finished(db: Session, task: WorkTask, actor: User) -> None:
+    """Tell the creator once when every participant is done.
+
+    Separate from the per-person completion notice: on a group task the
+    difference between "Priya finished her part" and "the task is finished"
+    is the difference between progress and a result.
+    """
+    if task.status != WorkTaskStatus.COMPLETED.value:
+        return
+    from app.services import work_notify
+
+    work_notify.send(
+        db, to=task.created_by, kind=work_notify.Kind.TASK_ALL_COMPLETED,
+        title=f"“{task.title}” is complete",
+        body="Everyone assigned has finished their part."
+             if len(task.assignments) > 1 else None,
+        actor=actor.id, community_id=task.community_id, task_id=task.id,
+        # Once per task, however many times the last person edits their 100%.
+        dedupe_key=f"all-done:{task.id}",
+    )
 
 
 def task_progress(task: WorkTask) -> dict:

@@ -181,3 +181,91 @@
   .ps-opt { flex: 1; justify-content: center; }
   .wk-tl-when { flex-basis: 74px; }
 }
+
+/* ==========================================================================
+   Work notification centre
+   ========================================================================== */
+.wn-day {
+  position: sticky; top: -9px; z-index: 1;
+  padding: 8px 13px 5px;
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-muted);
+  background: var(--glass-bg-strong, var(--surface));
+}
+.wn-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 13px; border-radius: 11px;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+}
+.wn-item:hover { background: var(--surface-alt); }
+.wn-item.unread { background: var(--primary-softer); }
+.wn-ico { font-size: 1rem; line-height: 1.3; flex: 0 0 auto; }
+.wn-body { flex: 1; min-width: 0; }
+/* Wraps rather than truncating: a notification whose point is cut off is a
+   notification that has to be tapped to be understood. */
+.wn-title { font-size: 0.83rem; font-weight: 600; overflow-wrap: anywhere; }
+.wn-sub { font-size: 0.75rem; color: var(--text-soft); margin-top: 2px; overflow-wrap: anywhere; }
+.wn-when { font-size: 0.69rem; color: var(--text-muted); margin-top: 3px; }
+.wn-x {
+  border: none; background: none; padding: 3px 5px; border-radius: 7px;
+  color: var(--text-muted); cursor: pointer; font-size: 0.75rem;
+  flex: 0 0 auto; opacity: 0.55;
+}
+.wn-x:hover { opacity: 1; background: var(--danger-soft); color: var(--danger); }
+
+@media (max-width: 768px) {
+  /* A dropdown pinned to a top-right icon is unreachable one-handed and, at
+     40 items, taller than the screen. Bottom sheet instead. */
+  .popover {
+    position: fixed;
+    top: auto; right: 0; bottom: 0; left: 0;
+    width: auto; max-width: none;
+    max-height: 72vh;
+    border-radius: 20px 20px 0 0;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    animation: sheetUp 260ms var(--ease-out) both;
+    transform-origin: bottom center;
+  }
+  .wn-item { padding: 13px; }
+  /* Comfortable one-handed targets. Measured at 37px with padding alone,
+     which is under the ~44px a thumb reliably hits. */
+  .wn-x { min-width: 44px; min-height: 44px; font-size: 0.9rem; }
+}
+
+/* ==========================================================================
+   Mobile: measured fixes
+   ========================================================================== */
+@media (max-width: 768px) {
+  /* Measured at 360px: the switcher tabs were 34px tall, below the ~44px a
+     thumb reliably hits. */
+  .ps-opt { min-height: 44px; padding: 10px 14px; }
+
+  /* Every action in Work is a decision someone else is waiting on -- accept,
+     decline, save progress. None of them should need a second attempt. */
+  .wk-request-actions .btn,
+  .wk-people .chip-x,
+  #wk-save-progress { min-height: 44px; }
+  .wk-request-actions .btn { flex: 1 1 auto; justify-content: center; }
+
+  /* Whole card is the target, not just the title. */
+  .wk-task { padding: 14px; }
+  .wk-community { padding: 14px; }
+
+  /* A range input is the hardest control to hit on a phone; give it room. */
+  #wk-my-progress { height: 30px; }
+
+  /* Modals sit above the keyboard rather than behind it: 85vh leaves the
+     sheet scrollable when the keyboard takes the bottom half. */
+  .modal-card { max-height: 85vh; }
+}
+
+/* Very small phones (360px and below) -- the counts row is the first thing
+   to break, three numbers side by side with their labels. */
+@media (max-width: 380px) {
+  .wk-stat { padding: 11px 6px; }
+  .wk-stat-n { font-size: 1.2rem; }
+  .wk-stat-l { font-size: 0.62rem; letter-spacing: 0.02em; }
+  .wk-request-actions { width: 100%; }
+  .ps-opt { padding: 10px 10px; font-size: 0.75rem; }
+}

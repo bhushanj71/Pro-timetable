@@ -147,6 +147,11 @@ _ADDITIVE_COLUMNS = {
         ("google_sync_enabled", "BOOLEAN DEFAULT 0 NOT NULL"),
         ("onboarding_completed", "BOOLEAN DEFAULT 0 NOT NULL"),
         ("active_profile", "VARCHAR(16) DEFAULT 'personal' NOT NULL"),
+        ("notify_work_responses", "BOOLEAN DEFAULT 1 NOT NULL"),
+        ("notify_work_progress", "BOOLEAN DEFAULT 1 NOT NULL"),
+        ("notify_work_completion", "BOOLEAN DEFAULT 1 NOT NULL"),
+        ("notify_work_deadlines", "BOOLEAN DEFAULT 1 NOT NULL"),
+        ("notify_work_community", "BOOLEAN DEFAULT 1 NOT NULL"),
     ],
     "events": [
         ("google_event_id", "VARCHAR(255)"),
@@ -157,6 +162,11 @@ _ADDITIVE_COLUMNS = {
     "reminders": [
         ("read_at", "TIMESTAMP"),
         ("dismissed_at", "TIMESTAMP"),
+    ],
+    "work_notifications": [
+        ("actor_id", "VARCHAR(36)"),
+        ("assignment_id", "VARCHAR(36)"),
+        ("dedupe_key", "VARCHAR(120)"),
     ],
 }
 

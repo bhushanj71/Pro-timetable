@@ -37,4 +37,17 @@ def process_reminders(authorization: str | None = Header(default=None), db: Sess
         if not authorization or not secrets.compare_digest(authorization, expected):
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid cron secret")
 
-    return process_due_reminders(db)
+    result = process_due_reminders(db)
+
+    # Work deadlines ride the same sweep rather than needing a second job to
+    # keep alive. Idempotent and de-duplicated, so the frequency of this ping
+    # only affects promptness, never how many notices someone receives.
+    try:
+        from app.services.work_notify import sweep_work_deadlines
+
+        result["work"] = sweep_work_deadlines(db)
+    except Exception:
+        # A work-notification problem must not stop personal reminders going out.
+        logger.exception("Work deadline sweep failed")
+
+    return result

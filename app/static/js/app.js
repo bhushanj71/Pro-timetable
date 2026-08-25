@@ -115,6 +115,10 @@ document.getElementById("logout-btn")?.addEventListener("click", async () => {
 /* ---------------- Notification bell ---------------- */
 
 async function pollNotifications() {
+  // In Work mode the bell belongs to work-notifications.js. Both writing to
+  // the same panel meant whichever ran last won: the badge showed the work
+  // count while the list showed personal reminders.
+  if (document.body.dataset.profile === "work") return;
   try {
     const data = await apiFetch("/api/reminders/notifications");
     const count = document.getElementById("notif-count");
@@ -158,6 +162,8 @@ document.getElementById("notif-bell")?.addEventListener("click", async () => {
   const opening = panel?.classList.contains("hidden");
   panel?.classList.toggle("hidden");
 
+  // Work mode fills and marks its own panel read.
+  if (document.body.dataset.profile === "work") return;
   if (!opening) return;
   // Clear the badge immediately, then persist — the click is the "read".
   document.getElementById("notif-count")?.classList.add("hidden");

@@ -174,9 +174,9 @@
       <a class="bn-item {% if request.url.path == '/calendar' %}active{% endif %}" href="/calendar">
         <span class="bn-ico">📆</span> Calendar
       </a>
-      <a class="bn-item {% if request.url.path == '/tasks' %}active{% endif %}" href="/tasks">
-        <span class="bn-ico">✅</span> Tasks
-        <span class="bn-badge hidden" id="bn-task-count">0</span>
+      <a class="bn-item {% if request.url.path == '/work' %}active{% endif %}" href="/work">
+        <span class="bn-ico">💼</span> Work
+        <span class="bn-badge hidden" id="bn-work-count">0</span>
       </a>
       <button class="bn-item" id="bn-more">
         <span class="bn-ico">☰</span> More
@@ -262,6 +262,7 @@
   <script src="/static/js/voice.js?v={{ v }}"></script>
   <script src="/static/js/onboarding.js?v={{ v }}"></script>
   <script src="/static/js/push-banner.js?v={{ v }}"></script>
+  <script src="/static/js/work-notifications.js?v={{ v }}"></script>
   {% endif %}
   {% block scripts %}{% endblock %}
 </body>

@@ -309,10 +309,48 @@ def test_the_assignor_is_notified_about_responses_and_progress(owner, rahul):
 
     rahul.post(f"/api/work/tasks/{task['id']}/respond", json={"accept": True})
     rahul.put(f"/api/work/tasks/{task['id']}/progress", json={"progress": 30})
+    rahul.put(f"/api/work/tasks/{task['id']}/progress", json={"progress": 65})
+    rahul.put(f"/api/work/tasks/{task['id']}/progress", json={"progress": 100})
 
     kinds = [n["kind"] for n in owner.get("/api/work/notifications").json()["items"]]
     assert "task_accepted" in kinds
-    assert "task_progress" in kinds
+    # Starting, moving and finishing are distinct events: "Rahul started this"
+    # and "Rahul finished this" are what an assignor actually wants to hear,
+    # and collapsing them into one "progress" kind loses both.
+    assert "task_started" in kinds, "the first move off zero is a start"
+    assert "task_progress" in kinds, "a middling move is a progress update"
+    assert "task_completed" in kinds, "reaching 100% is a completion"
+
+
+def test_a_finished_task_is_announced_once(owner, rahul):
+    """The last person finishing means the task is done -- said once, however
+    many times they re-save their 100%."""
+    c = _community(owner)
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    task = owner.post(f"/api/work/communities/{c['id']}/tasks", json={
+        "title": "Build API", "assignee_ids": [ids["Rahul"]]}).json()
+
+    rahul.post(f"/api/work/tasks/{task['id']}/respond", json={"accept": True})
+    for _ in range(3):
+        rahul.put(f"/api/work/tasks/{task['id']}/progress", json={"progress": 100})
+
+    kinds = [n["kind"] for n in owner.get("/api/work/notifications").json()["items"]]
+    assert kinds.count("task_all_completed") == 1, "de-duplicated, not repeated"
+
+
+def test_nobody_is_notified_about_their_own_action(owner):
+    """Assigning yourself a task should not put "you assigned you" in your
+    own inbox."""
+    c = _community(owner)
+    ids = _members(owner, c["id"])
+    task = owner.post(f"/api/work/communities/{c['id']}/tasks", json={
+        "title": "Self task", "assignee_ids": [ids["Bhushan"]]}).json()
+    owner.post(f"/api/work/tasks/{task['id']}/respond", json={"accept": True})
+    owner.put(f"/api/work/tasks/{task['id']}/progress", json={"progress": 50})
+
+    items = owner.get("/api/work/notifications").json()["items"]
+    assert [n for n in items if n["task_id"] == task["id"]] == []
 
 
 def test_the_assignee_is_notified_of_a_new_assignment(owner, rahul):
@@ -362,3 +400,159 @@ def test_work_endpoints_require_authentication(client):
     for path in ["/api/work/dashboard", "/api/work/communities", "/api/work/invitations",
                  "/api/work/tasks", "/api/work/notifications"]:
         assert client.get(path).status_code == 401, path
+
+
+# --- Deadlines, overdue and chase-ups --------------------------------------
+
+def _sweep(db_session, when=None):
+    from app.services.work_notify import sweep_work_deadlines
+    return sweep_work_deadlines(db_session, now=when)
+
+
+def _kinds(client):
+    return [n["kind"] for n in client.get("/api/work/notifications").json()["items"]]
+
+
+def test_an_approaching_deadline_is_announced_once(owner, rahul, db_session):
+    """The sweep runs every few minutes; without de-duplication it would
+    resend "due tomorrow" on every pass until the deadline arrived."""
+    c = _community(owner)
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    due = datetime.now(timezone.utc) + timedelta(hours=20)
+    task = owner.post(f"/api/work/communities/{c['id']}/tasks", json={
+        "title": "Database Migration", "assignee_ids": [ids["Rahul"]],
+        "due_date": due.isoformat()}).json()
+    rahul.post(f"/api/work/tasks/{task['id']}/respond", json={"accept": True})
+
+    for _ in range(3):
+        _sweep(db_session)
+
+    assert _kinds(rahul).count("task_due_soon") == 1
+
+
+def test_an_overdue_task_is_flagged(owner, rahul, db_session):
+    c = _community(owner)
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    due = datetime.now(timezone.utc) - timedelta(hours=3)
+    task = owner.post(f"/api/work/communities/{c['id']}/tasks", json={
+        "title": "Late Task", "assignee_ids": [ids["Rahul"]],
+        "due_date": due.isoformat()}).json()
+    rahul.post(f"/api/work/tasks/{task['id']}/respond", json={"accept": True})
+
+    _sweep(db_session)
+    _sweep(db_session)
+    assert _kinds(rahul).count("task_overdue") == 1
+
+
+def test_a_completed_task_stops_generating_deadline_notices(owner, rahul, db_session):
+    c = _community(owner)
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    due = datetime.now(timezone.utc) - timedelta(hours=2)
+    task = owner.post(f"/api/work/communities/{c['id']}/tasks", json={
+        "title": "Finished Task", "assignee_ids": [ids["Rahul"]],
+        "due_date": due.isoformat()}).json()
+    rahul.post(f"/api/work/tasks/{task['id']}/respond", json={"accept": True})
+    rahul.put(f"/api/work/tasks/{task['id']}/progress", json={"progress": 100})
+
+    _sweep(db_session)
+    assert "task_overdue" not in _kinds(rahul), "done work is not late work"
+
+
+def test_an_unanswered_assignment_is_chased_but_not_nagged(owner, rahul, db_session):
+    c = _community(owner)
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    owner.post(f"/api/work/communities/{c['id']}/tasks", json={
+        "title": "Build Login API", "assignee_ids": [ids["Rahul"]]})
+
+    # Nothing straight away: a request sent minutes ago is not being ignored.
+    _sweep(db_session)
+    assert "assignment_reminder" not in _kinds(rahul)
+
+    # A day later, one nudge -- and only one, however often the sweep runs.
+    later = datetime.now(timezone.utc) + timedelta(hours=25)
+    for _ in range(3):
+        _sweep(db_session, when=later)
+    assert _kinds(rahul).count("assignment_reminder") == 1
+
+
+def test_answering_stops_the_chase_ups(owner, rahul, db_session):
+    c = _community(owner)
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    task = owner.post(f"/api/work/communities/{c['id']}/tasks", json={
+        "title": "Build Login API", "assignee_ids": [ids["Rahul"]]}).json()
+    rahul.post(f"/api/work/tasks/{task['id']}/respond", json={"accept": True})
+
+    _sweep(db_session, when=datetime.now(timezone.utc) + timedelta(days=3))
+    assert "assignment_reminder" not in _kinds(rahul)
+
+
+def test_a_declined_assignment_gets_no_deadline_notices(owner, rahul, db_session):
+    c = _community(owner)
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    due = datetime.now(timezone.utc) - timedelta(hours=2)
+    task = owner.post(f"/api/work/communities/{c['id']}/tasks", json={
+        "title": "Not Mine", "assignee_ids": [ids["Rahul"]],
+        "due_date": due.isoformat()}).json()
+    rahul.post(f"/api/work/tasks/{task['id']}/respond", json={"accept": False})
+
+    _sweep(db_session)
+    assert "task_overdue" not in _kinds(rahul), "a task you refused is not your deadline"
+
+
+# --- Preferences -----------------------------------------------------------
+
+def test_progress_notifications_can_be_switched_off(owner, rahul, db_session):
+    from app.models import User
+
+    c = _community(owner)
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    task = owner.post(f"/api/work/communities/{c['id']}/tasks", json={
+        "title": "Build API", "assignee_ids": [ids["Rahul"]]}).json()
+    rahul.post(f"/api/work/tasks/{task['id']}/respond", json={"accept": True})
+
+    me = db_session.query(User).filter(User.email == "w_owner@example.com").one()
+    me.notify_work_progress = False
+    db_session.commit()
+
+    rahul.put(f"/api/work/tasks/{task['id']}/progress", json={"progress": 45})
+    assert "task_progress" not in _kinds(owner)
+    assert "task_started" not in _kinds(owner)
+
+
+def test_assignments_cannot_be_silenced(owner, rahul, db_session):
+    """Every optional category off, and a new assignment still arrives: the
+    pending list is an obligation, not a newsletter."""
+    from app.models import User
+
+    them = db_session.query(User).filter(User.email == "w_rahul@example.com").one()
+    for field in ("notify_work_responses", "notify_work_progress", "notify_work_completion",
+                  "notify_work_deadlines", "notify_work_community"):
+        setattr(them, field, False)
+    db_session.commit()
+
+    c = _community(owner)
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    owner.post(f"/api/work/communities/{c['id']}/tasks", json={
+        "title": "Unmissable", "assignee_ids": [ids["Rahul"]]})
+
+    assert "task_assigned" in _kinds(rahul)
+
+
+def test_notifications_are_private_to_their_recipient(owner, rahul):
+    c = _community(owner)
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    owner.post(f"/api/work/communities/{c['id']}/tasks", json={
+        "title": "Owner Eyes Only", "assignee_ids": [ids["Rahul"]]})
+
+    # Rahul's assignment notice is his; it must not appear in the owner's feed.
+    owner_titles = [n["title"] for n in owner.get("/api/work/notifications").json()["items"]]
+    assert not any("assigned you" in t for t in owner_titles)
