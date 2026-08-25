@@ -36,11 +36,15 @@ from app.services.nlp_dates import (
     weekday_code,
 )
 from app.services.ai_guard import OUT_OF_SCOPE, check_prompt
+from app.services import schedule_query as sq
 from app.services.recurrence import generate_occurrence_starts
 from app.services.reminder_service import (
+    clear_event_reminders,
     create_reminder_for_event,
+    resync_event_reminders,
     schedule_event_reminders,
     schedule_task_reminders,
+    set_reminder_lead,
 )
 from app.services.scheduler import find_free_slots, generate_timetable
 
@@ -192,6 +196,12 @@ def process_prompt(payload: AIPromptRequest, db: Session = Depends(get_db), user
             requires_confirmation=False,
         )
 
+    # Read-only intents are answered here and now. Routing them through the
+    # confirm step would ask the professor to approve a question.
+    answered = _answer_read_only(db, user, extraction)
+    if answered is not None:
+        return answered
+
     conflicts_out = []
     for evt in extraction.events:
         start_dt, end_dt, _ = _schedule_event_to_datetimes(evt, user.timezone)
@@ -274,6 +284,95 @@ def process_prompt(payload: AIPromptRequest, db: Session = Depends(get_db), user
     )
 
 
+_BLANKET = {"every lecture", "all lectures", "every class", "all classes",
+            "every lab", "all labs", "everything", "all", "every event"}
+
+
+def _is_blanket(scope: str | None) -> bool:
+    """Whether a reminder rule applies to the whole schedule rather than one
+    subject. "Remind me 15 minutes before every lecture" names no subject, and
+    searching for the literal text "every lecture" would match nothing."""
+    return (scope or "").strip().lower() in _BLANKET
+
+
+def _answer_read_only(db: Session, user: User, extraction: AIExtractionResult):
+    """Handle the intents that only look things up.
+
+    Returns an AIPromptResponse when it handled the intent, else None so the
+    caller falls through to the create/update/delete path.
+    """
+    intent = extraction.intent
+
+    if intent == "GET_NEXT_CLASS":
+        nxt = sq.next_class(db, user)
+        if not nxt:
+            return AIPromptResponse(
+                intent=intent, extraction=extraction, requires_confirmation=False,
+                summary="Nothing scheduled in the next two weeks.")
+        m = sq.serialize(nxt, user.timezone)
+        bits = [m["title"], m["when"]]
+        if m["faculty"]:
+            bits.append(m["faculty"])
+        if m["location"]:
+            bits.append(m["location"])
+        return AIPromptResponse(
+            intent=intent, extraction=extraction, requires_confirmation=False,
+            summary="Next up: " + " · ".join(bits), matches=[m], action="view")
+
+    if intent == "SHOW_LOCATION":
+        target = None
+        if extraction.target_event_title:
+            found = _find_target_events(db, user, extraction)
+            target = found[0] if found else None
+        else:
+            # "Where is my class?" means the next one.
+            target = sq.next_class(db, user)
+
+        if not target:
+            return AIPromptResponse(
+                intent=intent, extraction=extraction, requires_confirmation=False,
+                summary="I couldn't find that class in your schedule.")
+
+        m = sq.serialize(target, user.timezone)
+        if not m["has_location"]:
+            return AIPromptResponse(
+                intent=intent, extraction=extraction, requires_confirmation=False,
+                summary=f"{m['title']} ({m['when']}) has no location saved yet.",
+                matches=[m], action="view")
+        where = " — ".join(x for x in (m["location"], m["location_detail"]) if x)
+        return AIPromptResponse(
+            intent=intent, extraction=extraction, requires_confirmation=False,
+            summary=f"{m['title']} is at {where} ({m['when']}).",
+            matches=[m], action="location")
+
+    if intent == "CHECK_CONFLICTS":
+        clashes = sq.find_conflicts(db, user)
+        if not clashes:
+            return AIPromptResponse(
+                intent=intent, extraction=extraction, requires_confirmation=False,
+                summary="No clashes in the next seven days.")
+        first = clashes[0]
+        return AIPromptResponse(
+            intent=intent, extraction=extraction, requires_confirmation=False,
+            summary=(f"{len(clashes)} clash{'es' if len(clashes) > 1 else ''} this week, "
+                     f"starting with {first['a']['title']} and {first['b']['title']} "
+                     f"({first['a']['when']})."),
+            conflicts=clashes, action="view")
+
+    if intent == "VIEW_REMINDERS":
+        rows = sq.active_reminders(db, user)
+        if not rows:
+            return AIPromptResponse(
+                intent=intent, extraction=extraction, requires_confirmation=False,
+                summary="You have no reminders waiting.")
+        return AIPromptResponse(
+            intent=intent, extraction=extraction, requires_confirmation=False,
+            summary=f"{len(rows)} reminder{'s' if len(rows) != 1 else ''} coming up.",
+            matches=rows[:20], action="view")
+
+    return None
+
+
 def _reject_out_of_scope(extraction) -> None:
     """A refusal must not be confirmable: the confirm step writes to the
     database, so it re-checks rather than trusting the client's round trip."""
@@ -326,6 +425,7 @@ def confirm_extraction(payload: AIConfirmRequest, db: Session = Depends(get_db),
             return {"ok": False, "message": "Couldn't find that event.", "updated": 0}
 
         updated = 0
+        last_changes: list[str] = []
         for event in targets:
             start = ensure_aware_utc(event.start_datetime).astimezone(get_tz(user.timezone))
             end = ensure_aware_utc(event.end_datetime).astimezone(get_tz(user.timezone))
@@ -345,18 +445,62 @@ def confirm_extraction(payload: AIConfirmRequest, db: Session = Depends(get_db),
             else:
                 new_end = new_start + duration
 
+            changed = []
+            if new_start != ensure_aware_utc(event.start_datetime):
+                changed.append(
+                    f"{start.strftime('%I:%M %p').lstrip('0')} → "
+                    f"{new_start.astimezone(get_tz(user.timezone)).strftime('%I:%M %p').lstrip('0')}"
+                )
             event.start_datetime = new_start
             event.end_datetime = new_end
 
-            # Reminders hang off the old time, so re-anchor them.
-            for rem in event.reminders:
-                if not rem.is_sent:
-                    lead = timedelta(minutes=user.default_reminder_minutes or 30)
-                    rem.reminder_datetime = new_start - lead
+            # Field-level updates: changing the room must not disturb the time,
+            # and vice versa.
+            if extraction.new_faculty:
+                changed.append(f"faculty → {extraction.new_faculty}")
+                event.faculty = extraction.new_faculty
+            if extraction.new_location:
+                changed.append(f"location → {extraction.new_location}")
+                event.location = extraction.new_location
+
+            # Reminders hang off the old time. Each keeps its own lead rather
+            # than being collapsed onto one default.
+            resync_event_reminders(db, event)
             updated += 1
+            last_changes = changed
 
         db.commit()
-        return {"ok": True, "action": "updated", "updated": updated}
+        detail = ", ".join(last_changes) if last_changes else "no visible change"
+        return {
+            "ok": True, "action": "updated", "updated": updated,
+            "message": f"Updated {targets[0].title}: {detail}. Reminders rescheduled.",
+            "event": sq.serialize(targets[0], user.timezone),
+        }
+
+    if extraction.intent in ("UPDATE_REMINDER", "DELETE_REMINDER") and (
+        extraction.reminder_scope or extraction.target_event_title
+    ):
+        scope = extraction.reminder_scope or extraction.target_event_title
+        events = sq.find_events(db, user, text=None if _is_blanket(scope) else scope)
+        if not events:
+            return {"ok": False, "message": f"No upcoming classes matching \"{scope}\".", "updated": 0}
+
+        if extraction.intent == "DELETE_REMINDER":
+            removed = sum(clear_event_reminders(db, e) for e in events)
+            db.commit()
+            return {
+                "ok": True, "action": "reminders_off", "updated": removed,
+                "message": f"Reminders turned off for {len(events)} upcoming class(es).",
+            }
+
+        minutes = extraction.reminder_minutes_before or user.default_reminder_minutes or 30
+        for e in events:
+            set_reminder_lead(db, e, user, minutes)
+        db.commit()
+        return {
+            "ok": True, "action": "reminders_set", "updated": len(events),
+            "message": f"Reminders set to {minutes} minutes before {len(events)} upcoming class(es).",
+        }
 
     # Models often express "every Mon, Thu and Fri" as three separate event
     # objects that EACH carry all three recurrence_days, which would expand to
@@ -414,7 +558,10 @@ def confirm_extraction(payload: AIConfirmRequest, db: Session = Depends(get_db),
                 subject=evt.subject,
                 start_datetime=occ_start,
                 end_datetime=occ_start + duration,
+                faculty=evt.faculty,
                 location=evt.location,
+                location_detail=evt.location_detail,
+                location_url=evt.location_url,
                 priority=evt.priority,
                 recurrence_rule=recurrence_rule,
                 recurrence_group_id=group_id,

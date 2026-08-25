@@ -102,8 +102,114 @@ def schedule_task_reminders(db: Session, task: Task, user: User) -> int:
     return created
 
 
+def lead_minutes(reminder: Reminder) -> int | None:
+    """How far ahead of its event a reminder is set, in minutes."""
+    if not reminder.event:
+        return None
+    delta = reminder.event.start_datetime - reminder.reminder_datetime
+    if delta.total_seconds() < 0:
+        return None
+    return int(delta.total_seconds() // 60)
+
+
+def resync_event_reminders(db: Session, event: Event) -> int:
+    """Re-anchor an event's pending reminders after its time moved.
+
+    Each reminder keeps its own lead: a professor who set one alert a day
+    ahead and another five minutes before must still have both, at the same
+    distances, once the lecture shifts. Recomputing from a single default --
+    which is what the update path used to do -- silently collapsed them onto
+    the same time.
+
+    Reminders already delivered are left alone; rewriting history would make
+    the notification feed disagree with what actually arrived.
+    """
+    moved = 0
+    for rem in event.reminders:
+        if rem.is_sent:
+            continue
+        lead = _stored_lead(rem)
+        if lead is None:
+            continue
+        rem.reminder_datetime = event.start_datetime - timedelta(minutes=lead)
+        rem.title = f"{event.title} starts in {lead} minutes"
+        moved += 1
+    return moved
+
+
+def _stored_lead(reminder: Reminder) -> int | None:
+    """The lead a reminder was created with.
+
+    Read from the title rather than the timestamps, because by the time an
+    event has moved the timestamps describe the *new* gap, not the intended
+    one.
+    """
+    import re
+
+    m = re.search(r"in (\d+) minutes?$", reminder.title or "")
+    if m:
+        return int(m.group(1))
+    return lead_minutes(reminder)
+
+
+def set_reminder_lead(db: Session, event: Event, user: User, minutes: int) -> int:
+    """Replace an event's pending reminders with a single one at `minutes`."""
+    for rem in list(event.reminders):
+        if not rem.is_sent:
+            db.delete(rem)
+    db.flush()
+    return schedule_event_reminders(db, event, user, leads=[minutes])
+
+
+def clear_event_reminders(db: Session, event: Event) -> int:
+    """Turn reminders off for an event, without touching delivered history."""
+    removed = 0
+    for rem in list(event.reminders):
+        if not rem.is_sent:
+            db.delete(rem)
+            removed += 1
+    return removed
+
+
+# A lecture and a lab want different framing on a lock screen: the icon is
+# what the professor reads first when the phone is face-up on a desk.
+_TYPE_ICON = {
+    "lecture": "📚",         # books
+    "lab": "💻",             # laptop
+    "meeting": "👥",         # people
+    "examination": "📝",     # memo
+    "project_review": "🔍",  # magnifier
+    "deadline": "⏰",            # alarm clock
+}
+_TYPE_LABEL = {
+    "lecture": "Upcoming Lecture",
+    "lab": "Upcoming Lab",
+    "meeting": "Upcoming Meeting",
+    "examination": "Upcoming Exam",
+    "project_review": "Upcoming Review",
+    "deadline": "Deadline",
+}
+
+
+def notification_title(reminder: Reminder) -> str:
+    """Headline for the push/email, e.g. "📚 Upcoming Lecture"."""
+    event = reminder.event
+    if not event:
+        # A standalone reminder ("submit the internal marks") already carries
+        # everything it means in its own title. Replacing that with a generic
+        # word would throw away the only content it has.
+        return reminder.title or "🔔 Reminder"
+    icon = _TYPE_ICON.get(event.event_type, "🔔")
+    return f"{icon} {_TYPE_LABEL.get(event.event_type, 'Upcoming')}"
+
+
 def _describe_when(reminder: Reminder, tz_name: str) -> tuple[str, str | None]:
-    """Human-readable time and location for the reminder's target event."""
+    """Human-readable body and location for the reminder's target event.
+
+    The body carries subject, time span, faculty and room, because a
+    notification that only says "starts in 15 minutes" makes the professor
+    open the app to find out where to walk.
+    """
     from app.services.nlp_dates import ensure_aware_utc, get_tz
 
     event = reminder.event
@@ -111,8 +217,22 @@ def _describe_when(reminder: Reminder, tz_name: str) -> tuple[str, str | None]:
         local = ensure_aware_utc(reminder.reminder_datetime).astimezone(get_tz(tz_name))
         return local.strftime("%A, %d %b at %I:%M %p"), None
 
-    local = ensure_aware_utc(event.start_datetime).astimezone(get_tz(tz_name))
-    return local.strftime("%A, %d %b at %I:%M %p"), event.location
+    tz = get_tz(tz_name)
+    start = ensure_aware_utc(event.start_datetime).astimezone(tz)
+    end = ensure_aware_utc(event.end_datetime).astimezone(tz)
+
+    lead = _stored_lead(reminder)
+    fmt = lambda d: d.strftime("%I:%M %p").lstrip("0")
+
+    lines = [event.subject or event.title, f"{fmt(start)} - {fmt(end)}"]
+    if event.faculty:
+        lines.append(event.faculty)
+    if event.location:
+        lines.append(event.location)
+    if lead:
+        lines.append(f"Starts in {lead} minutes")
+
+    return " · ".join(lines), event.location
 
 
 def process_due_reminders(db: Session, now: datetime | None = None, user_id: str | None = None) -> dict:
@@ -152,7 +272,9 @@ def process_due_reminders(db: Session, now: datetime | None = None, user_id: str
                 failed += 1
                 continue
 
-            title = reminder.title or "Reminder"
+            # The lock-screen headline says what kind of thing this is; the
+            # body carries subject, time, faculty and room.
+            title = notification_title(reminder)
             when_text, location = _describe_when(reminder, user.timezone)
             channel_attempted = channel_ok = False
 

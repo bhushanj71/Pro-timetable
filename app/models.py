@@ -141,7 +141,17 @@ class Event(Base):
     start_datetime: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     end_datetime: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
+    # Who is taking it. Not the account holder: a professor's timetable also
+    # records classes they are not personally delivering.
+    faculty: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # `location` stays the short label shown on a card ("Room 302"). The two
+    # below carry the detail a map or a direction needs, kept separate so a
+    # card never has to render a URL.
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    location_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    location_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
     priority: Mapped[str] = mapped_column(String(16), default=Priority.MEDIUM.value)
 
     # e.g. "weekly:MON,WED,FRI" or "daily" or "monthly:1" or None for one-off

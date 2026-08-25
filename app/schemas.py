@@ -178,7 +178,10 @@ class EventCreate(BaseModel):
     subject: Optional[str] = None
     start_datetime: datetime
     end_datetime: datetime
-    location: Optional[str] = None
+    faculty: Optional[str] = Field(default=None, max_length=255)
+    location: Optional[str] = Field(default=None, max_length=255)
+    location_detail: Optional[str] = None
+    location_url: Optional[str] = Field(default=None, max_length=512)
     priority: str = "medium"
     recurrence_rule: Optional[str] = None
     is_all_day: bool = False
@@ -200,7 +203,10 @@ class EventUpdate(BaseModel):
     subject: Optional[str] = None
     start_datetime: Optional[datetime] = None
     end_datetime: Optional[datetime] = None
-    location: Optional[str] = None
+    faculty: Optional[str] = Field(default=None, max_length=255)
+    location: Optional[str] = Field(default=None, max_length=255)
+    location_detail: Optional[str] = None
+    location_url: Optional[str] = Field(default=None, max_length=512)
     priority: Optional[str] = None
     recurrence_rule: Optional[str] = None
     is_all_day: Optional[bool] = None
@@ -216,7 +222,10 @@ class EventOut(UTCModel):
     subject: Optional[str] = None
     start_datetime: datetime
     end_datetime: datetime
+    faculty: Optional[str] = None
     location: Optional[str] = None
+    location_detail: Optional[str] = None
+    location_url: Optional[str] = None
     priority: str
     recurrence_rule: Optional[str] = None
     recurrence_group_id: Optional[str] = None
@@ -301,14 +310,18 @@ class ScheduleEvent(BaseModel):
     end_time: Optional[str] = None  # "HH:MM" 24h
     recurrence: Optional[str] = None  # "weekly" | "daily" | "monthly" | None
     recurrence_days: Optional[list[str]] = None  # for multi-day weekly recurrence
+    faculty: Optional[str] = None
     location: Optional[str] = None
+    location_detail: Optional[str] = None
+    location_url: Optional[str] = None
     priority: str = "medium"
     reminder_minutes: Optional[int] = None
     description: Optional[str] = None
 
     # LLMs routinely emit the literal string "null" instead of JSON null.
     @field_validator(
-        "subject", "day", "date", "start_time", "end_time", "recurrence", "location", "description",
+        "subject", "day", "date", "start_time", "end_time", "recurrence",
+        "faculty", "location", "location_detail", "location_url", "description",
         mode="before",
     )
     @classmethod
@@ -363,6 +376,38 @@ class AIExtractionResult(BaseModel):
     new_start_time: Optional[str] = None
     new_end_time: Optional[str] = None
     apply_to_series: bool = False
+    # UPDATE_EVENT: field-level replacements, so "change the room" leaves the
+    # time alone and vice versa.
+    new_faculty: Optional[str] = None
+    new_location: Optional[str] = None
+    # Reminder-management intents.
+    reminder_minutes_before: Optional[int] = None
+    reminder_scope: Optional[str] = None
+
+    @field_validator(
+        "target_event_title", "target_day", "new_date", "new_day",
+        "new_start_time", "new_end_time", "new_faculty", "new_location",
+        "reminder_scope", "query_text", "target_date",
+        mode="before",
+    )
+    @classmethod
+    def _blank_strings_to_none(cls, v):
+        """The literal string "null" is truthy, so without this an update
+        wrote "null" into the faculty and location columns as though the
+        professor had typed it."""
+        if isinstance(v, str) and v.strip().lower() in ("null", "none", ""):
+            return None
+        return v
+
+    @field_validator("reminder_minutes_before", "duration_minutes", mode="before")
+    @classmethod
+    def _blank_ints_to_none(cls, v):
+        """LLMs emit the string "null" for integers as readily as for strings,
+        and a ValidationError here discards the whole extraction and silently
+        drops the request to the rule-based fallback."""
+        if isinstance(v, str) and v.strip().lower() in ("null", "none", ""):
+            return None
+        return v
     events: list[ScheduleEvent] = Field(default_factory=list)
     reminders: list[AIReminder] = Field(default_factory=list)
     tasks: list[AITask] = Field(default_factory=list)

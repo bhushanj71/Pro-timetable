@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="/static/css/mobile.css?v={{ v }}">
   <link rel="stylesheet" href="/static/css/theme.css?v={{ v }}">
   <link rel="stylesheet" href="/static/css/glass.css?v={{ v }}">
+  <link rel="stylesheet" href="/static/css/voice.css?v={{ v }}">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <link rel="icon" type="image/png" href="/static/favicon.png?v={{ v }}">
   {% block head %}{% endblock %}
@@ -233,6 +234,7 @@
   {% if user %}
   <script src="/static/js/pwa.js?v={{ v }}"></script>
   <script src="/static/js/push.js?v={{ v }}"></script>
+  <script src="/static/js/voice.js?v={{ v }}"></script>
   <script src="/static/js/onboarding.js?v={{ v }}"></script>
   <script src="/static/js/push-banner.js?v={{ v }}"></script>
   {% endif %}

@@ -13,15 +13,27 @@
       <p class="hero-sub">Let's make today productive and meaningful.</p>
 
       <form id="ai-prompt-form" class="ai-input-row">
-        <input type="text" id="ai-prompt-input" placeholder="What would you like to schedule today?" autocomplete="off" aria-label="Ask AI">
+        <input type="text" id="ai-prompt-input" placeholder="Ask me to manage your schedule…" autocomplete="off" aria-label="Ask AI">
+        <!-- Removed by voice.js where the browser has no speech engine, so it
+             is never offered as something that would fail on tap. -->
+        <button type="button" class="ai-mic" id="ai-mic-btn" aria-pressed="false"
+                aria-label="Speak your command" title="Speak your command">
+          <span class="mic-glyph" aria-hidden="true">🎤</span>
+          <span class="mic-pulse" aria-hidden="true"></span>
+        </button>
         <button type="submit" class="btn-ask">Ask AI <span>✨</span></button>
       </form>
+
+      <div id="voice-panel" class="voice-panel hidden" aria-live="polite"></div>
 
       <div class="ai-examples">
         <button type="button" class="ai-example-chip" data-prompt="I have ANN lecture every Monday at 10 AM">🎓 I have ANN lecture at 10 AM</button>
         <button type="button" class="ai-example-chip" data-prompt="Schedule a department meeting next Friday at 2 PM">👥 Schedule a meeting</button>
         <button type="button" class="ai-example-chip" data-prompt="Remind me tomorrow at 9 AM to submit the internal marks">🔔 Remind me to submit marks</button>
         <button type="button" class="ai-example-chip" data-prompt="When am I free this Friday?">🕐 When am I free?</button>
+        <button type="button" class="ai-example-chip" data-prompt="What is my next lecture?">➡️ What's next?</button>
+        <button type="button" class="ai-example-chip" data-prompt="Where is my next lecture?">📍 Where is it?</button>
+        <button type="button" class="ai-example-chip" data-prompt="Do I have any schedule conflicts this week?">⚠️ Any conflicts?</button>
       </div>
 
       <div id="ai-result"></div>
@@ -137,6 +149,17 @@
 </main>
 
 <!-- Manage a single upcoming event -->
+<!-- Where a class is. Kept separate from the Manage sheet so "where do I go"
+     is one tap, not a trip through an edit form. -->
+<div id="loc-modal" class="modal-backdrop hidden">
+  <div class="modal-card" style="max-width:440px">
+    <div id="loc-body"></div>
+    <div class="modal-actions">
+      <button class="btn" id="loc-close">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="ev-manage-modal" class="modal-backdrop hidden">
   <div class="modal-card" style="max-width:460px">
     <h3 id="evm-title-text">Manage event</h3>
@@ -167,8 +190,26 @@
     </div>
 
     <div class="form-group">
+      <label for="evm-faculty">Faculty</label>
+      <input type="text" id="evm-faculty" placeholder="Prof. Sharma">
+    </div>
+
+    <div class="form-group">
       <label for="evm-location">Location</label>
       <input type="text" id="evm-location" placeholder="Room A-301">
+      <small class="form-hint">The short label shown on the card.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="evm-location-detail">Location details</label>
+      <input type="text" id="evm-location-detail" placeholder="Main Building, 2nd Floor, DYPCOE Campus">
+      <small class="form-hint">Used to find the place on a map.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="evm-location-url">Map link</label>
+      <input type="url" id="evm-location-url" placeholder="https://maps.app.goo.gl/…">
+      <small class="form-hint">Optional. Without one, the map search uses the text above.</small>
     </div>
 
     <div id="evm-series-note" class="hidden guide-note" style="margin-bottom:14px">

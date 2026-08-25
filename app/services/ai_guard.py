@@ -68,6 +68,13 @@ _IN_SCOPE_WORDS = {
     "room", "hall", "venue", "department", "semester", "batch", "students",
     "subject", "syllabus", "attendance", "invigilation", "duty",
     "what", "when", "where", "show", "list", "next", "upcoming",
+    # Location, faculty and conflict vocabulary, so "where do I need to go"
+    # and "any clashes this week" are not mistaken for off-topic chat.
+    "location", "map", "maps", "building", "floor", "block", "campus",
+    "classroom", "lab", "navigate", "directions", "go", "reach",
+    "faculty", "prof", "professor", "teacher", "sir", "madam",
+    "conflict", "conflicts", "clash", "clashes", "overlap", "double",
+    "before", "after", "turn", "off", "on", "set", "search", "find",
 }
 
 _WORD_RE = re.compile(r"[a-z]+")

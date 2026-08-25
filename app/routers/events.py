@@ -13,7 +13,8 @@ from app.models import Event, User
 from app.schemas import EventCreate, EventOut, EventUpdate
 from app.services.conflict_service import find_conflicts, suggest_resolution
 from app.services.recurrence import generate_occurrence_starts
-from app.services.reminder_service import schedule_event_reminders
+from app.services import schedule_query as sq
+from app.services.reminder_service import resync_event_reminders, schedule_event_reminders
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
@@ -84,6 +85,52 @@ def clear_events(
     return {"deleted": deleted, "scope": scope, "subject": subject}
 
 
+@router.get("/next")
+def next_class(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """The soonest upcoming event. Backs both the "next lecture" card and the
+    spoken question, so they can never disagree."""
+    nxt = sq.next_class(db, user)
+    return {"event": sq.serialize(nxt, user.timezone) if nxt else None}
+
+
+@router.get("/conflicts")
+def conflicts(
+    days: int = Query(default=7, ge=1, le=60),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Overlapping pairs in the coming days, labelled by what actually clashes
+    -- the same room, the same person, or just the same slot."""
+    return {"conflicts": sq.find_conflicts(db, user, days=days)}
+
+
+@router.get("/search")
+def search_events(
+    q: str | None = Query(default=None, description="subject or title text"),
+    faculty: str | None = Query(default=None),
+    location: str | None = Query(default=None),
+    event_type: str | None = Query(default=None),
+    include_past: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Search the professor's own schedule. Filters combine."""
+    rows = sq.find_events(
+        db, user, text=q, faculty=faculty, location=location,
+        event_type=event_type, upcoming_only=not include_past,
+    )
+    return {"count": len(rows), "events": [sq.serialize(e, user.timezone) for e in rows]}
+
+
+@router.get("/{event_id}/location")
+def event_location(event_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Everything needed to show or navigate to where a class is."""
+    event = db.query(Event).filter(Event.id == event_id, Event.user_id == user.id).first()
+    if not event:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    return sq.serialize(event, user.timezone)
+
+
 @router.get("/{event_id}", response_model=EventOut)
 def get_event(event_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     event = db.query(Event).filter(Event.id == event_id, Event.user_id == user.id).first()
@@ -130,7 +177,10 @@ def create_event(
             subject=payload.subject,
             start_datetime=occ_start,
             end_datetime=occ_start + duration,
+            faculty=payload.faculty,
             location=payload.location,
+            location_detail=payload.location_detail,
+            location_url=payload.location_url,
             priority=payload.priority,
             recurrence_rule=payload.recurrence_rule,
             recurrence_group_id=group_id,
@@ -206,6 +256,14 @@ def update_event(
                 target.start_datetime = target.start_datetime + time_shift[0]
             if time_shift[1]:
                 target.end_datetime = target.end_datetime + time_shift[1]
+
+    # A moved lecture whose reminder still points at the old time is worse
+    # than no reminder: it fires when nothing is happening and stays silent
+    # when the class actually starts. Re-anchor every pending one, each at the
+    # lead it was created with.
+    if "start_datetime" in updates or time_shift:
+        for target in targets:
+            resync_event_reminders(db, target)
 
     db.commit()
     db.refresh(event)

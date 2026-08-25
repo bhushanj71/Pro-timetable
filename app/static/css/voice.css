@@ -1,0 +1,131 @@
+/* ==========================================================================
+   Voice input and location surfaces
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Microphone button
+   -------------------------------------------------------------------------- */
+.ai-mic {
+  position: relative;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--glass-rim, var(--border));
+  background: var(--glass-bg-faint, var(--surface));
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  backdrop-filter: var(--glass-blur-sm);
+  box-shadow: var(--glass-edge-soft, none);
+  cursor: pointer;
+  font-size: 1.05rem;
+  transition: transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease),
+              box-shadow var(--t-fast) var(--ease);
+}
+.ai-mic:hover { transform: scale(1.06); background: var(--glass-bg, var(--surface-alt)); }
+.ai-mic:active { transform: scale(0.96); }
+.ai-mic:focus-visible { outline: none; box-shadow: 0 0 0 4px var(--primary-ring); }
+
+.mic-glyph { position: relative; z-index: 1; line-height: 1; }
+
+/* The ring only exists while listening, so an idle button is completely still
+   rather than quietly animating in the corner of the professor's eye. */
+.mic-pulse { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
+
+.ai-mic.is-listening {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+.ai-mic.is-listening .mic-pulse {
+  box-shadow: 0 0 0 0 var(--danger);
+  animation: micPulse 1.5s var(--ease-out) infinite;
+}
+@keyframes micPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(208, 98, 92, 0.55); }
+  70%  { box-shadow: 0 0 0 14px rgba(208, 98, 92, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(208, 98, 92, 0); }
+}
+
+/* --------------------------------------------------------------------------
+   Listening panel
+   -------------------------------------------------------------------------- */
+.voice-panel {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--glass-bg-strong, var(--surface));
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-rim, var(--border));
+  box-shadow: var(--glass-shadow, var(--shadow));
+  animation: scaleIn var(--t) var(--ease-out) both;
+}
+.vp-row { display: flex; align-items: center; gap: 10px; font-size: 0.87rem; }
+.vp-row .btn { margin-left: auto; }
+
+.vp-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--danger);
+  animation: vpBlink 1.1s var(--ease) infinite;
+  flex: 0 0 auto;
+}
+@keyframes vpBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+/* Reserves its line even when empty, so the panel does not jump taller the
+   moment the first word is recognised. */
+.vp-heard {
+  margin-top: 8px;
+  min-height: 1.3em;
+  font-size: 0.95rem;
+  color: var(--text);
+  font-style: italic;
+}
+.vp-error { color: var(--danger); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-mic.is-listening .mic-pulse, .vp-dot { animation: none; }
+  .voice-panel { animation: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Location
+   -------------------------------------------------------------------------- */
+.loc-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 11px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--glass-rim, var(--border));
+  background: var(--glass-bg-faint, var(--surface-alt));
+  color: var(--text-soft);
+  font: inherit; font-size: 0.76rem; font-weight: 600;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.loc-btn:hover { background: var(--primary-softer); color: var(--primary); }
+.loc-btn[disabled] { opacity: 0.5; cursor: default; }
+
+.loc-meta {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-size: 0.76rem; color: var(--text-muted);
+}
+
+/* Location sheet */
+.loc-sheet-title { display: flex; align-items: center; gap: 9px; margin: 0 0 4px; }
+.loc-line { display: flex; gap: 9px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.loc-line:last-of-type { border-bottom: none; }
+.loc-line .loc-key { color: var(--text-muted); min-width: 78px; font-size: 0.78rem; }
+.loc-line .loc-val { color: var(--text); font-weight: 600; font-size: 0.88rem; }
+.loc-none { color: var(--text-muted); font-size: 0.85rem; padding: 10px 0; }
+
+/* --------------------------------------------------------------------------
+   Mobile
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .ai-input-row { flex-wrap: wrap; }
+  /* The mic is the primary action on a phone -- typing a sentence one-handed
+     is the slow path -- so it keeps its full size while the Ask button wraps. */
+  .ai-mic { width: 46px; height: 46px; font-size: 1.15rem; }
+  .voice-panel { position: sticky; bottom: 8px; z-index: 5; }
+}

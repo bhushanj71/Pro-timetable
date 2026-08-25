@@ -65,10 +65,14 @@ async function loadUpcomingEvents() {
         <div style="flex:1;min-width:0">
           <div class="ue-title">${esc(e.title)}</div>
           <div class="ue-meta">${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} • ${fmtTime(e.start_datetime)}</div>
-          ${e.location ? `<div class="ue-meta">${esc(e.location)}</div>` : ""}
+          ${e.faculty ? `<div class="ue-meta">\u{1F9D1}\u{200D}\u{1F3EB} ${esc(e.faculty)}</div>` : ""}
+          ${e.location ? `<div class="loc-meta">\u{1F4CD} ${esc(e.location)}</div>` : ""}
         </div>
         <div class="ue-actions">
           <span class="tag" style="background:${categorySoft(e.event_type)};color:${categoryColor(e.event_type)}">${labelFor(e.event_type)}</span>
+          ${e.location || e.location_detail || e.location_url
+            ? `<button class="loc-btn" data-location="${e.id}" title="Show where this is">\u{1F4CD} Show Location</button>`
+            : ""}
           <button class="btn btn-sm ue-manage" data-manage="${e.id}" title="Manage this event">Manage</button>
         </div>
       </div>`;
@@ -350,6 +354,9 @@ async function openManageModal(eventId) {
   document.getElementById("evm-start").value = evmLocalTime(start);
   document.getElementById("evm-end").value = evmLocalTime(end);
   document.getElementById("evm-location").value = ev.location || "";
+  document.getElementById("evm-faculty").value = ev.faculty || "";
+  document.getElementById("evm-location-detail").value = ev.location_detail || "";
+  document.getElementById("evm-location-url").value = ev.location_url || "";
   document.getElementById("evm-subtitle").textContent =
     `${start.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })} · ${fmtTime(ev.start_datetime)}`;
 
@@ -360,8 +367,53 @@ async function openManageModal(eventId) {
 
 // Delegated so the handler survives the list re-rendering.
 document.getElementById("upcoming-events")?.addEventListener("click", (e) => {
-  const btn = e.target.closest("[data-manage]");
-  if (btn) openManageModal(btn.dataset.manage);
+  const manage = e.target.closest("[data-manage]");
+  if (manage) { openManageModal(manage.dataset.manage); return; }
+  const loc = e.target.closest("[data-location]");
+  if (loc) showLocation(loc.dataset.location);
+});
+
+/* Where a class is, and how to get there.
+
+   The map link is opened in a new tab rather than embedded: an iframe would
+   need a third-party frame the CSP deliberately forbids, and the phone's own
+   maps app handles a maps URL better than any embed would. */
+async function showLocation(eventId) {
+  const modal = document.getElementById("loc-modal");
+  const body = document.getElementById("loc-body");
+  if (!modal || !body) return;
+
+  modal.classList.remove("hidden");
+  body.innerHTML = `<div class="loc-none">Loading…</div>`;
+
+  let d;
+  try {
+    d = await apiFetch(`/api/events/${eventId}/location`);
+  } catch (_) {
+    body.innerHTML = `<div class="loc-none">Could not load that location.</div>`;
+    return;
+  }
+
+  const row = (k, v) => v ? `<div class="loc-line"><span class="loc-key">${k}</span><span class="loc-val">${esc(v)}</span></div>` : "";
+  const hasAny = d.location || d.location_detail;
+
+  body.innerHTML = `
+    <h3 class="loc-sheet-title">\u{1F4CD} ${esc(d.title)}</h3>
+    <p class="muted-text" style="margin:0 0 10px">${esc(d.when)}</p>
+    ${hasAny ? `
+      ${row("Where", d.location)}
+      ${row("Details", d.location_detail)}
+      ${row("Faculty", d.faculty)}
+    ` : `<div class="loc-none">No location saved for this one yet. Add one with Manage, or just say “set the room for ${esc(d.title)} to Room 302”.</div>`}
+    ${d.map_url ? `<div class="modal-actions" style="margin-top:14px">
+        <a class="btn btn-primary" href="${esc(d.map_url)}" target="_blank" rel="noopener noreferrer">\u{1F5FA}\u{FE0F} Open in Maps</a>
+      </div>` : ""}`;
+}
+
+const closeLoc = () => document.getElementById("loc-modal")?.classList.add("hidden");
+document.getElementById("loc-close")?.addEventListener("click", closeLoc);
+document.getElementById("loc-modal")?.addEventListener("click", (e) => {
+  if (e.target.id === "loc-modal") closeLoc();
 });
 
 const closeManage = () => document.getElementById("ev-manage-modal")?.classList.add("hidden");
@@ -396,6 +448,9 @@ document.getElementById("evm-save")?.addEventListener("click", async (e) => {
         start_datetime: start.toISOString(),
         end_datetime: end.toISOString(),
         location: document.getElementById("evm-location").value.trim() || null,
+        faculty: document.getElementById("evm-faculty").value.trim() || null,
+        location_detail: document.getElementById("evm-location-detail").value.trim() || null,
+        location_url: document.getElementById("evm-location-url").value.trim() || null,
       },
     });
     showToast("Event updated", "success");

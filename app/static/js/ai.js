@@ -10,7 +10,71 @@ function renderExtractionPreview(response) {
   const { intent, extraction, summary, conflicts, requires_confirmation } = response;
 
   if (intent === "FIND_FREE_TIME" || intent === "QUERY_SCHEDULE") {
-    box.innerHTML = `<div class="ai-confirm-card"><div>${summary}</div></div>`;
+    box.innerHTML = `<div class="ai-confirm-card"><div>${esc(summary)}</div></div>`;
+    return;
+  }
+
+  /* Look-ups: the server has already answered, so there is nothing to
+     confirm. Rendering these through the create path is what produced
+     "Nothing actionable found" for a perfectly good question. */
+  if (intent === "OUT_OF_SCOPE") {
+    box.innerHTML = `<div class="ai-result-card">💬 ${esc(summary)}</div>`;
+    return;
+  }
+
+  if (["GET_NEXT_CLASS", "SHOW_LOCATION", "CHECK_CONFLICTS", "VIEW_REMINDERS"].includes(intent)) {
+    const rows = (response.matches || []).map((m) => {
+      // VIEW_REMINDERS returns reminders; the others return events.
+      if (m.minutes_before !== undefined) {
+        return `<div class="event-line">🔔 <strong>${esc(m.event_title || m.title)}</strong> — ${esc(m.local)}${
+          m.minutes_before != null ? ` · ${m.minutes_before} min before` : ""}</div>`;
+      }
+      const where = m.location ? ` · 📍 ${esc(m.location)}` : "";
+      const who = m.faculty ? ` · ${esc(m.faculty)}` : "";
+      const map = m.map_url
+        ? ` <a class="loc-btn" href="${esc(m.map_url)}" target="_blank" rel="noopener noreferrer">Open in Maps</a>`
+        : "";
+      return `<div class="event-line">📚 <strong>${esc(m.title)}</strong> — ${esc(m.when)}${who}${where}${map}</div>`;
+    }).join("");
+
+    const clashes = (response.conflicts || []).map(
+      (c) => `<div class="event-line">⚠️ <strong>${esc(c.a.title)}</strong> clashes with <strong>${esc(c.b.title)}</strong> — ${esc(c.a.when)}${
+        c.kind !== "time" ? ` (same ${esc(c.kind)})` : ""}</div>`
+    ).join("");
+
+    box.innerHTML = `
+      <div class="ai-result-card">
+        <div><strong>${esc(summary)}</strong></div>
+        ${rows}${clashes}
+      </div>`;
+    return;
+  }
+
+  /* Changing a reminder rule is a write, so it is confirmed -- but it must be
+     described as the rule change it is. Falling through to the create-reminder
+     preview announced it as a brand new reminder. */
+  if (intent === "UPDATE_REMINDER" || intent === "DELETE_REMINDER") {
+    const scope = extraction.reminder_scope || extraction.target_event_title || "your upcoming classes";
+    const mins = extraction.reminder_minutes_before;
+    const off = intent === "DELETE_REMINDER";
+    box.innerHTML = `
+      <div class="ai-result-card">
+        <div><strong>I understood the following:</strong></div>
+        <div class="event-line">🔔 ${off
+          ? `Turn <strong>off</strong> reminders for <strong>${esc(scope)}</strong>`
+          : `Remind <strong>${mins != null ? mins + " minutes" : "the usual time"}</strong> before <strong>${esc(scope)}</strong>`}</div>
+        <div class="modal-actions">
+          <button class="btn ${off ? "btn-danger" : "btn-primary"}" id="ai-confirm-btn">${off ? "Turn off" : "Apply"}</button>
+          <button class="btn" id="ai-cancel-btn">Cancel</button>
+        </div>
+      </div>`;
+    wireConfirmButtons(box, off ? "delete" : "update");
+    return;
+  }
+
+  /* Reminder rules and other server-executed actions come back already done. */
+  if (requires_confirmation === false && summary) {
+    box.innerHTML = `<div class="ai-result-card">✓ ${esc(summary)}</div>`;
     return;
   }
 

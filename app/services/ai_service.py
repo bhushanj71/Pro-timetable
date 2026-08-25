@@ -48,7 +48,7 @@ When a request is out of scope, return exactly:
 Otherwise convert it into STRICT JSON matching this schema, and nothing else:
 
 {
-  "intent": "CREATE_EVENT | UPDATE_EVENT | DELETE_EVENT | CREATE_REMINDER | DELETE_REMINDER | QUERY_SCHEDULE | GENERATE_TIMETABLE | FIND_FREE_TIME | CREATE_TASK | COMPLETE_TASK | CREATE_RECURRING_EVENT",
+  "intent": "CREATE_EVENT | UPDATE_EVENT | DELETE_EVENT | CREATE_REMINDER | UPDATE_REMINDER | DELETE_REMINDER | VIEW_REMINDERS | QUERY_SCHEDULE | GET_NEXT_CLASS | SHOW_LOCATION | CHECK_CONFLICTS | GENERATE_TIMETABLE | FIND_FREE_TIME | CREATE_TASK | COMPLETE_TASK | CREATE_RECURRING_EVENT",
   "events": [
     {
       "title": "string",
@@ -60,7 +60,9 @@ Otherwise convert it into STRICT JSON matching this schema, and nothing else:
       "end_time": "HH:MM 24-hour",
       "recurrence": "weekly | daily | monthly | null",
       "recurrence_days": ["Monday", "Wednesday"] or null,
-      "location": "string or null",
+      "faculty": "who takes it, e.g. 'Prof. Sharma', or null",
+      "location": "short label for a card, e.g. 'Room 302' or 'AI Lab 2', or null",
+      "location_detail": "fuller address if the user gave one, e.g. 'Main Building, 2nd Floor', or null",
       "priority": "low | medium | high | urgent",
       "reminder_minutes": integer or null,
       "description": "string or null"
@@ -79,6 +81,10 @@ Otherwise convert it into STRICT JSON matching this schema, and nothing else:
   "new_start_time": "UPDATE_EVENT only: HH:MM 24-hour, or null",
   "new_end_time": "UPDATE_EVENT only: HH:MM 24-hour, or null",
   "apply_to_series": "true if the user clearly means every occurrence ('cancel all my ANN lectures'), else false",
+  "new_faculty": "UPDATE_EVENT only: replacement faculty name, or null",
+  "new_location": "UPDATE_EVENT only: replacement room/location, or null",
+  "reminder_minutes_before": "CREATE_REMINDER / UPDATE_REMINDER: how many minutes before, or null",
+  "reminder_scope": "the subject or event the reminder rule applies to, e.g. 'DBMS' or 'every lecture', or null",
   "query_text": "string or null (for QUERY_SCHEDULE)",
   "duration_minutes": integer or null (for FIND_FREE_TIME),
   "target_date": "YYYY-MM-DD or null (for FIND_FREE_TIME / QUERY_SCHEDULE)",
@@ -86,6 +92,16 @@ Otherwise convert it into STRICT JSON matching this schema, and nothing else:
 }
 
 Rules:
+- GET_NEXT_CLASS for "what's my next lecture", "where do I need to go next".
+- SHOW_LOCATION when the user asks where something is. Put the event they mean
+  in target_event_title, or leave it null to mean "the next one".
+- CHECK_CONFLICTS for "do I have any clashes this week".
+- VIEW_REMINDERS to list reminders; UPDATE_REMINDER to change a lead time
+  ("make my DBMS reminder 30 minutes before"); DELETE_REMINDER to turn one off.
+  Put the affected subject in reminder_scope and the lead time in
+  reminder_minutes_before.
+- Capture faculty and room whenever they are mentioned, on create and update
+  alike. "Change Prof Sharma to Prof Patil" is UPDATE_EVENT with new_faculty.
 - Choose DELETE_EVENT when the user says cancel, delete, remove, drop or call off an existing event. Do NOT emit any "events" for a delete — only fill target_event_title (and target_day if given).
 - Choose UPDATE_EVENT when the user says move, reschedule, shift, change or postpone an existing event. Put the EXISTING event's name in target_event_title and only what changes in new_date / new_day / new_start_time / new_end_time. Leave "events" empty.
 - Only use CREATE_EVENT / CREATE_RECURRING_EVENT when the user is adding something new.
@@ -159,6 +175,63 @@ class AIService:
     # ------------------------------------------------------------------
     # Rule-based fallback (no LLM key configured)
     # ------------------------------------------------------------------
+    @staticmethod
+    def _read_only_payload(intent: str, text: str, lower: str, times: list) -> dict:
+        """Shape a look-up intent for the router.
+
+        The router does the actual looking up; all this has to carry is which
+        question was asked and, where relevant, which subject it was about.
+        """
+        import re as _re
+
+        # "where is my DBMS lecture" -> DBMS. Strip the question scaffolding and
+        # whatever is left is the subject, if anything is.
+        target = None
+        m = _re.search(
+            r"(?:where is|where's|location of|show location for|show me where|open the location of)\s+"
+            r"(?:my |the |todays |today's |tomorrows |tomorrow's )*(.+?)\s*[?.!]*$",
+            lower,
+        )
+        if m:
+            candidate = m.group(1).strip()
+            if candidate and candidate not in ("class", "lecture", "lab", "it", "next class", "next lecture"):
+                target = candidate
+
+        minutes = None
+        mm = _re.search(r"(\d+)\s*(minute|min)", lower)
+        if mm:
+            minutes = int(mm.group(1))
+        elif _re.search(r"(\d+)\s*hour", lower):
+            minutes = int(_re.search(r"(\d+)\s*hour", lower).group(1)) * 60
+
+        scope = None
+        for pattern in (
+            r"(?:for|to)\s+(?:my |the )?([a-z0-9 &]+?)\s*(?:lecture|lab|class|classes|reminders?)",
+            r"my\s+([a-z0-9 &]+?)\s+reminders?",          # "my DBMS reminder to 30 minutes"
+            r"before\s+(?:my |the )?([a-z0-9 &]+?)\s*(?:lecture|lab|class|classes)",
+            # "...reminders for AI" -- the subject ends the sentence.
+            r"(?:for|off for)\s+(?:my |the )?([a-z0-9 &]+?)\s*[?.!]*$",
+        ):
+            ms = _re.search(pattern, lower)
+            if ms:
+                candidate = ms.group(1).strip()
+                if candidate and candidate not in ("next", "my", "the", "every", "all"):
+                    scope = candidate
+                    break
+        if not scope and ("every lecture" in lower or "every class" in lower or "every lab" in lower):
+            scope = "every lecture"
+
+        return {
+            "intent": intent,
+            "events": [],
+            "reminders": [],
+            "tasks": [],
+            "target_event_title": target,
+            "reminder_minutes_before": minutes,
+            "reminder_scope": scope,
+            "notes": "Parsed with the built-in rule-based fallback (no AI provider configured).",
+        }
+
     def _fallback_rule_based(self, prompt: str, user_context: dict) -> dict:
         from app.services.nlp_dates import WEEKDAYS
 
@@ -178,6 +251,44 @@ class AIService:
 
         cancel_words = ("cancel", "delete", "remove", "drop", "call off")
         move_words = ("move", "reschedule", "shift", "postpone", "change")
+
+        # Read-only questions are checked first. They frequently contain the
+        # same verbs as the write intents -- "show my next lecture" has
+        # "lecture" in it, "where is my class" has "class" -- so testing them
+        # after has_event_signal would turn every question into a new event.
+        intent = None
+        asks_location = any(
+            w in lower for w in ("where is", "where's", "where do i", "location of",
+                                 "show location", "show me where", "take me to", "open the location")
+        )
+        asks_next = any(
+            w in lower for w in ("next lecture", "next class", "next lab", "what is my next",
+                                 "what's my next", "where do i need to go", "upcoming class")
+        )
+        asks_conflict = any(w in lower for w in ("conflict", "clash", "double booked", "overlap"))
+        asks_reminders = (
+            ("show" in lower or "list" in lower or "all my" in lower or "what" in lower)
+            and "reminder" in lower
+        )
+        reminder_off = "reminder" in lower and any(w in lower for w in ("turn off", "disable", "stop", "no more"))
+        reminder_set = "remind" in lower and re.search(r"(\d+)\s*(minute|min|hour)", lower)
+        reminder_rule = bool(reminder_set) and " before" in lower and not times
+
+        if asks_location:
+            intent = "SHOW_LOCATION"
+        elif asks_next:
+            intent = "GET_NEXT_CLASS"
+        elif asks_conflict:
+            intent = "CHECK_CONFLICTS"
+        elif asks_reminders:
+            intent = "VIEW_REMINDERS"
+        elif reminder_off:
+            intent = "DELETE_REMINDER"
+        elif reminder_rule or (reminder_set and any(w in lower for w in ("change", "make", "set", "update"))):
+            intent = "UPDATE_REMINDER"
+
+        if intent:
+            return self._read_only_payload(intent, text, lower, times)
 
         intent = "CREATE_EVENT"
         if any(w in lower for w in cancel_words):
@@ -269,7 +380,14 @@ class AIService:
                 # Times may be written as "4 PM" or as bare 24-hour "15:00".
                 h24 = re.findall(r"\b([01]?\d|2[0-3]):([0-5]\d)\b", text)
                 payload["new_day"] = days_found[-1] if days_found else None
-                if times:
+                # "move it FROM 10 AM TO 11 AM" names the current time first
+                # and the new one second. Reading those as start and end moved
+                # the lecture to 10-11, i.e. nowhere.
+                moving_from = bool(re.search(r"from.*to", lower))
+                if times and moving_from and len(times) > 1:
+                    payload["new_start_time"] = end_time
+                    payload["new_end_time"] = None
+                elif times:
                     payload["new_start_time"] = start_time
                     payload["new_end_time"] = end_time if len(times) > 1 else None
                 elif h24:
