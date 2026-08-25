@@ -10,6 +10,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models import Task, User
 from app.schemas import TaskCreate, TaskOut, TaskUpdate
+from app.services import activity
 from app.services.reminder_service import schedule_task_reminders
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
@@ -37,6 +38,7 @@ def create_task(payload: TaskCreate, db: Session = Depends(get_db), user: User =
     db.flush()
     # Tasks created here previously had no reminders at all.
     schedule_task_reminders(db, task, user)
+    activity.record(db, user.id, activity.Activity.TASK_CREATED, f"Added task: {task.title}")
     db.commit()
     db.refresh(task)
     return task
@@ -67,6 +69,7 @@ def complete_task(task_id: str, db: Session = Depends(get_db), user: User = Depe
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
     task.status = "completed"
     task.completed_at = datetime.now(timezone.utc)
+    activity.record(db, user.id, activity.Activity.TASK_COMPLETED, f"Completed: {task.title}")
     db.commit()
     db.refresh(task)
     return task
@@ -77,6 +80,7 @@ def delete_task(task_id: str, db: Session = Depends(get_db), user: User = Depend
     task = db.query(Task).filter(Task.id == task_id, Task.user_id == user.id).first()
     if not task:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
+    activity.record(db, user.id, activity.Activity.TASK_DELETED, f"Deleted task: {task.title}")
     db.delete(task)
     db.commit()
     return None

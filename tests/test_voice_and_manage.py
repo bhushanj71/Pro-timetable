@@ -6,7 +6,7 @@ Voice is not tested here because it has no server side. Speech becomes text
 in the browser and then travels the identical path a typed sentence does --
 that is the whole design -- so these tests cover both inputs at once.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 
 import pytest
 
@@ -130,6 +130,20 @@ def test_an_unmatched_target_is_reported_not_invented(auth_client):
     assert len(auth_client.get("/api/events").json()) == before
 
 
+def _local_tomorrow_at(hour: int) -> datetime:
+    """A UTC instant that lands on the user's local *tomorrow*.
+
+    The app resolves "tomorrow" in the professor's timezone (Asia/Kolkata by
+    default), so building the event from a UTC offset makes the test pass or
+    fail depending on what time of day it runs -- which is how three of these
+    started failing after midnight UTC.
+    """
+    from app.services.nlp_dates import combine, resolve_date
+
+    day = resolve_date("tomorrow", "Asia/Kolkata")
+    return combine(day, time(hour, 0), "Asia/Kolkata")
+
+
 # --- Holidays --------------------------------------------------------------
 
 @pytest.mark.parametrize("prompt", [
@@ -160,10 +174,9 @@ def test_ordinary_commands_are_not_read_as_holidays(prompt):
 def test_a_holiday_cancels_teaching_and_leaves_the_rest(auth_client, db_session):
     """A closed campus stops classes. It does not move a submission deadline
     or a personal appointment, so those stay."""
-    tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
-    for title, typ, hour in [("DBMS Lecture", "lecture", 4), ("AI Lab", "lab", 7),
-                             ("Dept Meeting", "meeting", 9), ("Marks deadline", "deadline", 11)]:
-        st = tomorrow.replace(hour=hour, minute=0, second=0, microsecond=0)
+    for title, typ, hour in [("DBMS Lecture", "lecture", 10), ("AI Lab", "lab", 13),
+                             ("Dept Meeting", "meeting", 15), ("Marks deadline", "deadline", 17)]:
+        st = _local_tomorrow_at(hour)
         auth_client.post("/api/events?force=true", json={
             "title": title, "event_type": typ,
             "start_datetime": st.isoformat(),
@@ -184,8 +197,7 @@ def test_a_holiday_cancels_teaching_and_leaves_the_rest(auth_client, db_session)
 def test_a_cancelled_day_is_recoverable(auth_client, db_session):
     """Cancelled, not deleted: a festival gets moved and the professor should
     get the day back without retyping a timetable."""
-    tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
-    st = tomorrow.replace(hour=5, minute=0, second=0, microsecond=0)
+    st = _local_tomorrow_at(10)
     ev = auth_client.post("/api/events?force=true", json={
         "title": "DBMS Lecture", "event_type": "lecture",
         "start_datetime": st.isoformat(),
@@ -200,8 +212,7 @@ def test_a_cancelled_day_is_recoverable(auth_client, db_session):
 
 
 def test_a_holiday_silences_that_day_s_reminders(auth_client, db_session):
-    tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
-    st = tomorrow.replace(hour=6, minute=0, second=0, microsecond=0)
+    st = _local_tomorrow_at(11)
     ev = auth_client.post("/api/events?force=true", json={
         "title": "AI Lab", "event_type": "lab",
         "start_datetime": st.isoformat(),
@@ -223,9 +234,8 @@ def test_a_holiday_on_a_free_day_says_so(auth_client):
 
 
 def test_a_holiday_only_touches_the_named_day(auth_client):
-    now = datetime.now(timezone.utc)
     for days in (1, 2):
-        st = (now + timedelta(days=days)).replace(hour=5, minute=0, second=0, microsecond=0)
+        st = _local_tomorrow_at(10) + timedelta(days=days - 1)
         auth_client.post("/api/events?force=true", json={
             "title": f"Lecture day {days}", "event_type": "lecture",
             "start_datetime": st.isoformat(),

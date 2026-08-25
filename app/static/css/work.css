@@ -269,3 +269,16 @@
   .wk-request-actions { width: 100%; }
   .ps-opt { padding: 10px 10px; font-size: 0.75rem; }
 }
+
+/* Each row says which side it came from. The two feeds are merged in one
+   inbox, so without a tag "Rahul accepted" and "Lecture in 30 minutes" would
+   sit together with nothing to distinguish a colleague's action from your own
+   timetable. */
+.wn-when { display: flex; align-items: center; gap: 6px; }
+.wn-tag {
+  font-size: 0.6rem; font-weight: 800; letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px; border-radius: var(--radius-pill);
+}
+.wn-tag.work { background: var(--primary-soft); color: var(--primary-hover); }
+.wn-tag.personal { background: var(--info-soft); color: var(--info); }

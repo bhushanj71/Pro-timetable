@@ -36,7 +36,7 @@ from app.services.nlp_dates import (
     weekday_code,
 )
 from app.services.ai_guard import OUT_OF_SCOPE, check_prompt
-from app.services import schedule_query as sq
+from app.services import activity, schedule_query as sq
 from app.services.recurrence import generate_occurrence_starts
 from app.services.reminder_service import (
     clear_event_reminders,
@@ -473,6 +473,10 @@ def confirm_extraction(payload: AIConfirmRequest, db: Session = Depends(get_db),
             else:
                 doomed[event.id] = event
 
+        first_title = next(iter(doomed.values())).title
+        title, body = activity.summarise_series(len(doomed), f"Deleted {first_title}")
+        activity.record(db, user.id, activity.Activity.EVENT_DELETED, title, body)
+
         for event in doomed.values():
             db.delete(event)
         deleted = len(doomed)
@@ -529,6 +533,9 @@ def confirm_extraction(payload: AIConfirmRequest, db: Session = Depends(get_db),
             updated += 1
             last_changes = changed
 
+        activity.record(db, user.id, activity.Activity.EVENT_UPDATED,
+                        f"Updated {targets[0].title}",
+                        ", ".join(last_changes) or None)
         db.commit()
         detail = ", ".join(last_changes) if last_changes else "no visible change"
         return {
@@ -550,6 +557,9 @@ def confirm_extraction(payload: AIConfirmRequest, db: Session = Depends(get_db),
             event.is_cancelled = True
             clear_event_reminders(db, event)
 
+        activity.record(db, user.id, activity.Activity.EVENT_CANCELLED,
+                        f"Cancelled {len(affected)} class(es)",
+                        day.strftime("%A, %d %b"))
         db.commit()
         pretty = day.strftime("%A, %d %b")
         return {

@@ -1,12 +1,24 @@
-/* Work notification centre.
+/* The notification bell: one inbox, both kinds.
 
-   Reuses the existing bell rather than adding a second one: in Work mode the
-   bell shows work activity, in Personal mode it shows schedule reminders. One
-   control, one badge, and no chance of a professor watching the wrong one.
+   The bell used to show work activity only while you were in Work mode, which
+   meant an invitation or a progress update that arrived while you were looking
+   at your timetable never appeared at all -- the badge stayed silent until you
+   happened to switch. A notification you have to be in the right room to see
+   is not a notification.
 
-   On a phone the panel becomes a bottom sheet. A dropdown anchored to a
-   top-right icon is unreachable one-handed and, at 40 items, taller than the
-   screen. */
+   So the bell now merges both feeds in both modes, newest first, with each row
+   marked for where it came from. That is not a hole in the separation between
+   Personal and Work: the two remain different *data*, shown on different
+   pages: this is one person's own inbox, and they are entitled to see
+   everything addressed to them in one place.
+
+   On a phone the panel is a bottom sheet -- a dropdown pinned to a top-right
+   icon is unreachable one-handed and, at forty items, taller than the screen.
+*/
+
+// Claimed before anything else runs, so app.js's personal renderer stands
+// down in both modes rather than racing this one.
+window.__notificationCentre = true;
 
 const WK_ICON = {
   task_assigned: "📥", task_accepted: "✅", task_declined: "❌",
@@ -17,8 +29,6 @@ const WK_ICON = {
   removed_from_community: "🚪", task_updated: "📝",
 };
 
-const isWorkMode = () => document.body.dataset.profile === "work";
-
 function relTime(iso) {
   const secs = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
   if (secs < 60) return "just now";
@@ -28,86 +38,120 @@ function relTime(iso) {
   return `${Math.floor(secs / 86400)} days ago`;
 }
 
-/** Group by day, because a flat list of 40 gives no sense of when. */
 function dayBucket(iso) {
   const d = new Date(iso), now = new Date();
-  const sameDay = (a, b) => a.toDateString() === b.toDateString();
-  if (sameDay(d, now)) return "Today";
+  const same = (a, b) => a.toDateString() === b.toDateString();
+  if (same(d, now)) return "Today";
   const y = new Date(now); y.setDate(y.getDate() - 1);
-  if (sameDay(d, y)) return "Yesterday";
+  if (same(d, y)) return "Yesterday";
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-async function renderWorkNotifications() {
-  const panel = document.getElementById("notif-panel");
+/** Both feeds, merged and sorted newest-first. */
+async function collectNotifications() {
+  const [work, personal] = await Promise.all([
+    apiFetch("/api/work/notifications").catch(() => ({ items: [], unread: 0 })),
+    apiFetch("/api/reminders/notifications").catch(() => ({ items: [], unread: 0 })),
+  ]);
+
+  const rows = [
+    ...work.items.map((n) => ({
+      source: "work", id: n.id, kind: n.kind, title: n.title, body: n.body,
+      at: n.at, read: n.read, taskId: n.task_id,
+    })),
+    ...personal.items.map((n) => ({
+      source: "personal", id: n.id, kind: "reminder",
+      title: n.title || "Reminder", body: null,
+      at: n.reminder_datetime, read: n.is_read, taskId: null,
+    })),
+  ].sort((a, b) => new Date(b.at) - new Date(a.at));
+
+  return { rows, unread: (work.unread || 0) + (personal.unread || 0) };
+}
+
+function setBadges(unread) {
   const badge = document.getElementById("notif-count");
+  if (badge) {
+    badge.textContent = unread > 9 ? "9+" : unread;
+    badge.classList.toggle("hidden", unread === 0);
+  }
+}
+
+async function renderNotificationCentre() {
+  const panel = document.getElementById("notif-panel");
   if (!panel) return;
 
   let data;
   try {
-    data = await apiFetch("/api/work/notifications");
+    data = await collectNotifications();
   } catch (_) {
     return;
   }
-
-  if (badge) {
-    badge.textContent = data.unread > 9 ? "9+" : data.unread;
-    badge.classList.toggle("hidden", data.unread === 0);
-  }
-  // The Work tab in the switcher carries the same count, so the badge is
-  // visible from Personal mode too.
-  const tab = document.getElementById("ps-work-badge");
-  if (tab) {
-    tab.textContent = data.unread > 9 ? "9+" : data.unread;
-    tab.classList.toggle("hidden", data.unread === 0);
-  }
+  setBadges(data.unread);
 
   let lastBucket = null;
-  const rows = data.items.map((n) => {
+  const rows = data.rows.map((n) => {
     const bucket = dayBucket(n.at);
     const header = bucket !== lastBucket ? `<div class="wn-day">${esc(bucket)}</div>` : "";
     lastBucket = bucket;
+    const icon = n.source === "work" ? (WK_ICON[n.kind] || "💼") : "🔔";
     return `${header}
-      <div class="wn-item${n.read ? "" : " unread"}" ${n.task_id ? `data-wn-task="${n.task_id}"` : ""}>
-        <span class="wn-ico" aria-hidden="true">${WK_ICON[n.kind] || "🔔"}</span>
+      <div class="wn-item${n.read ? "" : " unread"}"
+           ${n.taskId ? `data-wn-task="${n.taskId}"` : ""}>
+        <span class="wn-ico" aria-hidden="true">${icon}</span>
         <div class="wn-body">
           <div class="wn-title">${esc(n.title)}</div>
           ${n.body ? `<div class="wn-sub">${esc(n.body)}</div>` : ""}
-          <div class="wn-when">${esc(relTime(n.at))}</div>
+          <div class="wn-when">
+            <span class="wn-tag ${n.source}">${n.source === "work" ? "Work" : "Schedule"}</span>
+            ${esc(relTime(n.at))}
+          </div>
         </div>
-        <button class="wn-x" data-wn-dismiss="${n.id}" aria-label="Dismiss">✕</button>
+        ${n.source === "work"
+          ? `<button class="wn-x" data-wn-dismiss="${n.id}" aria-label="Dismiss">✕</button>` : ""}
       </div>`;
   }).join("");
 
   panel.innerHTML = `
     <div class="notif-head">
-      <span>💼 Work activity</span>
-      <button type="button" class="notif-clear" id="wn-clear" ${data.items.length ? "" : "disabled"}>Clear all</button>
+      <span>Notifications</span>
+      <button type="button" class="notif-clear" id="wn-clear" ${data.rows.length ? "" : "disabled"}>Clear all</button>
     </div>
-    ${rows || `<div class="notif-item notif-empty">Nothing yet. Task activity shows up here.</div>`}`;
+    ${rows || `<div class="notif-item notif-empty">Nothing yet. Task activity and reminders show up here.</div>`}`;
 }
 
-/* Tapping a notification opens the task it is about -- the whole point of the
-   badge is to get somewhere, not just to be dismissed. */
+/* Mark everything seen, both feeds. */
+async function markAllRead() {
+  await Promise.all([
+    apiFetch("/api/work/notifications/read", { method: "POST" }).catch(() => {}),
+    apiFetch("/api/reminders/notifications/read", { method: "POST" }).catch(() => {}),
+  ]);
+  setBadges(0);
+}
+
 document.getElementById("notif-panel")?.addEventListener("click", async (e) => {
   const dismiss = e.target.closest("[data-wn-dismiss]");
   if (dismiss) {
     e.stopPropagation();
     try {
       await apiFetch(`/api/work/notifications/${dismiss.dataset.wnDismiss}`, { method: "DELETE" });
-      renderWorkNotifications();
+      renderNotificationCentre();
     } catch (_) { showToast("Could not dismiss that", "error"); }
     return;
   }
 
   if (e.target.id === "wn-clear") {
     try {
-      await apiFetch("/api/work/notifications/clear", { method: "POST" });
-      renderWorkNotifications();
+      await Promise.all([
+        apiFetch("/api/work/notifications/clear", { method: "POST" }).catch(() => {}),
+        apiFetch("/api/reminders/notifications/clear", { method: "POST" }).catch(() => {}),
+      ]);
+      renderNotificationCentre();
     } catch (_) { showToast("Could not clear notifications", "error"); }
     return;
   }
 
+  // The point of the badge is to get somewhere, not just to be dismissed.
   const open = e.target.closest("[data-wn-task]");
   if (open) {
     document.getElementById("notif-panel").classList.add("hidden");
@@ -116,37 +160,17 @@ document.getElementById("notif-panel")?.addEventListener("click", async (e) => {
   }
 });
 
-/* In Work mode the bell shows work activity. Registered in the capture phase
-   so it runs before app.js's handler, which would otherwise repaint the panel
-   with personal reminders. */
-if (isWorkMode()) {
-  document.getElementById("notif-bell")?.addEventListener("click", async () => {
-    const panel = document.getElementById("notif-panel");
-    if (panel?.classList.contains("hidden")) return;   // it was just closed
-    await renderWorkNotifications();
-    try {
-      await apiFetch("/api/work/notifications/read", { method: "POST" });
-      document.getElementById("notif-count")?.classList.add("hidden");
-      document.getElementById("ps-work-badge")?.classList.add("hidden");
-    } catch (_) {}
-  }, true);
+document.getElementById("notif-bell")?.addEventListener("click", async () => {
+  const panel = document.getElementById("notif-panel");
+  if (panel?.classList.contains("hidden")) return;   // it was just closed
+  await renderNotificationCentre();
+  await markAllRead();
+}, true);
 
-  renderWorkNotifications();
-  // Slow on purpose. The badge should be current without the page becoming a
-  // polling client; anything a user does themselves refreshes it immediately.
-  setInterval(renderWorkNotifications, 60_000);
-  window.addEventListener("work-updated", renderWorkNotifications);
-} else {
-  // Personal mode still surfaces the count, so pending work is visible from
-  // the other side of the switcher.
-  (async () => {
-    try {
-      const d = await apiFetch("/api/work/notifications");
-      const tab = document.getElementById("ps-work-badge");
-      if (tab && d.unread) {
-        tab.textContent = d.unread > 9 ? "9+" : d.unread;
-        tab.classList.remove("hidden");
-      }
-    } catch (_) {}
-  })();
-}
+/* Keep the badge current without becoming a polling client. Anything the user
+   does themselves refreshes it immediately; this is the backstop for things
+   other people do. */
+renderNotificationCentre();
+setInterval(renderNotificationCentre, 60_000);
+window.addEventListener("work-updated", renderNotificationCentre);
+window.addEventListener("schedule-updated", renderNotificationCentre);

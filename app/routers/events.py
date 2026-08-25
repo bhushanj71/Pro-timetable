@@ -14,7 +14,7 @@ from app.schemas import EventCreate, EventOut, EventReminderCreate, EventUpdate
 from app.services.conflict_service import find_conflicts, suggest_resolution
 from app.services.recurrence import generate_occurrence_starts
 from app.models import PushSubscription
-from app.services import schedule_query as sq
+from app.services import activity, schedule_query as sq
 from app.services.notifier import push_configured
 from app.services.nlp_dates import ensure_aware_utc
 from app.services.reminder_service import create_reminder_for_event, lead_minutes
@@ -259,6 +259,11 @@ def create_event(
         schedule_event_reminders(db, event, user, leads=lead_times)
         created.append(event)
 
+    # One receipt for the whole action, not one per materialised occurrence:
+    # a weekly lecture creates sixteen rows from a single decision.
+    title, body = activity.summarise_series(len(created), f"Added {payload.title}")
+    activity.record(db, user.id, activity.Activity.EVENT_CREATED, title, body)
+
     db.commit()
     for e in created:
         db.refresh(e)
@@ -333,6 +338,12 @@ def update_event(
         for target in targets:
             resync_event_reminders(db, target)
 
+    changed = ", ".join(k.replace("_", " ") for k in updates if k != "is_cancelled")
+    activity.record(
+        db, user.id, activity.Activity.EVENT_UPDATED,
+        f"Updated {event.title}", changed or None,
+    )
+
     db.commit()
     db.refresh(event)
 
@@ -368,6 +379,11 @@ def delete_event(
         for e in doomed[:60]:
             if e.google_event_id:
                 google_delete(user, e.google_event_id)
+
+    # Recorded before the rows go, while the title is still readable, and as
+    # one receipt for the whole series rather than one per occurrence.
+    title, body = activity.summarise_series(len(doomed), f"Deleted {event.title}")
+    activity.record(db, user.id, activity.Activity.EVENT_DELETED, title, body)
 
     for e in doomed:
         db.delete(e)

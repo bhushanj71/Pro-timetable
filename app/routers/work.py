@@ -27,6 +27,7 @@ from app.models import (
     WorkTask,
 )
 from app.schemas import UTCModel
+from app.services.nlp_dates import ensure_aware_utc
 from app.services import work_service as ws
 
 router = APIRouter(prefix="/api/work", tags=["work"])
@@ -94,7 +95,7 @@ def _community(c: Community, me: str) -> dict:
         "id": c.id, "name": c.name, "description": c.description, "icon": c.icon,
         "member_count": len(c.members),
         "my_role": mine.role if mine else None,
-        "created_at": c.created_at.isoformat(),
+        "created_at": ensure_aware_utc(c.created_at).isoformat(),
     }
 
 
@@ -105,7 +106,7 @@ def _assignment(a: TaskAssignment, me: str | None = None) -> dict:
         # names in the browser -- two members can share a name.
         "is_me": a.user_id == me if me else False,
         "progress": a.progress, "decline_reason": a.decline_reason,
-        "responded_at": a.responded_at.isoformat() if a.responded_at else None,
+        "responded_at": ensure_aware_utc(a.responded_at).isoformat() if a.responded_at else None,
     }
 
 
@@ -123,7 +124,7 @@ def _task(t: WorkTask, *, detail: bool = False, me: str | None = None) -> dict:
     }
     if detail:
         data["comments"] = [
-            {"id": c.id, "user": _person(c.user), "body": c.body, "at": c.created_at.isoformat()}
+            {"id": c.id, "user": _person(c.user), "body": c.body, "at": ensure_aware_utc(c.created_at).isoformat()}
             for c in sorted(t.comments, key=lambda c: c.created_at)
         ]
         data["timeline"] = sorted(
@@ -206,10 +207,10 @@ def get_community(community_id: str, db: Session = Depends(get_db), user: User =
     return {
         **_community(community, user.id),
         "members": [
-            {**_person(m.user), "role": m.role, "joined_at": m.joined_at.isoformat()}
+            {**_person(m.user), "role": m.role, "joined_at": ensure_aware_utc(m.joined_at).isoformat()}
             for m in sorted(community.members, key=lambda m: m.joined_at)
         ],
-        "pending_invites": [{**_person(i.invitee), "invited_at": i.created_at.isoformat()} for i in pending],
+        "pending_invites": [{**_person(i.invitee), "invited_at": ensure_aware_utc(i.created_at).isoformat()} for i in pending],
     }
 
 
@@ -284,7 +285,7 @@ def my_invitations(db: Session = Depends(get_db), user: User = Depends(get_curre
             {
                 "id": i.id, "message": i.message,
                 "community": {"id": i.community.id, "name": i.community.name, "icon": i.community.icon},
-                "from": _person(i.inviter), "at": i.created_at.isoformat(),
+                "from": _person(i.inviter), "at": ensure_aware_utc(i.created_at).isoformat(),
             }
             for i in rows
         ]
@@ -482,7 +483,7 @@ def work_notifications(db: Session = Depends(get_db), user: User = Depends(get_c
         "items": [
             {
                 "id": r.id, "kind": r.kind, "title": r.title, "body": r.body,
-                "at": r.created_at.isoformat(), "read": r.read_at is not None,
+                "at": ensure_aware_utc(r.created_at).isoformat(), "read": r.read_at is not None,
                 "community_id": r.community_id, "task_id": r.task_id,
                 "assignment_id": r.assignment_id,
             }

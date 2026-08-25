@@ -556,3 +556,96 @@ def test_notifications_are_private_to_their_recipient(owner, rahul):
     # Rahul's assignment notice is his; it must not appear in the owner's feed.
     owner_titles = [n["title"] for n in owner.get("/api/work/notifications").json()["items"]]
     assert not any("assigned you" in t for t in owner_titles)
+
+
+# --- The bell carries everything -------------------------------------------
+# "Every task in the whole application should be updated by a notification
+# under the bell" -- so personal schedule actions leave a receipt too, not
+# only work activity.
+
+def _bell(client):
+    """What the bell would show: both feeds, as the browser merges them."""
+    work = client.get("/api/work/notifications").json()
+    personal = client.get("/api/reminders/notifications").json()
+    return {
+        "work": [(n["kind"], n["title"]) for n in work["items"]],
+        "unread": work["unread"] + personal["unread"],
+    }
+
+
+def test_creating_a_lecture_leaves_a_receipt(owner):
+    start = datetime.now(timezone.utc) + timedelta(days=2)
+    owner.post("/api/events?force=true", json={
+        "title": "DBMS Lecture", "event_type": "lecture",
+        "start_datetime": start.isoformat(),
+        "end_datetime": (start + timedelta(hours=1)).isoformat()})
+
+    kinds = [k for k, _ in _bell(owner)["work"]]
+    assert "event_created" in kinds
+
+
+def test_a_recurring_series_leaves_one_receipt_not_sixteen(owner):
+    """A weekly lecture materialises many rows from one decision. One
+    notification per occurrence would bury the bell."""
+    start = datetime.now(timezone.utc) + timedelta(days=2)
+    resp = owner.post("/api/events?force=true", json={
+        "title": "Weekly Lecture", "event_type": "lecture",
+        "start_datetime": start.isoformat(),
+        "end_datetime": (start + timedelta(hours=1)).isoformat(),
+        "recurrence_rule": "weekly:MON"})
+    assert len(resp.json()) > 1, "this should materialise a series"
+
+    created = [t for k, t in _bell(owner)["work"] if k == "event_created"]
+    assert len(created) == 1
+    assert "occurrences" in (owner.get("/api/work/notifications").json()["items"][0]["body"] or "")
+
+
+def test_updating_and_deleting_a_lecture_leave_receipts(owner):
+    start = datetime.now(timezone.utc) + timedelta(days=2)
+    ev = owner.post("/api/events?force=true", json={
+        "title": "Movable Lecture", "event_type": "lecture",
+        "start_datetime": start.isoformat(),
+        "end_datetime": (start + timedelta(hours=1)).isoformat()}).json()[0]
+
+    owner.put(f"/api/events/{ev['id']}?force=true", json={"location": "Room 42"})
+    owner.delete(f"/api/events/{ev['id']}")
+
+    kinds = [k for k, _ in _bell(owner)["work"]]
+    assert "event_updated" in kinds
+    assert "event_deleted" in kinds
+
+
+def test_personal_task_actions_leave_receipts(owner):
+    due = datetime.now(timezone.utc) + timedelta(days=3)
+    task = owner.post("/api/tasks", json={"title": "Submit marks", "due_date": due.isoformat()}).json()
+    owner.post(f"/api/tasks/{task['id']}/complete")
+
+    kinds = [k for k, _ in _bell(owner)["work"]]
+    assert "personal_task_created" in kinds
+    assert "personal_task_completed" in kinds
+
+
+def test_receipts_are_private_to_their_owner(owner, rahul):
+    start = datetime.now(timezone.utc) + timedelta(days=2)
+    owner.post("/api/events?force=true", json={
+        "title": "Private Lecture", "event_type": "lecture",
+        "start_datetime": start.isoformat(),
+        "end_datetime": (start + timedelta(hours=1)).isoformat()})
+
+    assert not any("Private Lecture" in t for _, t in _bell(rahul)["work"])
+
+
+def test_a_receipt_never_becomes_a_reminder(owner, db_session):
+    """A reminder is a promise to interrupt someone -- push, email, a
+    lock-screen buzz. "You created a lecture" is a receipt, and putting
+    receipts in the reminder table would send them to people's phones."""
+    from app.models import Reminder
+
+    start = datetime.now(timezone.utc) + timedelta(days=2)
+    owner.post("/api/events?force=true", json={
+        "title": "Receipt Check", "event_type": "lecture",
+        "start_datetime": start.isoformat(),
+        "end_datetime": (start + timedelta(hours=1)).isoformat()})
+
+    titles = [r.title for r in db_session.query(Reminder).all()]
+    assert not any(t.startswith("Added ") for t in titles)
