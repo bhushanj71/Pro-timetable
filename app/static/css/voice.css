@@ -129,3 +129,81 @@
   .ai-mic { width: 46px; height: 46px; font-size: 1.15rem; }
   .voice-panel { position: sticky; bottom: 8px; z-index: 5; }
 }
+
+/* ==========================================================================
+   Text size slider
+   ========================================================================== */
+.font-size-row {
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+  padding: 11px 12px 9px;
+}
+.font-size-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 0.76rem; color: var(--text-soft); margin-bottom: 8px;
+}
+.font-size-head strong { color: var(--text); font-weight: 700; }
+
+.font-size-slider { display: flex; align-items: center; gap: 10px; }
+/* The two A's are the control's label: small on the left, large on the right,
+   so the direction of the slider needs no explaining. */
+.font-size-slider .fs-a { font-size: 0.72rem; color: var(--text-muted); font-weight: 700; }
+.font-size-slider .fs-b { font-size: 1.06rem; color: var(--text-muted); font-weight: 700; }
+
+#font-size-range {
+  flex: 1;
+  -webkit-appearance: none; appearance: none;
+  height: 4px; border-radius: var(--radius-pill);
+  background: var(--border-strong);
+  cursor: pointer;
+}
+#font-size-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 17px; height: 17px; border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid var(--surface);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  transition: transform var(--t-fast) var(--ease);
+}
+#font-size-range::-webkit-slider-thumb:hover { transform: scale(1.14); }
+#font-size-range::-moz-range-thumb {
+  width: 17px; height: 17px; border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid var(--surface);
+  cursor: pointer;
+}
+#font-size-range:focus-visible { outline: none; box-shadow: 0 0 0 4px var(--primary-ring); }
+
+/* The menu is sized for three short rows; the slider needs a little more. */
+.theme-menu { min-width: 216px; }
+
+/* ==========================================================================
+   Reminder chips in the Manage sheet
+   ========================================================================== */
+.reminder-chips {
+  display: flex; flex-wrap: wrap; gap: 7px;
+  margin-bottom: 9px; min-height: 26px;
+  align-items: center;
+}
+.reminder-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 6px 4px 11px;
+  border-radius: var(--radius-pill);
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+  font-size: 0.75rem; font-weight: 700;
+  white-space: nowrap;
+}
+.reminder-chip .chip-x {
+  border: none; background: none; padding: 0 3px;
+  color: inherit; opacity: 0.65; cursor: pointer;
+  font-size: 0.78rem; line-height: 1;
+  border-radius: 50%;
+}
+.reminder-chip .chip-x:hover { opacity: 1; background: var(--danger-soft); color: var(--danger); }
+
+.reminder-add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.reminder-add select { flex: 1 1 150px; min-width: 0; }
+.reminder-add input[type="number"] { flex: 0 1 110px; min-width: 0; }
+.reminder-add .btn { flex: 0 0 auto; white-space: nowrap; }

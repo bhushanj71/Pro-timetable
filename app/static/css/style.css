@@ -89,14 +89,26 @@
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+/* Text size. 100% means "whatever the reader set in their browser", so the
+   scale multiplies that rather than overriding it -- someone who has already
+   raised their default keeps the benefit. */
+:root { --font-scale: 1; }
+:root[data-font="small"]  { --font-scale: 0.9; }
+:root[data-font="medium"] { --font-scale: 1; }
+:root[data-font="large"]  { --font-scale: 1.15; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  font-size: calc(100% * var(--font-scale));
+}
 
 body {
   margin: 0;
   font-family: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
-  font-size: 14px;
+  /* Was 14px. In rem so the text-size setting reaches it too. */
+  font-size: 0.875rem;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

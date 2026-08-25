@@ -372,6 +372,74 @@ def test_deleting_an_event_takes_its_reminders_with_it(auth_client, db_session):
     assert db_session.query(Reminder).filter(Reminder.event_id == ev["id"]).count() == 0
 
 
+# --- Per-event reminders (the Manage sheet) --------------------------------
+
+def test_a_reminder_can_be_added_at_a_chosen_lead(auth_client):
+    ev = _mk(auth_client, "DBMS Lecture", hours_ahead=48)
+
+    res = auth_client.post(f"/api/events/{ev['id']}/reminders", json={"minutes_before": 60}).json()
+    assert res["ok"] is True and res["added"] is True
+
+    leads = [r["minutes_before"] for r in
+             auth_client.get(f"/api/events/{ev['id']}/reminders").json()["reminders"]]
+    assert leads == [60, 30, 5], "longest lead first, and the defaults survive"
+
+
+def test_adding_the_same_lead_twice_is_a_no_op(auth_client):
+    """Two identical reminders would buzz the phone twice for one class."""
+    ev = _mk(auth_client, "DBMS Lecture", hours_ahead=48)
+    auth_client.post(f"/api/events/{ev['id']}/reminders", json={"minutes_before": 60})
+    second = auth_client.post(f"/api/events/{ev['id']}/reminders", json={"minutes_before": 60}).json()
+
+    assert second["added"] is False
+    leads = [r["minutes_before"] for r in
+             auth_client.get(f"/api/events/{ev['id']}/reminders").json()["reminders"]]
+    assert leads.count(60) == 1
+
+
+def test_a_lead_longer_than_the_time_left_is_refused(auth_client):
+    """Creating one silently would schedule a reminder in the past, which
+    either fires immediately or never."""
+    ev = _mk(auth_client, "Soon Lecture", hours_ahead=1)
+    resp = auth_client.post(f"/api/events/{ev['id']}/reminders", json={"minutes_before": 24 * 60})
+    assert resp.status_code == 400
+    assert "passed" in resp.json()["detail"].lower()
+
+
+def test_reminder_endpoints_are_scoped_to_the_owner(client):
+    client.post("/api/auth/register", json={"name": "A", "email": "rem_a@example.com", "password": "password123"})
+    ev = _mk(client, "Private Lecture", hours_ahead=48)
+    client.post("/api/auth/logout")
+
+    client.post("/api/auth/register", json={"name": "B", "email": "rem_b@example.com", "password": "password123"})
+    assert client.get(f"/api/events/{ev['id']}/reminders").status_code == 404
+    assert client.post(f"/api/events/{ev['id']}/reminders", json={"minutes_before": 15}).status_code == 404
+
+
+def test_the_response_says_whether_a_device_would_receive_it(auth_client):
+    """A reminder that only ever lands in the bell is not what the professor
+    thinks they set, so the message says so when no device is registered."""
+    ev = _mk(auth_client, "DBMS Lecture", hours_ahead=48)
+    res = auth_client.post(f"/api/events/{ev['id']}/reminders", json={"minutes_before": 45}).json()
+
+    assert res["devices"] == 0
+    assert "turn on notifications" in res["message"].lower()
+
+
+def test_an_added_reminder_is_delivered_like_any_other(auth_client, db_session):
+    """The Manage sheet must produce a real reminder, not a display-only one."""
+    from app.models import Reminder
+
+    ev = _mk(auth_client, "DBMS Lecture", hours_ahead=48)
+    auth_client.post(f"/api/events/{ev['id']}/reminders", json={"minutes_before": 90})
+
+    row = (db_session.query(Reminder)
+           .filter(Reminder.event_id == ev["id"], Reminder.title.contains("90"))
+           .one())
+    assert row.is_sent is False
+    assert row.user_id is not None, "must belong to a user or delivery skips it"
+
+
 # --- Notification content ---------------------------------------------------
 
 def test_a_lecture_notification_names_faculty_and_room(auth_client, db_session):

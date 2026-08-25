@@ -24,6 +24,8 @@
     // Applied before paint to avoid a flash of the wrong theme.
     (function () {
       try {
+        var f = localStorage.getItem("profschedule-font");
+        if (f && f !== "medium") document.documentElement.setAttribute("data-font", f);
         var c = localStorage.getItem("profschedule-theme") || "system";
         if (c !== "system") document.documentElement.setAttribute("data-theme", c);
         var dark = c === "dark" || (c === "system" &&

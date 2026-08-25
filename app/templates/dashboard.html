@@ -212,6 +212,28 @@
       <small class="form-hint">Optional. Without one, the map search uses the text above.</small>
     </div>
 
+    <div class="form-group evm-reminders">
+      <label>Reminders</label>
+      <div id="evm-reminder-list" class="reminder-chips"></div>
+      <div class="reminder-add">
+        <select id="evm-reminder-lead" aria-label="Remind me">
+          <option value="0">At start time</option>
+          <option value="5">5 minutes before</option>
+          <option value="10">10 minutes before</option>
+          <option value="15" selected>15 minutes before</option>
+          <option value="30">30 minutes before</option>
+          <option value="60">1 hour before</option>
+          <option value="120">2 hours before</option>
+          <option value="1440">1 day before</option>
+          <option value="custom">Custom…</option>
+        </select>
+        <input type="number" id="evm-reminder-custom" class="hidden" min="1" max="10080"
+               placeholder="minutes" aria-label="Custom minutes before">
+        <button type="button" class="btn btn-sm btn-primary" id="evm-reminder-add">🔔 Add reminder</button>
+      </div>
+      <small class="form-hint" id="evm-reminder-hint"></small>
+    </div>
+
     <div id="evm-series-note" class="hidden guide-note" style="margin-bottom:14px">
       This is part of a repeating series. Changes apply to this occurrence only,
       unless you delete the whole series.

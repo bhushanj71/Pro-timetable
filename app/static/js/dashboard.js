@@ -354,6 +354,7 @@ async function openManageModal(eventId) {
   document.getElementById("evm-start").value = evmLocalTime(start);
   document.getElementById("evm-end").value = evmLocalTime(end);
   document.getElementById("evm-location").value = ev.location || "";
+  loadEventReminders(ev.id);
   document.getElementById("evm-faculty").value = ev.faculty || "";
   document.getElementById("evm-location-detail").value = ev.location_detail || "";
   document.getElementById("evm-location-url").value = ev.location_url || "";
@@ -414,6 +415,91 @@ const closeLoc = () => document.getElementById("loc-modal")?.classList.add("hidd
 document.getElementById("loc-close")?.addEventListener("click", closeLoc);
 document.getElementById("loc-modal")?.addEventListener("click", (e) => {
   if (e.target.id === "loc-modal") closeLoc();
+});
+
+/* Reminders for the event currently open in the Manage sheet.
+
+   Adds rather than replaces: an hour's warning to prepare and five minutes'
+   warning to walk are both reasonable, and the professor should be able to
+   have both. */
+const LEAD_LABEL = (m) =>
+  m === 0 ? "At start" :
+  m % 1440 === 0 ? `${m / 1440} day${m / 1440 > 1 ? "s" : ""} before` :
+  m % 60 === 0 ? `${m / 60} hour${m / 60 > 1 ? "s" : ""} before` :
+  `${m} min before`;
+
+async function loadEventReminders(eventId) {
+  const list = document.getElementById("evm-reminder-list");
+  const hint = document.getElementById("evm-reminder-hint");
+  if (!list) return;
+  list.dataset.event = eventId;
+  list.innerHTML = `<span class="muted-text">Loading…</span>`;
+
+  let data;
+  try {
+    data = await apiFetch(`/api/events/${eventId}/reminders`);
+  } catch (_) {
+    list.innerHTML = `<span class="muted-text">Couldn't load reminders.</span>`;
+    return;
+  }
+
+  list.innerHTML = data.reminders.length
+    ? data.reminders.map((r) => `
+        <span class="reminder-chip">${esc(LEAD_LABEL(r.minutes_before ?? 0))}
+          <button type="button" class="chip-x" data-remove-reminder="${r.id}"
+                  aria-label="Remove this reminder">✕</button>
+        </span>`).join("")
+    : `<span class="muted-text">No reminders yet.</span>`;
+
+  // Say plainly whether these will actually reach a phone. A reminder that
+  // only ever appears in the bell is not what the professor thinks they set.
+  hint.textContent = data.push_ready
+    ? "These are pushed to every device where you've enabled notifications."
+    : "Push isn't configured on the server, so these appear in the app only.";
+}
+
+document.getElementById("evm-reminder-lead")?.addEventListener("change", (e) => {
+  document.getElementById("evm-reminder-custom").classList.toggle("hidden", e.target.value !== "custom");
+});
+
+document.getElementById("evm-reminder-add")?.addEventListener("click", async (e) => {
+  const list = document.getElementById("evm-reminder-list");
+  const sel = document.getElementById("evm-reminder-lead");
+  const custom = document.getElementById("evm-reminder-custom");
+  const eventId = list?.dataset.event;
+  if (!eventId) return;
+
+  const minutes = sel.value === "custom" ? parseInt(custom.value, 10) : parseInt(sel.value, 10);
+  if (!Number.isFinite(minutes) || minutes < 0) {
+    showToast("Enter how many minutes before.", "error");
+    return;
+  }
+
+  setButtonLoading(e.currentTarget, true);
+  try {
+    const res = await apiFetch(`/api/events/${eventId}/reminders`, {
+      method: "POST", body: { minutes_before: minutes },
+    });
+    showToast(res.message, res.added ? "success" : "error");
+    await loadEventReminders(eventId);
+  } catch (err) {
+    showToast(err.message || "Could not add that reminder", "error");
+  } finally {
+    setButtonLoading(e.currentTarget, false);
+  }
+});
+
+document.getElementById("evm-reminder-list")?.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-remove-reminder]");
+  if (!btn) return;
+  const list = document.getElementById("evm-reminder-list");
+  try {
+    await apiFetch(`/api/reminders/${btn.dataset.removeReminder}`, { method: "DELETE" });
+    await loadEventReminders(list.dataset.event);
+    showToast("Reminder removed", "success");
+  } catch (_) {
+    showToast("Could not remove that reminder", "error");
+  }
 });
 
 const closeManage = () => document.getElementById("ev-manage-modal")?.classList.add("hidden");

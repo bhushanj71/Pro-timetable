@@ -213,6 +213,17 @@ class EventUpdate(BaseModel):
     is_cancelled: Optional[bool] = None
 
 
+class EventReminderCreate(BaseModel):
+    """One reminder for an existing event, chosen from the Manage sheet.
+
+    Capped at a week: past that it is a diary entry, not a reminder, and an
+    unbounded value would silently create something that fires at a nonsense
+    time.
+    """
+
+    minutes_before: int = Field(ge=0, le=7 * 24 * 60)
+
+
 class EventOut(UTCModel):
     id: str
     user_id: str

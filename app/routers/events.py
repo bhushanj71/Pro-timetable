@@ -10,10 +10,14 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Event, User
-from app.schemas import EventCreate, EventOut, EventUpdate
+from app.schemas import EventCreate, EventOut, EventReminderCreate, EventUpdate
 from app.services.conflict_service import find_conflicts, suggest_resolution
 from app.services.recurrence import generate_occurrence_starts
+from app.models import PushSubscription
 from app.services import schedule_query as sq
+from app.services.notifier import push_configured
+from app.services.nlp_dates import ensure_aware_utc
+from app.services.reminder_service import create_reminder_for_event, lead_minutes
 from app.services.reminder_service import resync_event_reminders, schedule_event_reminders
 
 router = APIRouter(prefix="/api/events", tags=["events"])
@@ -129,6 +133,70 @@ def event_location(event_id: str, db: Session = Depends(get_db), user: User = De
     if not event:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
     return sq.serialize(event, user.timezone)
+
+
+@router.get("/{event_id}/reminders")
+def list_event_reminders(event_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Pending reminders for one event, newest lead first."""
+    event = db.query(Event).filter(Event.id == event_id, Event.user_id == user.id).first()
+    if not event:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+
+    rows = []
+    for r in event.reminders:
+        if r.is_sent:
+            continue
+        lead = lead_minutes(r)
+        rows.append({"id": r.id, "minutes_before": lead, "title": r.title})
+    rows.sort(key=lambda x: (x["minutes_before"] is None, -(x["minutes_before"] or 0)))
+    return {"reminders": rows, "push_ready": push_configured()}
+
+
+@router.post("/{event_id}/reminders", status_code=status.HTTP_201_CREATED)
+def add_event_reminder(
+    event_id: str,
+    payload: EventReminderCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Add one reminder at a chosen lead time.
+
+    Adds rather than replaces: a professor may reasonably want an hour's
+    warning to prepare and five minutes' warning to walk.
+    """
+    event = db.query(Event).filter(Event.id == event_id, Event.user_id == user.id).first()
+    if not event:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+
+    minutes = payload.minutes_before
+    when = ensure_aware_utc(event.start_datetime) - timedelta(minutes=minutes)
+    if when <= datetime.now(timezone.utc):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"That moment has already passed \u2014 this event starts too soon for a "
+            f"{minutes}-minute warning.",
+        )
+
+    existing = {lead_minutes(r) for r in event.reminders if not r.is_sent}
+    if minutes in existing:
+        return {"ok": True, "added": False, "message": f"You already have a {minutes}-minute reminder."}
+
+    create_reminder_for_event(db, event, minutes)
+    db.commit()
+
+    devices = db.query(PushSubscription).filter(PushSubscription.user_id == user.id).count()
+    return {
+        "ok": True,
+        "added": True,
+        "minutes_before": minutes,
+        "devices": devices,
+        "message": (
+            f"Reminder set for {minutes} minutes before."
+            if devices
+            else f"Reminder set for {minutes} minutes before. Turn on notifications "
+                 f"on this device to get it as a push."
+        ),
+    }
 
 
 @router.get("/{event_id}", response_model=EventOut)

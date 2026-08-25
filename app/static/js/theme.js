@@ -63,16 +63,66 @@ function updateThemeButton() {
   btn.title = `Theme: ${choice}`;
 }
 
+/* Text size lives with the theme because both are the same kind of choice:
+   how the interface should look to this reader on this device. */
+const FONT_STEPS = ["small", "medium", "large"];
+const FONT_LABEL = { small: "Small", medium: "Medium", large: "Large" };
+
+function storedFont() {
+  try {
+    const v = localStorage.getItem("profschedule-font");
+    return FONT_STEPS.includes(v) ? v : "medium";
+  } catch (_) {
+    return "medium";
+  }
+}
+
+function applyFont(size) {
+  const value = FONT_STEPS.includes(size) ? size : "medium";
+  // Medium is the default, so it carries no attribute at all -- that keeps
+  // the common case free of an override to reason about.
+  if (value === "medium") document.documentElement.removeAttribute("data-font");
+  else document.documentElement.setAttribute("data-font", value);
+  try {
+    localStorage.setItem("profschedule-font", value);
+  } catch (_) {}
+  const out = document.getElementById("font-size-value");
+  if (out) out.textContent = FONT_LABEL[value];
+}
+
 function renderThemeMenu() {
   const menu = document.getElementById("theme-menu");
   if (!menu) return;
   const choice = storedTheme();
-  menu.innerHTML = THEMES.map(
-    (t) => `<button class="theme-option ${t.id === choice ? "active" : ""}" data-theme-choice="${t.id}">
+  const font = storedFont();
+  menu.innerHTML =
+    THEMES.map(
+      (t) => `<button class="theme-option ${t.id === choice ? "active" : ""}" data-theme-choice="${t.id}">
               <span>${t.icon}</span> ${t.label} <span class="tick">✓</span>
             </button>`
-  ).join("");
+    ).join("") +
+    `<div class="font-size-row">
+       <div class="font-size-head">
+         <span>Text size</span>
+         <strong id="font-size-value">${FONT_LABEL[font]}</strong>
+       </div>
+       <div class="font-size-slider">
+         <span class="fs-a">A</span>
+         <input type="range" id="font-size-range" min="0" max="2" step="1"
+                value="${FONT_STEPS.indexOf(font)}" aria-label="Text size"
+                list="font-size-stops">
+         <span class="fs-b">A</span>
+       </div>
+       <datalist id="font-size-stops"><option value="0"></option><option value="1"></option><option value="2"></option></datalist>
+     </div>`;
 }
+
+document.getElementById("theme-menu")?.addEventListener("input", (e) => {
+  if (e.target.id !== "font-size-range") return;
+  applyFont(FONT_STEPS[Number(e.target.value)]);
+});
+
+applyFont(storedFont());
 
 document.getElementById("theme-btn")?.addEventListener("click", (e) => {
   e.stopPropagation();
