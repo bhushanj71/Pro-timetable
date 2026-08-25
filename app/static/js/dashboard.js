@@ -62,7 +62,7 @@ async function loadUpcomingEvents() {
           <div class="ue-mon">${d.toLocaleDateString([], { month: "short" })}</div>
           <div class="ue-day">${d.getDate()}</div>
         </div>
-        <div style="flex:1;min-width:0">
+        <div class="ue-body">
           <div class="ue-title">${esc(e.title)}</div>
           <div class="ue-meta">${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} • ${fmtTime(e.start_datetime)}</div>
           ${e.faculty ? `<div class="ue-meta">\u{1F9D1}\u{200D}\u{1F3EB} ${esc(e.faculty)}</div>` : ""}

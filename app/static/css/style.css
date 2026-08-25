@@ -598,6 +598,9 @@ input, select, textarea, button { font-size: inherit; }
    ========================================================================== */
 .ue-item {
   display: flex; align-items: center; gap: 14px;
+  /* Wraps so a narrow card drops the buttons to a second line instead of
+     crushing the title. row-gap keeps that second line from touching. */
+  flex-wrap: wrap; row-gap: 8px;
   padding: 12px 10px 12px 0;
   border-radius: 12px;
   transition: background var(--t) var(--ease), transform var(--t) var(--ease);
@@ -1303,7 +1306,21 @@ input, select, textarea, button { font-size: inherit; }
 }
 
 /* Manage action beside each upcoming event */
-.ue-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+/* The actions used to be flex-shrink:0 with only a tag and a Manage button.
+   Adding Show Location pushed the row to 285px inside a 259px card, and since
+   it refused to shrink it starved the text column to zero width -- every
+   title and date then wrapped one word per line. The row now wraps onto its
+   own line instead of squeezing the text out of existence. */
+.ue-actions {
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap; justify-content: flex-end;
+  margin-left: auto;
+  min-width: 0;
+}
+/* flex-basis, not flex:1: the text needs a width it will fight for, so the
+   actions wrap below rather than the title collapsing. */
+.ue-body { flex: 1 1 150px; min-width: 0; }
+.loc-btn, .ue-manage, .ue-actions .tag { white-space: nowrap; }
 .ue-manage {
   opacity: 0;
   transition: opacity var(--t) var(--ease), transform var(--t) var(--ease), background var(--t) var(--ease);
