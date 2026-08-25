@@ -235,13 +235,43 @@ function wireConfirmButtons(box, action) {
   });
 }
 
-const AI_PROGRESS_MESSAGES = [
-  "Reading your request…",
-  "Working out dates and times…",
-  "Extracting the schedule details…",
-  "Checking for clashes with your timetable…",
-  "Almost there…",
-];
+/* Progress messages describe the work, so they have to know what the work is.
+
+   A generic "Working…" is honest but useless; "Looking up where that class
+   is" tells the professor the request was understood, which is the thing they
+   are actually waiting to learn. The intent is guessed from the wording
+   client-side -- cheap, and it only affects wording, never behaviour, so a
+   wrong guess costs nothing.
+
+   None of these delay anything: startProgress waits 300ms before showing
+   anything at all, and every message is torn down the instant the real
+   response lands. */
+const AI_PROGRESS_SETS = {
+  create:   ["Understanding your request…", "Working out dates and times…", "Checking for clashes…", "Creating it…"],
+  update:   ["Understanding your request…", "Finding that in your schedule…", "Applying the change…", "Rescheduling reminders…"],
+  delete:   ["Understanding your request…", "Finding what you meant…", "Checking what would be removed…"],
+  location: ["Understanding your request…", "Locating your classroom…", "Fetching the map…"],
+  reminder: ["Understanding your request…", "Finding the classes affected…", "Setting the reminder…"],
+  conflict: ["Understanding your request…", "Reading your week…", "Checking for clashes…"],
+  query:    ["Understanding your request…", "Checking your schedule…", "Finding the details…"],
+  holiday:  ["Understanding your request…", "Finding that day's classes…", "Working out what to cancel…"],
+  generic:  ["Understanding your request…", "Checking your schedule…", "Almost there…"],
+};
+
+function progressFor(text) {
+  const t = (text || "").toLowerCase();
+  if (/\bholiday|day off|no class|college is closed|on leave\b/.test(t)) return AI_PROGRESS_SETS.holiday;
+  if (/\bwhere|location|map|room\b/.test(t)) return AI_PROGRESS_SETS.location;
+  if (/\bremind|reminder|notify|alert\b/.test(t)) return AI_PROGRESS_SETS.reminder;
+  if (/\bconflict|clash|overlap\b/.test(t)) return AI_PROGRESS_SETS.conflict;
+  if (/\bcancel|delete|remove|drop\b/.test(t)) return AI_PROGRESS_SETS.delete;
+  if (/\bmove|reschedul|shift|change|update|postpone\b/.test(t)) return AI_PROGRESS_SETS.update;
+  if (/\badd|create|schedule|book|new\b/.test(t)) return AI_PROGRESS_SETS.create;
+  if (/\bwhat|when|show|list|next|free\b/.test(t)) return AI_PROGRESS_SETS.query;
+  return AI_PROGRESS_SETS.generic;
+}
+
+const AI_PROGRESS_MESSAGES = AI_PROGRESS_SETS.generic;
 
 /* Read the result aloud.
 
@@ -280,7 +310,7 @@ async function submitAIPrompt(promptText, { spoken = false } = {}) {
   const submitBtn = document.querySelector("#ai-prompt-form button[type=submit]");
   const input = document.getElementById("ai-prompt-input");
 
-  const progress = startProgress(box, AI_PROGRESS_MESSAGES);
+  const progress = startProgress(box, progressFor(promptText));
   setButtonLoading(submitBtn, true);
   if (input) input.disabled = true;
 
@@ -312,8 +342,10 @@ async function submitAIPrompt(promptText, { spoken = false } = {}) {
 /** Execute the pending extraction and say what happened. */
 async function runConfirmedAction(response) {
   const box = document.getElementById("ai-result");
+  const applying = startProgress(box, ["Applying changes…", "Updating your timetable…"], { delay: 150 });
   try {
     const result = await apiFetch("/api/ai/confirm", { method: "POST", body: { extraction: lastExtraction } });
+    applying.stop();
 
     if (result.ok === false) {
       const msg = result.message || "I couldn't find that in your schedule.";
@@ -332,9 +364,12 @@ async function runConfirmedAction(response) {
     document.getElementById("ai-prompt-input").value = "";
     window.dispatchEvent(new CustomEvent("schedule-updated"));
   } catch (err) {
+    applying.stop();
     const msg = err.message || "That didn't go through.";
     box.innerHTML = `<div class="ai-result-card">⚠️ ${esc(msg)}</div>`;
     speak(msg);
+  } finally {
+    applying.stop();
   }
 }
 

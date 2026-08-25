@@ -18,9 +18,9 @@ function emptyState(emoji, text) {
 /* ---------------- Today's schedule ---------------- */
 async function loadTodaySchedule() {
   const el = document.getElementById("today-schedule");
-  showSkeleton(el, 3);
+  showSkeleton(el, 3, "timeline");
   try {
-    const events = await apiFetch(`/api/events?start=${startOfToday().toISOString()}&end=${endOfToday().toISOString()}`);
+    const events = await cachedFetch(`/api/events?start=${startOfToday().toISOString()}&end=${endOfToday().toISOString()}`);
     if (!events.length) {
       el.innerHTML = emptyState("🌤️", "Nothing scheduled today. Enjoy the free time!");
       return;
@@ -43,12 +43,16 @@ async function loadTodaySchedule() {
 /* ---------------- Upcoming events ---------------- */
 async function loadUpcomingEvents() {
   const el = document.getElementById("upcoming-events");
-  showSkeleton(el, 3);
+  showSkeleton(el, 3, "rows");
   try {
+    // Snapped to the minute. An unrounded new Date() puts fresh milliseconds
+    // in the URL on every call, so the cache key never repeats and every
+    // visit is a miss -- the cache would have been decoration.
     const start = new Date();
-    const end = new Date();
+    start.setSeconds(0, 0);
+    const end = new Date(start);
     end.setDate(end.getDate() + 21);
-    const events = await apiFetch(`/api/events?start=${start.toISOString()}&end=${end.toISOString()}`);
+    const events = await cachedFetch(`/api/events?start=${start.toISOString()}&end=${end.toISOString()}`);
     const upcoming = events.filter((e) => new Date(e.start_datetime) > new Date()).slice(0, 4);
     if (!upcoming.length) {
       el.innerHTML = emptyState("📭", "No upcoming events in the next three weeks.");
@@ -87,7 +91,7 @@ async function loadPendingTasks() {
   const el = document.getElementById("pending-tasks");
   showSkeleton(el, 3);
   try {
-    const tasks = await apiFetch(`/api/tasks?status=pending`);
+    const tasks = await cachedFetch(`/api/tasks?status=pending`);
     const badge = document.getElementById("nav-task-count");
     if (badge) {
       badge.textContent = tasks.length;
@@ -144,8 +148,8 @@ async function loadDeadlines() {
   showSkeleton(el, 2);
   try {
     const [tasks, events] = await Promise.all([
-      apiFetch(`/api/tasks?status=pending`),
-      apiFetch(`/api/events?event_type=deadline`),
+      cachedFetch(`/api/tasks?status=pending`),
+      cachedFetch(`/api/events?event_type=deadline`),
     ]);
     const items = [
       ...tasks.filter((t) => t.due_date).map((t) => ({ title: t.title, due: t.due_date })),
@@ -231,7 +235,7 @@ function animateCount(el, target, decimals = 0) {
 
 async function loadAnalytics() {
   try {
-    const s = await apiFetch("/api/analytics");
+    const s = await cachedFetch("/api/analytics");
     animateCount(document.getElementById("stat-teaching"), s.teaching_hours, 0);
     animateCount(document.getElementById("stat-meetings"), s.meetings_count, 0);
     animateCount(document.getElementById("stat-free"), s.free_hours, 0);
@@ -268,7 +272,7 @@ async function renderMiniCal() {
   try {
     const from = new Date(year, month, 1);
     const to = new Date(year, month + 1, 1);
-    const events = await apiFetch(`/api/events?start=${from.toISOString()}&end=${to.toISOString()}`);
+    const events = await cachedFetch(`/api/events?start=${from.toISOString()}&end=${to.toISOString()}`);
     miniEventDays = new Set(events.map((e) => new Date(e.start_datetime).toDateString()));
   } catch (_) {
     miniEventDays = new Set();
@@ -389,7 +393,7 @@ async function showLocation(eventId) {
 
   let d;
   try {
-    d = await apiFetch(`/api/events/${eventId}/location`);
+    d = await cachedFetch(`/api/events/${eventId}/location`);
   } catch (_) {
     body.innerHTML = `<div class="loc-none">Could not load that location.</div>`;
     return;
@@ -437,7 +441,7 @@ async function loadEventReminders(eventId) {
 
   let data;
   try {
-    data = await apiFetch(`/api/events/${eventId}/reminders`);
+    data = await cachedFetch(`/api/events/${eventId}/reminders`);
   } catch (_) {
     list.innerHTML = `<span class="muted-text">Couldn't load reminders.</span>`;
     return;

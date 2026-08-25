@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
 from app.deps import get_current_user
@@ -67,6 +67,9 @@ def notifications(db: Session = Depends(get_db), user: User = Depends(get_curren
 
     items = (
         db.query(Reminder)
+        # Without this each row lazy-loads its event separately: 20 items cost
+        # 32 queries, and it grew with the list.
+        .options(selectinload(Reminder.event))
         .filter(
             Reminder.user_id == user.id,
             Reminder.reminder_datetime <= now,

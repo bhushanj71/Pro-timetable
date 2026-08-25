@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
-from app.database import init_db
+from app.database import engine, init_db
 from app.routers import (
     admin,
     ai,
@@ -98,6 +98,22 @@ app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 from app.security_headers import SecurityHeadersMiddleware  # noqa: E402
 
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Compression before anything else in the chain, so it wraps every response.
+# The event list measured 96KB of JSON for a term's schedule; JSON of that
+# shape compresses by roughly an order of magnitude, which matters far more
+# on a phone than any query tuning.
+from starlette.middleware.gzip import GZipMiddleware  # noqa: E402
+
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+# Timing. The Server-Timing header describes internal structure, so it is
+# emitted while developing and withheld in production; the slow-request and
+# slow-query logs run everywhere, because that is where they are needed.
+from app.perf import PerfMiddleware, install_sql_timing  # noqa: E402
+
+app.add_middleware(PerfMiddleware, expose_header=settings.ENV != "production")
+install_sql_timing(engine)
 
 # Resolve asset paths relative to this file rather than the process working
 # directory, so the app starts identically under uvicorn, Render, or Vercel

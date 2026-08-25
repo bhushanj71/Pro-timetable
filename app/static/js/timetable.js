@@ -18,7 +18,7 @@ function hhmmToHour(hhmm, fallback) {
  *  08:45 start or an 18:30 end is still fully visible. */
 async function loadProfileHours() {
   try {
-    ttProfile = await apiFetch("/api/auth/me");
+    ttProfile = await cachedFetch("/api/auth/me");
   } catch (_) {
     return; // keep the default window
   }
@@ -56,7 +56,7 @@ async function renderTimetable() {
   grid.innerHTML = html;
 
   try {
-    const data = await apiFetch(`/api/timetable?week_offset=${ttWeekOffset}`);
+    const data = await cachedFetch(`/api/timetable?week_offset=${ttWeekOffset}`);
 
     const label = document.getElementById("tt-week-label");
     if (label && data.week_start) {

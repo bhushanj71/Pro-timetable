@@ -160,6 +160,15 @@ _ADDITIVE_COLUMNS = {
 }
 
 
+# Composite indexes matching what the app actually filters on. Kept beside the
+# column migrations so both are applied by the same boot-time pass.
+_COMPOSITE_INDEXES = [
+    ("ix_events_user_start", "events", "user_id, start_datetime"),
+    ("ix_reminders_due", "reminders", "is_sent, reminder_datetime"),
+    ("ix_reminders_user_due", "reminders", "user_id, reminder_datetime"),
+]
+
+
 def _apply_additive_migrations():
     """Add any missing columns in-place.
 
@@ -196,6 +205,19 @@ def _apply_additive_migrations():
                     text("UPDATE users SET calendar_token = :tok WHERE id = :uid"),
                     {"tok": uuid.uuid4().hex, "uid": user_id},
                 )
+
+        # create_all builds indexes only for tables it creates, so an index
+        # added after a table already exists never appears on a deployed
+        # database -- exactly where it is needed. IF NOT EXISTS makes this
+        # safe to run on every boot.
+        for name, table, columns in _COMPOSITE_INDEXES:
+            if table not in existing_tables:
+                continue
+            try:
+                conn.execute(text(f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({columns})"))
+            except Exception as exc:
+                # A missing index is a slow query, not a broken app.
+                logger.warning("Could not create index %s: %s", name, exc)
 
 
 def init_db():

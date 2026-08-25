@@ -207,3 +207,60 @@
 .reminder-add select { flex: 1 1 150px; min-width: 0; }
 .reminder-add input[type="number"] { flex: 0 1 110px; min-width: 0; }
 .reminder-add .btn { flex: 0 0 auto; white-space: nowrap; }
+
+/* ==========================================================================
+   Skeletons
+   A skeleton is only worth showing if it occupies the same space the content
+   will, otherwise it trades a blank panel for a visible jump. These mirror the
+   real rows: same heights, same rhythm, same gaps.
+   ========================================================================== */
+.sk {
+  border-radius: 8px;
+  background: linear-gradient(
+    100deg,
+    var(--bg-tint) 30%,
+    var(--surface-alt) 50%,
+    var(--bg-tint) 70%
+  );
+  background-size: 220% 100%;
+  /* Animating background-position only: no layout, no paint of anything
+     underneath, so a list of these stays cheap. */
+  animation: skShimmer 1.35s var(--ease) infinite;
+}
+@keyframes skShimmer {
+  from { background-position: 180% 0; }
+  to   { background-position: -80% 0; }
+}
+
+.sk-line { height: 11px; margin-bottom: 8px; }
+.sk-line.short { width: 42%; }
+.sk-line.medium { width: 68%; }
+.sk-line.long { width: 88%; }
+.sk-title { height: 15px; width: 55%; margin-bottom: 10px; }
+.sk-badge { width: 54px; height: 56px; border-radius: 13px; flex: 0 0 auto; }
+.sk-pill { height: 26px; width: 74px; border-radius: var(--radius-pill); }
+
+/* Matches .ue-item: date badge, two-line body, action pill. */
+.sk-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 10px 12px 0;
+}
+.sk-row { flex-wrap: wrap; row-gap: 8px; }
+.sk-row .sk-body { flex: 1 1 150px; min-width: 0; }
+.sk-row-actions { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+
+/* Matches .timeline-item. */
+.sk-timeline-row {
+  display: flex; align-items: center; gap: 13px;
+  padding: 11px 0;
+}
+.sk-timeline-row .sk-time { width: 58px; flex: 0 0 auto; }
+
+/* Timetable grid cells. */
+.sk-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); }
+.sk-cell { height: 52px; border-radius: 11px; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Still shows the shape and the pending state, without the movement. */
+  .sk { animation: none; background: var(--bg-tint); }
+}

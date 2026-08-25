@@ -231,6 +231,8 @@
 
   <div id="toast-container" class="toast-container"></div>
   <script src="/static/js/app.js?v={{ v }}"></script>
+  <!-- Before every page script: they read through its cache. -->
+  <script src="/static/js/store.js?v={{ v }}"></script>
   <script src="/static/js/theme.js?v={{ v }}"></script>
   <script src="/static/js/mobile.js?v={{ v }}"></script>
   {% if user %}

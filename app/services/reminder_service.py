@@ -8,7 +8,7 @@ don't support long-lived processes. Idempotency is enforced via is_sent.
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
 from app.models import Event, Reminder, Task, User
@@ -254,13 +254,21 @@ def process_due_reminders(db: Session, now: datetime | None = None, user_id: str
     )
 
     now = now or datetime.now(timezone.utc)
-    query = db.query(Reminder).filter(Reminder.is_sent.is_(False), Reminder.reminder_datetime <= now)
+    # Each reminder's event and user are read while composing the message, so
+    # load them with the batch rather than one query per reminder.
+    query = (
+        db.query(Reminder)
+        .options(selectinload(Reminder.event), selectinload(Reminder.user))
+        .filter(Reminder.is_sent.is_(False), Reminder.reminder_datetime <= now)
+    )
     # Scoped when called from a user's own request; unscoped for the cron run.
     if user_id:
         query = query.filter(Reminder.user_id == user_id)
     due = query.all()
 
     sent = failed = emails = pushes = 0
+    # user_id -> registered device count, resolved lazily and reused.
+    device_counts: dict[str, int] = {}
 
     for reminder in due:
         try:
@@ -293,12 +301,17 @@ def process_due_reminders(db: Session, now: datetime | None = None, user_id: str
             # reminder retried and then failed instead of falling through to
             # in-app delivery.
             if user.notify_push and push_configured():
-                from app.models import PushSubscription
+                # Counted once per user, not once per reminder. A sweep
+                # delivering 60 reminders was running 60 identical COUNT
+                # queries against push_subscriptions -- the same answer, sixty
+                # times, for one professor.
+                if user.id not in device_counts:
+                    from app.models import PushSubscription
 
-                device_count = (
-                    db.query(PushSubscription).filter(PushSubscription.user_id == user.id).count()
-                )
-                if device_count:
+                    device_counts[user.id] = (
+                        db.query(PushSubscription).filter(PushSubscription.user_id == user.id).count()
+                    )
+                if device_counts[user.id]:
                     channel_attempted = True
                     n = send_push_to_user(db, user, title, when_text)
                     if n:

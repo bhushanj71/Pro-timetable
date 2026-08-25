@@ -197,6 +197,49 @@ if (document.getElementById("notif-bell")) {
   setInterval(pollNotifications, 45000);
 }
 
+/* ---------------- Skeletons ----------------
+
+   Shown only when there is nothing to show yet. A panel that already holds
+   data keeps it while refreshing: replacing real content with grey bars is a
+   downgrade, not a loading state. */
+
+const skeleton = {
+  // Mirrors .ue-item as it actually renders: badge, title, two meta lines,
+  // and the action pills that wrap onto their own row in a narrow card. A
+  // skeleton shorter than the content it stands in for just moves the jump
+  // rather than removing it.
+  rows: (n = 3) =>
+    Array.from({ length: n }, () => `
+      <div class="sk-row">
+        <div class="sk sk-badge"></div>
+        <div class="sk-body">
+          <div class="sk sk-line medium"></div>
+          <div class="sk sk-line short"></div>
+          <div class="sk sk-line short"></div>
+        </div>
+        <div class="sk-row-actions">
+          <div class="sk sk-pill"></div>
+          <div class="sk sk-pill" style="width:104px"></div>
+        </div>
+      </div>`).join(""),
+
+  timeline: (n = 3) =>
+    Array.from({ length: n }, () => `
+      <div class="sk-timeline-row">
+        <div class="sk sk-line sk-time"></div>
+        <div style="flex:1">
+          <div class="sk sk-line medium"></div>
+          <div class="sk sk-line short"></div>
+        </div>
+      </div>`).join(""),
+
+  list: (n = 4) =>
+    Array.from({ length: n }, () => `<div class="sk sk-line long" style="height:34px;margin-bottom:10px"></div>`).join(""),
+
+  grid: (n = 24) =>
+    `<div class="sk-grid">${Array.from({ length: n }, () => `<div class="sk sk-cell"></div>`).join("")}</div>`,
+};
+
 /* ---------------- Loading helpers ---------------- */
 
 // Nothing renders for the first 300ms: most requests finish inside that, and
@@ -240,11 +283,19 @@ function setButtonLoading(btn, isLoading, loadingLabel) {
 }
 
 /** Render shimmer placeholder rows into a container while data loads. */
-function showSkeleton(container, rows = 3) {
+function showSkeleton(container, rows = 3, variant = "rows") {
   if (!container) return;
-  container.innerHTML = Array.from({ length: rows })
-    .map(() => `<div class="skeleton wide"></div><div class="skeleton half"></div>`)
-    .join("");
+  // A panel that already holds real content keeps it while refreshing:
+  // replacing a rendered schedule with grey bars is a downgrade, not a
+  // loading state.
+  if (container.dataset.loaded === "1") return;
+  const build = skeleton[variant] || skeleton.rows;
+  container.innerHTML = build(rows);
+}
+
+/** Mark a container as populated, so later refreshes don't flash skeletons. */
+function markLoaded(container) {
+  if (container) container.dataset.loaded = "1";
 }
 
 /** Cover a container with a spinner overlay. Returns a function to remove it. */

@@ -49,7 +49,7 @@ function updateLabel(start, end) {
 }
 
 async function loadEvents(start, end) {
-  return apiFetch(`/api/events?start=${start.toISOString()}&end=${end.toISOString()}`);
+  return cachedFetch(`/api/events?start=${start.toISOString()}&end=${end.toISOString()}`);
 }
 
 function renderDayLike(container, events, days) {

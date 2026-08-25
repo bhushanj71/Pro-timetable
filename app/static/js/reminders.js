@@ -4,7 +4,7 @@ async function loadReminders() {
   const el = document.getElementById("reminders-list");
   const includePast = document.getElementById("rm-show-past")?.checked;
   try {
-    const reminders = await apiFetch(`/api/reminders${includePast ? "?include_past=true" : ""}`);
+    const reminders = await cachedFetch(`/api/reminders${includePast ? "?include_past=true" : ""}`);
     el.innerHTML = reminders.length
       ? reminders
           .map(

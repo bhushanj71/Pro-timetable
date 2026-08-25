@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote_plus
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models import Event, Reminder, User
 from app.services.nlp_dates import ensure_aware_utc, get_tz
@@ -198,6 +198,7 @@ def active_reminders(db: Session, user: User, limit: int = 100) -> list[dict]:
     now = datetime.now(timezone.utc)
     rows = (
         db.query(Reminder)
+        .options(selectinload(Reminder.event))
         .filter(
             Reminder.user_id == user.id,
             Reminder.is_sent.is_(False),

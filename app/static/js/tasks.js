@@ -4,7 +4,7 @@ async function loadTasks() {
   const el = document.getElementById("tasks-list");
   const filter = document.getElementById("tk-filter").value;
   try {
-    const tasks = await apiFetch(`/api/tasks${filter ? `?status=${filter}` : ""}`);
+    const tasks = await cachedFetch(`/api/tasks${filter ? `?status=${filter}` : ""}`);
     el.innerHTML = tasks.length
       ? tasks
           .map(

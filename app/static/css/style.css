@@ -451,7 +451,18 @@ input, select, textarea, button { font-size: inherit; }
 .hero::after  { width: 480px; height: 480px; top: -220px; right: -140px; border-color: rgba(224,120,93,0.09); }
 
 .hero-greet { font-size: 1.85rem; font-weight: 800; letter-spacing: -0.03em; position: relative; }
-.hero-greet .wave-emoji { display: inline-block; transform-origin: 70% 70%; animation: wave 2.6s var(--ease) infinite; }
+/* Waves three times on arrival, then stops. It was `infinite`, which kept a
+   compositor animation alive for the entire session to decorate a greeting --
+   the one genuinely endless animation on the page, and the kind that costs
+   battery on a phone left open on a desk. */
+.hero-greet .wave-emoji {
+  display: inline-block;
+  transform-origin: 70% 70%;
+  animation: wave 2.6s var(--ease) 3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-greet .wave-emoji { animation: none; }
+}
 .hero-sub { color: var(--text-soft); margin-top: 5px; font-size: 0.93rem; position: relative; }
 
 .ai-input-row {

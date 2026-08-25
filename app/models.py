@@ -9,6 +9,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -129,6 +130,13 @@ class User(Base):
 
 class Event(Base):
     __tablename__ = "events"
+    __table_args__ = (
+        # "my events between these dates" is what the dashboard, timetable,
+        # calendar, next-class and conflict queries all ask. Ordered
+        # user_id first: it is the equality half of the predicate, so it
+        # narrows before the range scan.
+        Index("ix_events_user_start", "user_id", "start_datetime"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
@@ -174,6 +182,12 @@ class Event(Base):
 
 class Reminder(Base):
     __tablename__ = "reminders"
+    __table_args__ = (
+        # The delivery sweep asks for unsent reminders that are due, and the
+        # bell asks the same question scoped to one user.
+        Index("ix_reminders_due", "is_sent", "reminder_datetime"),
+        Index("ix_reminders_user_due", "user_id", "reminder_datetime"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     event_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("events.id"), nullable=True, index=True)

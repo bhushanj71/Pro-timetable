@@ -23,7 +23,7 @@
 
     let status;
     try {
-      status = await apiFetch("/api/onboarding/status");
+      status = await cachedFetch("/api/onboarding/status");
     } catch (_) {
       return; // not signed in
     }
