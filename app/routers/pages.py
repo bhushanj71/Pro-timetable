@@ -63,6 +63,13 @@ def dashboard_page(request: Request, user: User | None = Depends(get_current_use
     return templates.TemplateResponse("dashboard.html", _ctx(request, user))
 
 
+@router.get("/work")
+def work_page(request: Request, user: User | None = Depends(get_current_user_optional)):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse("work.html", _ctx(request, user))
+
+
 @router.get("/timetable")
 def timetable_page(request: Request, user: User | None = Depends(get_current_user_optional)):
     if not user:

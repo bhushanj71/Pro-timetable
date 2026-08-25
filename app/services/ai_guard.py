@@ -75,6 +75,11 @@ _IN_SCOPE_WORDS = {
     "faculty", "prof", "professor", "teacher", "sir", "madam",
     "conflict", "conflicts", "clash", "clashes", "overlap", "double",
     "holiday", "holidays", "leave", "off", "closed", "vacation", "break",
+    # Work mode: communities, assignments and progress are equally "the app".
+    "community", "communities", "team", "workspace", "member", "members",
+    "invite", "invitation", "assign", "assigned", "assignment", "task",
+    "progress", "percent", "accept", "decline", "pending", "complete",
+    "completed", "created", "group", "colleague", "workspace",
     "before", "after", "turn", "off", "on", "set", "search", "find",
 }
 
@@ -87,6 +92,19 @@ def _matches(patterns: list[str], text: str) -> str | None:
         if re.search(pat, text, re.IGNORECASE):
             return pat
     return None
+
+
+# Work-mode requests that carry no scheduling vocabulary at all -- "invite
+# Rahul to Project Alpha" names no time and no class -- and would otherwise be
+# refused as off-topic.
+_WORK_HINTS = (
+    "communit", "workspace", "team", "invite", "assign", "task",
+    "progress", "member", "accept", "decline",
+)
+
+
+def looks_like_work(prompt: str) -> bool:
+    return any(h in (prompt or "").lower() for h in _WORK_HINTS)
 
 
 def check_prompt(prompt: str) -> tuple[bool, str | None]:
@@ -116,7 +134,12 @@ def check_prompt(prompt: str) -> tuple[bool, str | None]:
     # schedule request. Short prompts are given the benefit of the doubt --
     # "9am?" and "A-301" are terse but legitimate follow-ups.
     words = set(_WORD_RE.findall(text.lower()))
-    if len(words) > 3 and not (words & _IN_SCOPE_WORDS) and not _TIME_RE.search(text.lower()):
+    if (
+        len(words) > 3
+        and not (words & _IN_SCOPE_WORDS)
+        and not _TIME_RE.search(text.lower())
+        and not looks_like_work(text)
+    ):
         return False, (
             "I couldn't find anything about your schedule in that. Try naming what and when — "
             "for example, “move Friday's DSV lab to 2pm” or “what's on tomorrow?”."

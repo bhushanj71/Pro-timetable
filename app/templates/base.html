@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="/static/css/theme.css?v={{ v }}">
   <link rel="stylesheet" href="/static/css/glass.css?v={{ v }}">
   <link rel="stylesheet" href="/static/css/voice.css?v={{ v }}">
+  <link rel="stylesheet" href="/static/css/work.css?v={{ v }}">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <link rel="icon" type="image/png" href="/static/favicon.png?v={{ v }}">
   {% block head %}{% endblock %}
@@ -36,7 +37,7 @@
     })();
   </script>
 </head>
-<body class="app-shell">
+<body class="app-shell" data-profile="{{ 'work' if request.url.path == '/work' else 'personal' }}">
 {% if user %}
   <div class="layout">
     <!-- ==================== Sidebar ==================== -->
@@ -66,6 +67,10 @@
       <a class="nav-link {% if request.url.path == '/reminders' %}active{% endif %}" href="/reminders">
         <span class="nav-ico">🔔</span> Reminders
         <span class="nav-badge hidden" id="nav-reminder-count">0</span>
+      </a>
+      <a class="nav-link {% if request.url.path == '/work' %}active{% endif %}" href="/work">
+        <span class="nav-ico">💼</span> Work
+        <span class="nav-badge hidden" id="nav-work-count">0</span>
       </a>
       <a class="nav-link {% if request.url.path == '/profile' %}active{% endif %}" href="/profile">
         <span class="nav-ico">👤</span> Profile
@@ -100,6 +105,22 @@
     <div class="main-col">
       <header class="topbar" id="topbar">
         <button class="icon-btn menu-btn" id="menu-btn" aria-label="Open menu">☰</button>
+
+        <!-- One account, two views. Which one is active has to be obvious at a
+             glance, because the whole point is that the data does not mix. -->
+        <div class="profile-switch" role="tablist" aria-label="Profile">
+          <a class="ps-opt {% if request.url.path != '/work' %}active{% endif %}"
+             href="/dashboard" role="tab" data-profile="personal"
+             aria-selected="{{ 'false' if request.url.path == '/work' else 'true' }}">
+            <span aria-hidden="true">👤</span> Personal
+          </a>
+          <a class="ps-opt {% if request.url.path == '/work' %}active{% endif %}"
+             href="/work" role="tab" data-profile="work"
+             aria-selected="{{ 'true' if request.url.path == '/work' else 'false' }}">
+            <span aria-hidden="true">💼</span> Work
+            <span class="ps-badge hidden" id="ps-work-badge">0</span>
+          </a>
+        </div>
 
         <div class="topbar-actions">
           <button class="icon-btn" id="theme-btn" aria-label="Theme">☀️</button>

@@ -22,6 +22,26 @@ function renderExtractionPreview(response) {
     return;
   }
 
+  if (intent === "WRONG_PROFILE") {
+    box.innerHTML = `<div class="ai-result-card">💼 ${esc(summary)}
+      <div class="modal-actions"><a class="btn btn-sm btn-primary" href="/work">Go to Work</a></div></div>`;
+    return;
+  }
+
+  // Work answers are already resolved server-side; there is nothing to confirm.
+  if (["VIEW_COMMUNITIES","VIEW_REQUESTS","VIEW_MY_TASKS","VIEW_ASSIGNED_BY_ME",
+       "TASK_PROGRESS_QUERY","SET_TASK_PROGRESS","RESPOND_TASK","CREATE_COMMUNITY",
+       "INVITE_MEMBER","ASSIGN_TASK"].includes(intent)) {
+    const rows = (response.matches || []).map(
+      (m) => `<div class="event-line">• <strong>${esc(m.title)}</strong>${m.when ? " — " + esc(m.when) : ""}</div>`
+    ).join("");
+    box.innerHTML = `<div class="ai-result-card"><div><strong>${esc(summary)}</strong></div>${rows}</div>`;
+    if (["SET_TASK_PROGRESS","RESPOND_TASK","CREATE_COMMUNITY"].includes(intent)) {
+      window.dispatchEvent(new CustomEvent("work-updated"));
+    }
+    return;
+  }
+
   if (["GET_NEXT_CLASS", "SHOW_LOCATION", "CHECK_CONFLICTS", "VIEW_REMINDERS"].includes(intent)) {
     const rows = (response.matches || []).map((m) => {
       // VIEW_REMINDERS returns reminders; the others return events.
@@ -315,7 +335,12 @@ async function submitAIPrompt(promptText, { spoken = false } = {}) {
   if (input) input.disabled = true;
 
   try {
-    const response = await apiFetch("/api/ai/process-prompt", { method: "POST", body: { prompt: promptText } });
+    // The mode the professor is actually looking at travels with the command,
+    // so the server can refuse to let one mode act on the other's data.
+    const profile = document.body.dataset.profile || "personal";
+    const response = await apiFetch("/api/ai/process-prompt", {
+      method: "POST", body: { prompt: promptText, profile },
+    });
     lastExtraction = response.extraction;
     progress.stop();
     renderExtractionPreview(response);

@@ -165,6 +165,30 @@ def process_prompt(payload: AIPromptRequest, db: Session = Depends(get_db), user
     # Refuse before spending a model call. This also holds when no API key is
     # configured and the rule-based parser would otherwise invent an event out
     # of an unrelated sentence.
+    # Work mode gets its own parser. Keeping them apart is what guarantees a
+    # command in one mode cannot reach the other's data: the code that creates
+    # a lecture and the code that assigns a task never see the same request.
+    profile = (payload.profile or user.active_profile or "personal").lower()
+    if profile == "work":
+        answer = handle_work_prompt(db, user, payload.prompt)
+        if answer is not None:
+            return answer
+    else:
+        # A work command typed in Personal mode is not refused and not acted
+        # on: it is pointed at the right room. Letting the personal parser see
+        # it produced nonsense -- "show my active work tasks" came back as a
+        # schedule query for a lecture called "string".
+        from app.services.work_ai import parse_work_command
+
+        if parse_work_command(payload.prompt):
+            return AIPromptResponse(
+                intent="WRONG_PROFILE",
+                extraction=AIExtractionResult(intent="WRONG_PROFILE"),
+                summary="That's a Work command. Switch to 💼 Work and ask again — "
+                        "your personal schedule and your team's work are kept separate.",
+                requires_confirmation=False,
+            )
+
     allowed, refusal = check_prompt(payload.prompt)
     if not allowed:
         return AIPromptResponse(
@@ -293,6 +317,24 @@ def _is_blanket(scope: str | None) -> bool:
     subject. "Remind me 15 minutes before every lecture" names no subject, and
     searching for the literal text "every lecture" would match nothing."""
     return (scope or "").strip().lower() in _BLANKET
+
+
+def handle_work_prompt(db: Session, user: User, prompt: str):
+    """Answer a Work-mode command, or return None to fall through.
+
+    Falling through matters: someone in Work mode can still ask "what's my
+    next lecture", and that should reach the personal parser rather than being
+    refused for being in the wrong room.
+    """
+    from app.services.work_ai import parse_work_command
+
+    cmd = parse_work_command(prompt)
+    if not cmd:
+        return None
+
+    from app.services import work_router_actions as actions
+
+    return actions.execute(db, user, cmd)
 
 
 def _answer_read_only(db: Session, user: User, extraction: AIExtractionResult):

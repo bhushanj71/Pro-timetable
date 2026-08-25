@@ -146,6 +146,7 @@ _ADDITIVE_COLUMNS = {
         ("google_calendar_id", "VARCHAR(255)"),
         ("google_sync_enabled", "BOOLEAN DEFAULT 0 NOT NULL"),
         ("onboarding_completed", "BOOLEAN DEFAULT 0 NOT NULL"),
+        ("active_profile", "VARCHAR(16) DEFAULT 'personal' NOT NULL"),
     ],
     "events": [
         ("google_event_id", "VARCHAR(255)"),

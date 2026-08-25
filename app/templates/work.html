@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Work — ProfSchedule AI{% endblock %}
+
+{% block content %}
+<div class="work-mode">
+
+  <section class="section-title">
+    <div>
+      <h2>💼 Work</h2>
+      <p class="muted-text">Communities, assignments and progress. Separate from your personal schedule.</p>
+    </div>
+    <button class="btn btn-primary" id="wk-new-community">+ Create Community</button>
+  </section>
+
+  <!-- Counts -->
+  <div class="wk-stats" id="wk-stats">
+    <div class="wk-stat"><div class="wk-stat-n sk sk-line" id="wk-n-active">—</div><div class="wk-stat-l">Active</div></div>
+    <div class="wk-stat"><div class="wk-stat-n" id="wk-n-pending">—</div><div class="wk-stat-l">Pending</div></div>
+    <div class="wk-stat"><div class="wk-stat-n" id="wk-n-done">—</div><div class="wk-stat-l">Completed</div></div>
+  </div>
+
+  <!-- Anything waiting on this person comes first: an unanswered request is
+       the only thing here that blocks someone else. -->
+  <div class="card" id="wk-inbox-card">
+    <h3>📥 Waiting on you</h3>
+    <div id="wk-invites"></div>
+    <div id="wk-requests"></div>
+  </div>
+
+  <div class="wk-columns">
+    <div class="card">
+      <h3>🔥 My active tasks</h3>
+      <div id="wk-active"></div>
+    </div>
+
+    <div class="card">
+      <h3>👥 My communities</h3>
+      <div id="wk-communities"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>📤 Assigned by me</h3>
+    <div id="wk-created"></div>
+  </div>
+</div>
+
+<!-- Create community -->
+<div id="wk-community-modal" class="modal-backdrop hidden">
+  <div class="modal-card" style="max-width:440px">
+    <h3>Create a community</h3>
+    <p class="muted-text" style="margin-bottom:14px">You'll be the owner and can invite people straight away.</p>
+    <div class="form-row">
+      <div class="form-group" style="flex:0 0 88px">
+        <label for="wk-c-icon">Icon</label>
+        <input type="text" id="wk-c-icon" value="👥" maxlength="4">
+      </div>
+      <div class="form-group">
+        <label for="wk-c-name">Name</label>
+        <input type="text" id="wk-c-name" placeholder="AI Research Team" maxlength="120">
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="wk-c-desc">Description</label>
+      <input type="text" id="wk-c-desc" placeholder="What this team works on" maxlength="2000">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="wk-c-create">Create</button>
+      <button class="btn" data-close-modal="wk-community-modal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Community detail -->
+<div id="wk-detail-modal" class="modal-backdrop hidden">
+  <div class="modal-card" style="max-width:560px">
+    <div id="wk-detail-body"></div>
+    <div class="modal-actions">
+      <button class="btn" data-close-modal="wk-detail-modal">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Assign a task -->
+<div id="wk-task-modal" class="modal-backdrop hidden">
+  <div class="modal-card" style="max-width:520px">
+    <h3 id="wk-task-title-text">Assign a task</h3>
+    <p class="muted-text" id="wk-task-sub" style="margin-bottom:14px"></p>
+    <input type="hidden" id="wk-task-community">
+
+    <div class="form-group">
+      <label for="wk-t-title">Task</label>
+      <input type="text" id="wk-t-title" placeholder="Build the login API" maxlength="255">
+    </div>
+    <div class="form-group">
+      <label for="wk-t-desc">Details</label>
+      <input type="text" id="wk-t-desc" placeholder="What needs doing" maxlength="4000">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="wk-t-priority">Priority</label>
+        <select id="wk-t-priority">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+          <option value="urgent">Urgent</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="wk-t-due">Due</label>
+        <input type="date" id="wk-t-due">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Assign to</label>
+      <div id="wk-t-members" class="wk-picker"></div>
+      <small class="form-hint">Each person is asked to accept. Nothing becomes their responsibility until they do.</small>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="wk-t-create">Send assignment</button>
+      <button class="btn" data-close-modal="wk-task-modal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Task detail -->
+<div id="wk-taskdetail-modal" class="modal-backdrop hidden">
+  <div class="modal-card" style="max-width:560px">
+    <div id="wk-taskdetail-body"></div>
+    <div class="modal-actions">
+      <button class="btn" data-close-modal="wk-taskdetail-modal">Close</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/work.js?v={{ v }}"></script>
+{% endblock %}

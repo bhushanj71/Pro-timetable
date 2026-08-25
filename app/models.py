@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -113,6 +114,9 @@ class User(Base):
     google_refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     google_calendar_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     google_sync_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Which mode to open in. One account, two views -- never two accounts.
+    active_profile: Mapped[str] = mapped_column(String(16), default="personal")
 
     # First-run notification setup. Stored server-side so the prompt follows
     # the professor to any browser until they've actually made a choice.
@@ -272,3 +276,229 @@ class AIConversation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     user: Mapped["User"] = relationship(back_populates="conversations")
+
+
+# ===========================================================================
+# Work mode
+#
+# Personal data (Event, Task, Reminder above) is untouched. Work data lives in
+# its own tables keyed by community, so the two modes cannot leak into each
+# other by construction rather than by remembering to filter -- one account,
+# two disjoint sets of rows.
+# ===========================================================================
+
+
+class CommunityRole(str, enum.Enum):
+    OWNER = "owner"
+    ADMIN = "admin"
+    MEMBER = "member"
+
+
+class InviteStatus(str, enum.Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    REVOKED = "revoked"
+
+
+class WorkTaskStatus(str, enum.Enum):
+    """Lifecycle of the task as a whole."""
+
+    DRAFT = "draft"
+    PENDING_ACCEPTANCE = "pending_acceptance"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+class AssignmentStatus(str, enum.Enum):
+    """Lifecycle of one person's share of a task.
+
+    Deliberately separate from the task's own status: a task can be active
+    while one member has accepted, another is still deciding, and a third has
+    declined. Collapsing these into one field is what makes "assigned" quietly
+    mean "obligated" without the person ever agreeing.
+    """
+
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    DECLINED = "declined"
+
+
+class Community(Base):
+    __tablename__ = "communities"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # An emoji rather than an upload: no storage, no moderation, renders
+    # everywhere, and it is enough to tell three communities apart at a glance.
+    icon: Mapped[str] = mapped_column(String(16), default="\U0001F465")
+    created_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    members: Mapped[list["CommunityMember"]] = relationship(
+        back_populates="community", cascade="all, delete-orphan"
+    )
+    invitations: Mapped[list["CommunityInvitation"]] = relationship(
+        back_populates="community", cascade="all, delete-orphan"
+    )
+    tasks: Mapped[list["WorkTask"]] = relationship(
+        back_populates="community", cascade="all, delete-orphan"
+    )
+
+
+class CommunityMember(Base):
+    __tablename__ = "community_members"
+    __table_args__ = (
+        # One membership per person per community, enforced by the database
+        # rather than by a check that a race can slip past.
+        UniqueConstraint("community_id", "user_id", name="uq_community_member"),
+        Index("ix_member_user", "user_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    community_id: Mapped[str] = mapped_column(String(36), ForeignKey("communities.id"), index=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+    role: Mapped[str] = mapped_column(String(16), default=CommunityRole.MEMBER.value)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    community: Mapped["Community"] = relationship(back_populates="members")
+    user: Mapped["User"] = relationship()
+
+
+class CommunityInvitation(Base):
+    __tablename__ = "community_invitations"
+    __table_args__ = (Index("ix_invite_invitee", "invitee_id", "status"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    community_id: Mapped[str] = mapped_column(String(36), ForeignKey("communities.id"), index=True)
+    inviter_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+    invitee_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+    status: Mapped[str] = mapped_column(String(16), default=InviteStatus.PENDING.value)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    community: Mapped["Community"] = relationship(back_populates="invitations")
+    inviter: Mapped["User"] = relationship(foreign_keys=[inviter_id])
+    invitee: Mapped["User"] = relationship(foreign_keys=[invitee_id])
+
+
+class WorkTask(Base):
+    __tablename__ = "work_tasks"
+    __table_args__ = (Index("ix_worktask_community_status", "community_id", "status"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    community_id: Mapped[str] = mapped_column(String(36), ForeignKey("communities.id"), index=True)
+    created_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    priority: Mapped[str] = mapped_column(String(16), default="medium")
+    status: Mapped[str] = mapped_column(String(24), default=WorkTaskStatus.PENDING_ACCEPTANCE.value)
+
+    start_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    estimated_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    community: Mapped["Community"] = relationship(back_populates="tasks")
+    creator: Mapped["User"] = relationship(foreign_keys=[created_by])
+    assignments: Mapped[list["TaskAssignment"]] = relationship(
+        back_populates="task", cascade="all, delete-orphan"
+    )
+    comments: Mapped[list["TaskComment"]] = relationship(
+        back_populates="task", cascade="all, delete-orphan"
+    )
+
+
+class TaskAssignment(Base):
+    """One person's share of a task.
+
+    A task is never "assigned" to someone in the sense of being their
+    responsibility until they accept it: this row starts PENDING and only
+    reaches the assignee's active list once they say yes.
+    """
+
+    __tablename__ = "task_assignments"
+    __table_args__ = (
+        UniqueConstraint("task_id", "user_id", name="uq_task_assignee"),
+        Index("ix_assignment_user_status", "user_id", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    task_id: Mapped[str] = mapped_column(String(36), ForeignKey("work_tasks.id"), index=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+
+    status: Mapped[str] = mapped_column(String(16), default=AssignmentStatus.PENDING.value)
+    progress: Mapped[int] = mapped_column(Integer, default=0)
+    decline_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    task: Mapped["WorkTask"] = relationship(back_populates="assignments")
+    user: Mapped["User"] = relationship()
+    updates: Mapped[list["TaskProgressUpdate"]] = relationship(
+        back_populates="assignment", cascade="all, delete-orphan"
+    )
+
+
+class TaskProgressUpdate(Base):
+    """An entry in the timeline of one person's work on a task."""
+
+    __tablename__ = "task_progress_updates"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    assignment_id: Mapped[str] = mapped_column(String(36), ForeignKey("task_assignments.id"), index=True)
+    from_progress: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    to_progress: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    kind: Mapped[str] = mapped_column(String(24), default="progress")  # progress|status|note
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    assignment: Mapped["TaskAssignment"] = relationship(back_populates="updates")
+
+
+class TaskComment(Base):
+    __tablename__ = "task_comments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    task_id: Mapped[str] = mapped_column(String(36), ForeignKey("work_tasks.id"), index=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    task: Mapped["WorkTask"] = relationship(back_populates="comments")
+    user: Mapped["User"] = relationship()
+
+
+class WorkNotification(Base):
+    """Work-mode notification feed.
+
+    Kept apart from Reminder rather than folded into it. Reminder drives the
+    personal schedule's push and email delivery; mixing "Rahul accepted your
+    task" into it would put work content in the personal bell and break the
+    isolation this feature exists to provide.
+    """
+
+    __tablename__ = "work_notifications"
+    __table_args__ = (Index("ix_worknotif_user_read", "user_id", "read_at"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(32))
+    title: Mapped[str] = mapped_column(String(255))
+    body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    community_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    task_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped["User"] = relationship()

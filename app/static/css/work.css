@@ -1,0 +1,183 @@
+/* ==========================================================================
+   Work mode
+   Same design language as Personal -- glass panels, warm coral, one easing
+   curve -- so switching modes reads as changing view, not changing app.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Profile switcher
+   The active mode has to be unmistakable: the entire promise is that the two
+   sets of data never mix, so "which am I in" can never be a guess.
+   -------------------------------------------------------------------------- */
+.profile-switch {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  margin-right: auto;
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg-faint, var(--surface-alt));
+  border: 1px solid var(--glass-rim, var(--border));
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  backdrop-filter: var(--glass-blur-sm);
+}
+.ps-opt {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 15px;
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem; font-weight: 700;
+  color: var(--text-soft);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--t-fast) var(--ease), background var(--t) var(--ease),
+              box-shadow var(--t) var(--ease);
+}
+.ps-opt:hover { color: var(--text); }
+.ps-opt.active {
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.ps-badge {
+  min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--danger); color: #fff;
+  font-size: 0.62rem; font-weight: 800;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+
+/* --------------------------------------------------------------------------
+   Counts
+   -------------------------------------------------------------------------- */
+.wk-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.wk-stat {
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--glass-bg, var(--surface));
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-rim, var(--border));
+  text-align: center;
+}
+.wk-stat-n { font-size: 1.7rem; font-weight: 800; color: var(--primary); line-height: 1.1; }
+.wk-stat-l { font-size: 0.74rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.wk-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+/* --------------------------------------------------------------------------
+   Requests: the only things here that block someone else
+   -------------------------------------------------------------------------- */
+.wk-request {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; row-gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.wk-request:last-child { border-bottom: none; }
+.wk-request-main { flex: 1 1 190px; min-width: 0; }
+.wk-request-title { font-weight: 700; font-size: 0.9rem; }
+.wk-request-meta { font-size: 0.76rem; color: var(--text-muted); margin-top: 2px; }
+.wk-request-actions { display: flex; gap: 7px; margin-left: auto; flex-wrap: wrap; }
+
+.wk-empty { color: var(--text-muted); font-size: 0.85rem; padding: 14px 0; }
+
+/* --------------------------------------------------------------------------
+   Tasks
+   -------------------------------------------------------------------------- */
+.wk-task {
+  padding: 12px;
+  border-radius: 12px;
+  margin-bottom: 9px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
+}
+.wk-task:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+.wk-task-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
+.wk-task-title { font-weight: 700; font-size: 0.87rem; min-width: 0; }
+.wk-task-meta { font-size: 0.74rem; color: var(--text-muted); margin-top: 6px; }
+.wk-pct { font-size: 0.78rem; font-weight: 800; color: var(--primary); flex: 0 0 auto; }
+
+.wk-bar {
+  height: 7px; border-radius: var(--radius-pill);
+  background: var(--border); overflow: hidden;
+}
+.wk-bar > span {
+  display: block; height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), var(--primary-hover));
+  /* Width, not transform: the bar is a measurement, and a scaled bar would
+     also scale a rounded end into an ellipse. */
+  transition: width var(--t-slow) var(--ease-out);
+}
+
+/* --------------------------------------------------------------------------
+   People
+   -------------------------------------------------------------------------- */
+.wk-people { display: flex; flex-direction: column; gap: 9px; margin-top: 6px; }
+.wk-person { display: flex; align-items: center; gap: 10px; font-size: 0.84rem; }
+.wk-person-name { font-weight: 600; flex: 0 0 auto; }
+.wk-person-bar { flex: 1; min-width: 60px; }
+.wk-avatar {
+  width: 26px; height: 26px; flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--primary-soft); color: var(--primary-hover);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; font-weight: 800;
+}
+.wk-chip {
+  font-size: 0.7rem; font-weight: 700;
+  padding: 3px 9px; border-radius: var(--radius-pill);
+  background: var(--bg-tint); color: var(--text-muted);
+  white-space: nowrap;
+}
+.wk-chip.pending { background: var(--warning-soft); color: var(--warning); }
+.wk-chip.declined { background: var(--danger-soft); color: var(--danger); }
+.wk-chip.role { background: var(--primary-softer); color: var(--primary); text-transform: capitalize; }
+
+.wk-community {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px; margin-bottom: 8px;
+  border-radius: 12px;
+  background: var(--surface-alt); border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform var(--t) var(--ease), background var(--t) var(--ease);
+}
+.wk-community:hover { transform: translateX(2px); background: var(--primary-softer); }
+.wk-community-icon { font-size: 1.4rem; }
+.wk-community-name { font-weight: 700; font-size: 0.88rem; }
+
+/* Overall progress and the rule behind it */
+.wk-overall { padding: 12px; border-radius: 12px; background: var(--surface-alt); margin-bottom: 14px; }
+/* Stated in the UI, not just the payload: a number averaged over some members
+   and not others is misleading unless the rule is visible. */
+.wk-basis { font-size: 0.71rem; color: var(--text-muted); margin-top: 7px; }
+
+.wk-timeline { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+.wk-tl-row { display: flex; gap: 10px; font-size: 0.78rem; padding: 5px 0; color: var(--text-soft); }
+.wk-tl-when { color: var(--text-muted); flex: 0 0 96px; }
+
+.wk-picker { display: flex; flex-direction: column; gap: 6px; max-height: 190px; overflow-y: auto; }
+.wk-pick {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 10px; border-radius: 10px;
+  background: var(--surface-alt); cursor: pointer;
+  font-size: 0.84rem;
+}
+.wk-pick:hover { background: var(--primary-softer); }
+.wk-pick input { width: auto; }
+
+/* --------------------------------------------------------------------------
+   Mobile
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .wk-columns { grid-template-columns: 1fr; }
+  .wk-stats { gap: 8px; }
+  .wk-stat { padding: 12px 8px; }
+  .wk-stat-n { font-size: 1.35rem; }
+  /* The switcher is the most important control on the page; it keeps its full
+     size and takes the whole row rather than being squeezed beside the icons. */
+  .profile-switch { order: -1; width: 100%; margin: 0 0 8px; justify-content: center; }
+  .ps-opt { flex: 1; justify-content: center; }
+  .wk-tl-when { flex-basis: 74px; }
+}

@@ -29,6 +29,7 @@ from app.routers import (
     reminders,
     tasks,
     timetable,
+    work,
 )
 
 settings = get_settings()
@@ -162,6 +163,7 @@ app.include_router(cron.router)
 app.include_router(admin.router)
 app.include_router(notifications.router)
 app.include_router(google_auth.router)
+app.include_router(work.router)
 app.include_router(pages.router)
 
 

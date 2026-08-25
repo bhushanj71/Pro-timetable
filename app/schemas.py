@@ -329,6 +329,22 @@ class ScheduleEvent(BaseModel):
     reminder_minutes: Optional[int] = None
     description: Optional[str] = None
 
+    @field_validator("recurrence_days", mode="before")
+    @classmethod
+    def _null_list(cls, v):
+        """The literal string "null" fails list validation and discards the
+        whole extraction, dropping a good request to the fallback parser."""
+        if isinstance(v, str) and v.strip().lower() in ("null", "none", ""):
+            return None
+        return v
+
+    @field_validator("reminder_minutes", mode="before")
+    @classmethod
+    def _null_int(cls, v):
+        if isinstance(v, str) and v.strip().lower() in ("null", "none", ""):
+            return None
+        return v
+
     # LLMs routinely emit the literal string "null" instead of JSON null.
     @field_validator(
         "subject", "day", "date", "start_time", "end_time", "recurrence",
@@ -433,6 +449,11 @@ class AIExtractionResult(BaseModel):
 
 
 class AIPromptRequest(BaseModel):
+    # Which mode the command was typed in. The router refuses to let a Work
+    # command touch personal data and vice versa, so this is a boundary, not
+    # a hint.
+    profile: Optional[str] = None
+
     prompt: str = Field(min_length=1, max_length=2000)
 
 

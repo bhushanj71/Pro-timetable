@@ -28,6 +28,10 @@ const CACHE_TTL = {
   "/api/timetable": 30_000,
   "/api/tasks": 30_000,
   "/api/reminders": 30_000,
+  "/api/work/dashboard": 20_000,
+  "/api/work/communities": 60_000,
+  "/api/work/invitations": 20_000,
+  "/api/work/tasks": 20_000,
   // Never served from cache: the bell is the one thing that must be current,
   // and it is cheap.
   "/api/reminders/notifications": 0,
@@ -135,6 +139,18 @@ function clearCache() {
   inflight.clear();
 }
 
+/* Personal and Work are separate datasets that happen to share a cache.
+   Invalidating one must not disturb the other: a professor creating a lecture
+   should not cost their Work dashboard a refetch, and more importantly a
+   stale Work entry must never be able to answer a Personal read. The URL
+   prefixes keep them disjoint -- /api/work/* against everything else -- so
+   this is a matter of matching the right prefix, not of tagging entries. */
+function invalidateWork() {
+  invalidate("/api/work");
+}
+
+window.addEventListener("work-updated", invalidateWork);
+
 window.addEventListener("schedule-updated", invalidateSchedule);
 
 /* Invalidate at the transport layer, not at each call site.
@@ -154,7 +170,8 @@ window.apiFetch = function patchedApiFetch(url, options = {}) {
     // Only on success: a rejected write changed nothing, and dropping the
     // cache for it would cost a refetch for no reason.
     return Promise.resolve(result).then((data) => {
-      if (/\/api\/(events|timetable|tasks|reminders)/.test(url)) invalidateSchedule();
+      if (url.startsWith("/api/work")) invalidateWork();
+    else if (/\/api\/(events|timetable|tasks|reminders)/.test(url)) invalidateSchedule();
       else if (url.startsWith("/api/auth") || url.startsWith("/api/push")) {
         invalidate("/api/auth/me", "/api/onboarding/status", "/api/push/devices");
       }
@@ -164,4 +181,6 @@ window.apiFetch = function patchedApiFetch(url, options = {}) {
   return result;
 };
 
-window.dataStore = { cachedFetch, invalidate, invalidateSchedule, clearCache, stats, cache };
+window.dataStore = {
+  cachedFetch, invalidate, invalidateSchedule, invalidateWork, clearCache, stats, cache,
+};
