@@ -92,6 +92,44 @@ def test_a_literal_null_never_reaches_the_database(auth_client, db_session):
     assert row.location == "Room 302", "an absent field must not wipe a real one"
 
 
+def test_a_delete_still_requires_confirmation(auth_client):
+    """Voice runs creates and updates straight through, but a misheard word is
+    exactly how a lecture gets deleted by accident, so deletes always ask.
+    The browser decides that from these two fields."""
+    _mk(auth_client, "DBMS lecture")
+    body = _ask(auth_client, "Delete my DBMS lecture")
+
+    assert body["action"] == "delete"
+    assert body["requires_confirmation"] is True
+    assert body["matches"], "the professor must see exactly what would go"
+
+
+def test_a_create_is_confirmable_but_carries_everything_needed(auth_client):
+    """Voice auto-runs this, so the extraction has to be complete on the first
+    pass -- there is no second round trip to fill anything in."""
+    body = _ask(auth_client, "Add a DBMS lecture tomorrow at 10 AM in Room 302")
+    assert body["requires_confirmation"] is True
+    assert body["action"] != "delete"
+
+    result = auth_client.post("/api/ai/confirm", json={"extraction": body["extraction"]}).json()
+    assert result["ok"] is True and result["events_created"] == 1
+
+    ev = auth_client.get("/api/events").json()[0]
+    assert ev["location"] == "Room 302"
+
+
+def test_an_unmatched_target_is_reported_not_invented(auth_client):
+    """Voice mishears. A command naming something that does not exist has to
+    come back as "not found", never as a newly created event."""
+    before = len(auth_client.get("/api/events").json())
+    body = _ask(auth_client, "Move my Astrophysics seminar to 4 PM")
+
+    assert body["matches"] == []
+    assert body["requires_confirmation"] is False
+    assert "couldn't find" in body["summary"].lower()
+    assert len(auth_client.get("/api/events").json()) == before
+
+
 # --- Look-ups --------------------------------------------------------------
 
 def test_next_class_and_the_spoken_question_agree(auth_client):

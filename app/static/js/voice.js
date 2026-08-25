@@ -32,7 +32,10 @@
   let stoppedByUser = false;
   let silenceTimer = null;
 
+  // After speech: a pause this long means the sentence is finished.
   const SILENCE_MS = 2600;
+  // Before any speech at all: give the professor time to start talking.
+  const NO_SPEECH_MS = 8000;
 
   function setPanel(state, text) {
     if (!panel) return;
@@ -74,11 +77,11 @@
   /* A pause usually means the sentence is finished. The engine's own
      `continuous` end-of-speech detection is unreliable across browsers, so
      this is what actually closes the session. */
-  function armSilenceTimer() {
+  function armSilenceTimer(ms = SILENCE_MS) {
     clearTimeout(silenceTimer);
     silenceTimer = setTimeout(() => {
       if (listening) stop();
-    }, SILENCE_MS);
+    }, ms);
   }
 
   function start() {
@@ -95,6 +98,9 @@
     recognition.onstart = () => {
       setMic(true);
       setPanel("listening", "");
+      // Nothing arms the silence timer until the first word arrives, so a
+      // session that hears only silence would otherwise stay open forever.
+      armSilenceTimer(NO_SPEECH_MS);
     };
 
     recognition.onresult = (event) => {
@@ -148,8 +154,11 @@
       // is usually a misfire, and the professor is better served editing it
       // than watching the assistant guess.
       if (said.split(/\s+/).length >= 3) {
+        window.__profscheduleSpokenSubmit = true;
         form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event("submit", { cancelable: true }));
       } else {
+        // One or two words is nearly always a misfire. Leave it in the box to
+        // be corrected rather than acting on a probable mishearing.
         showToast("Heard “" + said + "”. Edit it and press enter.", "success");
       }
     };

@@ -116,6 +116,66 @@ class AIServiceError(Exception):
     pass
 
 
+# A room is normally named right after "in", "at" or "room", and runs to the
+# end of the clause. Ordered longest-first so "AI Lab 2" wins over "Lab 2".
+_LOCATION_PATTERNS = [
+    r"\b(?:in|at)\s+((?:room|hall|lab|laboratory|block|building|auditorium)\s+(?:no\.?\s*)?[A-Za-z0-9\-]+)",
+    r"\b((?:room|hall|lab|laboratory|block|auditorium)\s+(?:no\.?\s*)?[A-Za-z0-9\-]+)",
+    r"\b(?:in|at)\s+([A-Za-z][A-Za-z0-9&\-]*(?:\s+[A-Za-z0-9&\-]+){0,2}?\s*(?:Lab|Room|Hall|Block|Building)\s*[A-Za-z0-9\-]*)",
+]
+
+_FACULTY_PATTERNS = [
+    r"\b(?:by|with|taken by|faculty)\s+((?:prof\.?|professor|dr\.?|mr\.?|ms\.?|mrs\.?)\s+[A-Za-z]+(?:\s+[A-Za-z]+)?)",
+    r"\b((?:prof\.?|professor|dr\.?)\s+[A-Za-z]+(?:\s+[A-Za-z]+)?)",
+]
+
+# A greedy name capture runs into the next clause -- "Prof. Sharma in Lab 4"
+# gives "Prof. Sharma in". Trimming afterwards is correct where a negative
+# lookahead is not: the lookahead makes the regex backtrack and shorten the
+# name itself, which turned "Sharma" into "Sharm".
+_NAME_TAIL_WORDS = {"in", "at", "on", "from", "to", "for", "by", "with", "and"}
+
+# Ordered: a phrase like "AI lab" is a lab, not a lecture, so "lab" is tested
+# before the broader words.
+_EVENT_TYPE_WORDS = [
+    ("lab", "lab"), ("practical", "lab"),
+    ("lecture", "lecture"), ("class", "lecture"),
+    ("exam", "examination"), ("test", "examination"), ("viva", "examination"),
+    ("project review", "project_review"), ("review", "project_review"),
+    ("workshop", "workshop"), ("conference", "conference"), ("fdp", "fdp"),
+    ("seminar", "workshop"), ("meeting", "meeting"),
+]
+
+
+def _extract_location(text: str) -> str | None:
+    for pattern in _LOCATION_PATTERNS:
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            found = " ".join(m.group(1).split()).strip(" .,")
+            # Title-case only the plain words so "A-301" keeps its shape.
+            return " ".join(w if any(c.isdigit() for c in w) else w.capitalize() for w in found.split())
+    return None
+
+
+def _extract_faculty(text: str) -> str | None:
+    for pattern in _FACULTY_PATTERNS:
+        m = re.search(pattern, text, re.IGNORECASE)
+        if not m:
+            continue
+        words = " ".join(m.group(1).split()).strip(" .,").split()
+        while len(words) > 2 and words[-1].lower() in _NAME_TAIL_WORDS:
+            words.pop()
+        return " ".join(words)
+    return None
+
+
+def _extract_event_type(lower: str) -> str:
+    for word, value in _EVENT_TYPE_WORDS:
+        if word in lower:
+            return value
+    return "other"
+
+
 class AIService:
     def __init__(self):
         self.provider = (settings.AI_PROVIDER or "none").lower()
@@ -383,7 +443,7 @@ class AIService:
                 # "move it FROM 10 AM TO 11 AM" names the current time first
                 # and the new one second. Reading those as start and end moved
                 # the lecture to 10-11, i.e. nowhere.
-                moving_from = bool(re.search(r"from.*to", lower))
+                moving_from = bool(re.search(r"\bfrom\b.*\bto\b", lower))
                 if times and moving_from and len(times) > 1:
                     payload["new_start_time"] = end_time
                     payload["new_end_time"] = None
@@ -442,9 +502,13 @@ class AIService:
             }
 
         # Default: CREATE_EVENT / CREATE_RECURRING_EVENT
+        location = _extract_location(text)
+        faculty = _extract_faculty(text)
+        event_type = _extract_event_type(lower)
+
         event = {
             "title": title_guess.title(),
-            "event_type": "lecture" if "lecture" in lower else ("meeting" if "meeting" in lower else "other"),
+            "event_type": event_type,
             "subject": title_guess.title() if "lecture" in lower else None,
             "day": day_field,
             "date": "tomorrow" if ("tomorrow" in lower and not days_found) else None,
@@ -452,7 +516,8 @@ class AIService:
             "end_time": end_time,
             "recurrence": recurrence,
             "recurrence_days": days_found or None,
-            "location": None,
+            "faculty": faculty,
+            "location": location,
             "priority": "high" if "high" in lower or "urgent" in lower else "medium",
             "reminder_minutes": 30 if "remind" in lower else None,
             "description": None,

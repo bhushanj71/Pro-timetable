@@ -72,9 +72,12 @@ function renderExtractionPreview(response) {
     return;
   }
 
-  /* Reminder rules and other server-executed actions come back already done. */
+  /* Reminder rules and other server-executed actions come back already done.
+     A tick is a claim that something happened, so it is only used when
+     something did: "I couldn't find that event" is not a success. */
   if (requires_confirmation === false && summary) {
-    box.innerHTML = `<div class="ai-result-card">✓ ${esc(summary)}</div>`;
+    const failed = /couldn't|could not|no match|nothing|not find/i.test(summary);
+    box.innerHTML = `<div class="ai-result-card">${failed ? "🔍" : "✓"} ${esc(summary)}</div>`;
     return;
   }
 
@@ -219,7 +222,35 @@ const AI_PROGRESS_MESSAGES = [
   "Almost there…",
 ];
 
-async function submitAIPrompt(promptText) {
+/* Read the result aloud.
+
+   A professor who spoke the command is, by definition, not looking at the
+   screen -- their hands are full or they are walking to class. Silent success
+   is indistinguishable from nothing having happened. */
+function speak(text) {
+  try {
+    if (!("speechSynthesis" in window) || !text) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(String(text).slice(0, 240));
+    u.lang = navigator.language || "en-IN";
+    u.rate = 1.02;
+    window.speechSynthesis.speak(u);
+  } catch (_) {
+    /* Speech output is a nicety; never let it break the action. */
+  }
+}
+
+/* Which spoken commands run without a second tap.
+
+   Creating and updating are recoverable -- the event is right there to edit
+   or remove. Deleting is not, and a misheard word is exactly how you lose a
+   lecture you meant to keep, so deletions always stop to ask. */
+function autoRunnable(response) {
+  if (response.requires_confirmation === false) return false;   // already done
+  return response.action !== "delete" && response.intent !== "DELETE_EVENT";
+}
+
+async function submitAIPrompt(promptText, { spoken = false } = {}) {
   const box = document.getElementById("ai-result");
   const submitBtn = document.querySelector("#ai-prompt-form button[type=submit]");
   const input = document.getElementById("ai-prompt-input");
@@ -233,6 +264,16 @@ async function submitAIPrompt(promptText) {
     lastExtraction = response.extraction;
     progress.stop();
     renderExtractionPreview(response);
+
+    if (spoken) {
+      if (autoRunnable(response)) {
+        // Hands-free means the command completes, not that it queues up a
+        // button for the mouse the professor is not holding.
+        await runConfirmedAction(response);
+      } else {
+        speak(response.summary || "");
+      }
+    }
   } catch (err) {
     progress.stop();
     box.innerHTML = `<div class="ai-confirm-card">⚠️ ${esc(err.message || "AI processing failed")}</div>`;
@@ -243,10 +284,54 @@ async function submitAIPrompt(promptText) {
   }
 }
 
+/** Execute the pending extraction and say what happened. */
+async function runConfirmedAction(response) {
+  const box = document.getElementById("ai-result");
+  try {
+    const result = await apiFetch("/api/ai/confirm", { method: "POST", body: { extraction: lastExtraction } });
+
+    if (result.ok === false) {
+      const msg = result.message || "I couldn't find that in your schedule.";
+      box.innerHTML = `<div class="ai-result-card">🔍 ${esc(msg)}</div>`;
+      showToast(msg, "error");
+      speak(msg);
+      return;
+    }
+
+    const said = result.message || summariseResult(result, response);
+    box.innerHTML = `<div class="ai-result-card">✓ ${esc(said)}</div>`;
+    showToast(said, "success");
+    speak(said);
+    // Same signal the confirm button sends, so the timetable, counters and
+    // upcoming list all repaint through the one existing path.
+    document.getElementById("ai-prompt-input").value = "";
+    window.dispatchEvent(new CustomEvent("schedule-updated"));
+  } catch (err) {
+    const msg = err.message || "That didn't go through.";
+    box.innerHTML = `<div class="ai-result-card">⚠️ ${esc(msg)}</div>`;
+    speak(msg);
+  }
+}
+
+/** A sentence for results that don't carry their own message. */
+function summariseResult(result, response) {
+  const bits = [];
+  if (result.events_created) bits.push(`${result.events_created} event${result.events_created > 1 ? "s" : ""} added`);
+  if (result.reminders_created) bits.push(`${result.reminders_created} reminder${result.reminders_created > 1 ? "s" : ""} set`);
+  if (result.tasks_created) bits.push(`${result.tasks_created} task${result.tasks_created > 1 ? "s" : ""} added`);
+  if (result.updated) bits.push(`${result.updated} updated`);
+  if (result.deleted) bits.push(`${result.deleted} deleted`);
+  return bits.length ? bits.join(", ") : (response.summary || "Done");
+}
+
 document.getElementById("ai-prompt-form")?.addEventListener("submit", (e) => {
   e.preventDefault();
   const input = document.getElementById("ai-prompt-input");
-  if (input.value.trim()) submitAIPrompt(input.value.trim());
+  // voice.js sets this immediately before submitting, and it is cleared here
+  // so a later typed command is never mistaken for a spoken one.
+  const spoken = window.__profscheduleSpokenSubmit === true;
+  window.__profscheduleSpokenSubmit = false;
+  if (input.value.trim()) submitAIPrompt(input.value.trim(), { spoken });
 });
 
 document.querySelectorAll(".ai-example-chip").forEach((chip) => {
