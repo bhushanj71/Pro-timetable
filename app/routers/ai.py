@@ -345,6 +345,24 @@ def _answer_read_only(db: Session, user: User, extraction: AIExtractionResult):
             summary=f"{m['title']} is at {where} ({m['when']}).",
             matches=[m], action="location")
 
+    if intent == "CANCEL_DAY":
+        day = resolve_date(extraction.holiday_date, user.timezone)
+        affected = sq.events_on_day(db, user, day)
+        pretty = day.strftime("%A, %d %b")
+
+        if not affected:
+            return AIPromptResponse(
+                intent=intent, extraction=extraction, requires_confirmation=False,
+                summary=f"Nothing scheduled on {pretty} \u2014 no classes to cancel.")
+
+        reason = f" ({extraction.holiday_reason})" if extraction.holiday_reason else ""
+        return AIPromptResponse(
+            intent=intent, extraction=extraction,
+            requires_confirmation=True, action="cancel_day",
+            summary=(f"Cancel {len(affected)} class{'es' if len(affected) > 1 else ''} "
+                     f"on {pretty}{reason}?"),
+            matches=[sq.serialize(e, user.timezone) for e in affected])
+
     if intent == "CHECK_CONFLICTS":
         clashes = sq.find_conflicts(db, user)
         if not clashes:
@@ -475,6 +493,27 @@ def confirm_extraction(payload: AIConfirmRequest, db: Session = Depends(get_db),
             "ok": True, "action": "updated", "updated": updated,
             "message": f"Updated {targets[0].title}: {detail}. Reminders rescheduled.",
             "event": sq.serialize(targets[0], user.timezone),
+        }
+
+    if extraction.intent == "CANCEL_DAY":
+        day = resolve_date(extraction.holiday_date, user.timezone)
+        affected = sq.events_on_day(db, user, day)
+        if not affected:
+            return {"ok": False, "message": "Nothing scheduled that day.", "cancelled": 0}
+
+        # Marked cancelled rather than deleted. A holiday is frequently
+        # revised -- the festival moves, the strike is called off -- and the
+        # professor should get the day back without retyping a timetable.
+        for event in affected:
+            event.is_cancelled = True
+            clear_event_reminders(db, event)
+
+        db.commit()
+        pretty = day.strftime("%A, %d %b")
+        return {
+            "ok": True, "action": "cancelled_day", "cancelled": len(affected),
+            "message": (f"{len(affected)} class{'es' if len(affected) > 1 else ''} cancelled "
+                        f"on {pretty}. Their reminders are off too."),
         }
 
     if extraction.intent in ("UPDATE_REMINDER", "DELETE_REMINDER") and (

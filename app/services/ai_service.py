@@ -48,7 +48,7 @@ When a request is out of scope, return exactly:
 Otherwise convert it into STRICT JSON matching this schema, and nothing else:
 
 {
-  "intent": "CREATE_EVENT | UPDATE_EVENT | DELETE_EVENT | CREATE_REMINDER | UPDATE_REMINDER | DELETE_REMINDER | VIEW_REMINDERS | QUERY_SCHEDULE | GET_NEXT_CLASS | SHOW_LOCATION | CHECK_CONFLICTS | GENERATE_TIMETABLE | FIND_FREE_TIME | CREATE_TASK | COMPLETE_TASK | CREATE_RECURRING_EVENT",
+  "intent": "CREATE_EVENT | UPDATE_EVENT | DELETE_EVENT | CANCEL_DAY | CREATE_REMINDER | UPDATE_REMINDER | DELETE_REMINDER | VIEW_REMINDERS | QUERY_SCHEDULE | GET_NEXT_CLASS | SHOW_LOCATION | CHECK_CONFLICTS | GENERATE_TIMETABLE | FIND_FREE_TIME | CREATE_TASK | COMPLETE_TASK | CREATE_RECURRING_EVENT",
   "events": [
     {
       "title": "string",
@@ -85,6 +85,8 @@ Otherwise convert it into STRICT JSON matching this schema, and nothing else:
   "new_location": "UPDATE_EVENT only: replacement room/location, or null",
   "reminder_minutes_before": "CREATE_REMINDER / UPDATE_REMINDER: how many minutes before, or null",
   "reminder_scope": "the subject or event the reminder rule applies to, e.g. 'DBMS' or 'every lecture', or null",
+  "holiday_date": "CANCEL_DAY only: the day being called off, as YYYY-MM-DD or a weekday name, or null for today",
+  "holiday_reason": "CANCEL_DAY only: why, if the professor said, e.g. 'public holiday', or null",
   "query_text": "string or null (for QUERY_SCHEDULE)",
   "duration_minutes": integer or null (for FIND_FREE_TIME),
   "target_date": "YYYY-MM-DD or null (for FIND_FREE_TIME / QUERY_SCHEDULE)",
@@ -92,6 +94,11 @@ Otherwise convert it into STRICT JSON matching this schema, and nothing else:
 }
 
 Rules:
+- CANCEL_DAY when a whole day is off rather than one class: "tomorrow is a
+  holiday", "no classes on Friday", "college is closed on the 26th", "I'm on
+  leave tomorrow". Put the day in holiday_date and leave "events" empty. Do
+  NOT use DELETE_EVENT for this -- a holiday cancels everything that day, and
+  the professor named a day, not an event.
 - GET_NEXT_CLASS for "what's my next lecture", "where do I need to go next".
 - SHOW_LOCATION when the user asks where something is. Put the event they mean
   in target_event_title, or leave it null to mean "the next one".
@@ -236,6 +243,45 @@ class AIService:
     # Rule-based fallback (no LLM key configured)
     # ------------------------------------------------------------------
     @staticmethod
+    def _holiday_payload(text: str, lower: str, days_found: list) -> dict:
+        """Work out which day is off, and why if the professor said.
+
+        Defaults to today only when no day is named at all: "it's a holiday"
+        said on the day itself is the one case where silence means today.
+        """
+        import re as _re
+
+        day = None
+        if "tomorrow" in lower:
+            day = "tomorrow"
+        elif "today" in lower or "rest of the day" in lower:
+            day = "today"
+        elif days_found:
+            day = days_found[-1]
+        else:
+            iso = _re.search(r"\b(\d{4}-\d{2}-\d{2})\b", lower)
+            if iso:
+                day = iso.group(1)
+
+        reason = None
+        rm = _re.search(
+            r"(?:because|due to|for|it's|its|is a|is an)\s+([a-z ]*?(?:holiday|festival|leave|strike|closure|vacation))",
+            lower,
+        )
+        if rm:
+            reason = rm.group(1).strip()
+
+        return {
+            "intent": "CANCEL_DAY",
+            "events": [],
+            "reminders": [],
+            "tasks": [],
+            "holiday_date": day,
+            "holiday_reason": reason,
+            "notes": "Rule-based fallback understood this as a day off.",
+        }
+
+    @staticmethod
     def _read_only_payload(intent: str, text: str, lower: str, times: list) -> dict:
         """Shape a look-up intent for the router.
 
@@ -311,6 +357,16 @@ class AIService:
 
         cancel_words = ("cancel", "delete", "remove", "drop", "call off")
         move_words = ("move", "reschedule", "shift", "postpone", "change")
+
+        holiday_phrases = (
+            "holiday", "day off", "off day", "no classes", "no class",
+            "no lectures", "no lecture", "no labs", "college is closed",
+            "college closed", "campus is closed", "institute is closed",
+            "on leave", "taking leave", "leave tomorrow", "cancel all classes",
+            "cancel classes", "cancel all lectures", "cancel the day",
+        )
+        if any(p in lower for p in holiday_phrases):
+            return self._holiday_payload(text, lower, days_found)
 
         # Read-only questions are checked first. They frequently contain the
         # same verbs as the write intents -- "show my next lecture" has

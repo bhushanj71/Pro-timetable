@@ -383,11 +383,15 @@ class AIExtractionResult(BaseModel):
     # Reminder-management intents.
     reminder_minutes_before: Optional[int] = None
     reminder_scope: Optional[str] = None
+    # CANCEL_DAY: which day is off, and why.
+    holiday_date: Optional[str] = None
+    holiday_reason: Optional[str] = None
 
     @field_validator(
         "target_event_title", "target_day", "new_date", "new_day",
         "new_start_time", "new_end_time", "new_faculty", "new_location",
         "reminder_scope", "query_text", "target_date",
+        "holiday_date", "holiday_reason",
         mode="before",
     )
     @classmethod

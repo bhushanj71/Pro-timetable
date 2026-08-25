@@ -74,6 +74,7 @@ _IN_SCOPE_WORDS = {
     "classroom", "lab", "navigate", "directions", "go", "reach",
     "faculty", "prof", "professor", "teacher", "sir", "madam",
     "conflict", "conflicts", "clash", "clashes", "overlap", "double",
+    "holiday", "holidays", "leave", "off", "closed", "vacation", "break",
     "before", "after", "turn", "off", "on", "set", "search", "find",
 }
 

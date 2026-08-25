@@ -50,6 +50,25 @@ function renderExtractionPreview(response) {
     return;
   }
 
+  if (intent === "CANCEL_DAY" && requires_confirmation) {
+    const rows = (response.matches || []).map(
+      (m) => `<div class="event-line">\u{1F6AB} <strong>${esc(m.title)}</strong> \u2014 ${esc(m.when)}${
+        m.location ? " \u00b7 " + esc(m.location) : ""}</div>`
+    ).join("");
+    box.innerHTML = `
+      <div class="ai-result-card">
+        <div><strong>${esc(summary)}</strong></div>
+        ${rows}
+        <div class="event-line" style="opacity:.75">These stay in your timetable as cancelled, so you can put the day back if it changes.</div>
+        <div class="modal-actions">
+          <button class="btn btn-danger" id="ai-confirm-btn">Cancel the day</button>
+          <button class="btn" id="ai-cancel-btn">Keep them</button>
+        </div>
+      </div>`;
+    wireConfirmButtons(box, "cancel_day");
+    return;
+  }
+
   /* Changing a reminder rule is a write, so it is confirmed -- but it must be
      described as the rule change it is. Falling through to the create-reminder
      preview announced it as a brand new reminder. */
@@ -189,7 +208,9 @@ function wireConfirmButtons(box, action) {
         if (cancelBtn) cancelBtn.disabled = false;
         return;
       }
-      if (action === "delete") {
+      if (action === "cancel_day") {
+        showToast(result.message || `✓ Cancelled ${result.cancelled} class(es).`, "success");
+      } else if (action === "delete") {
         showToast(`✓ Deleted ${result.deleted} event(s).`, "success");
       } else if (action === "update") {
         showToast(`✓ Updated ${result.updated} event(s).`, "success");
@@ -247,7 +268,11 @@ function speak(text) {
    lecture you meant to keep, so deletions always stop to ask. */
 function autoRunnable(response) {
   if (response.requires_confirmation === false) return false;   // already done
-  return response.action !== "delete" && response.intent !== "DELETE_EVENT";
+  // Cancelling a day clears every class on it. "Tomorrow is a holiday" is an
+  // easy thing to mishear out of ordinary conversation near an open mic, and
+  // the blast radius is a whole day, so it is shown before it happens.
+  const alwaysAsk = ["delete", "cancel_day"];
+  return !alwaysAsk.includes(response.action) && response.intent !== "DELETE_EVENT";
 }
 
 async function submitAIPrompt(promptText, { spoken = false } = {}) {

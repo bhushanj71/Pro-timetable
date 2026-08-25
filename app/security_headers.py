@@ -36,7 +36,12 @@ HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
-    "Permissions-Policy": "geolocation=(), microphone=(), camera=(), payment=(), usb=()",
+    # An empty allowlist means *no* origin, this one included. `microphone=()`
+    # therefore switched off voice input site-wide: the browser refused the
+    # microphone before any page script ran, so the mic button reported
+    # "not-allowed" no matter what permission the professor had granted.
+    # Everything the app genuinely never uses stays locked shut.
+    "Permissions-Policy": "geolocation=(), microphone=(self), camera=(), payment=(), usb=()",
     # Push subscriptions and the service worker only exist on HTTPS anyway;
     # this stops a downgrade from ever being attempted.
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains",

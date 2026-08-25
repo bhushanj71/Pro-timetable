@@ -170,6 +170,29 @@ def find_conflicts(db: Session, user: User, days: int = 7) -> list[dict]:
     return clashes
 
 
+# A holiday clears teaching. A deadline does not move because the campus is
+# shut, and a personal appointment is the professor's own business, so
+# neither is touched.
+TEACHING_TYPES = ("lecture", "lab", "practical", "project_review", "examination")
+
+
+def events_on_day(db: Session, user: User, day, teaching_only: bool = True) -> list[Event]:
+    """Every event a professor has on one local calendar day."""
+    tz = get_tz(user.timezone)
+    start = datetime.combine(day, datetime.min.time(), tzinfo=tz).astimezone(timezone.utc)
+    end = start + timedelta(days=1)
+
+    query = db.query(Event).filter(
+        Event.user_id == user.id,
+        Event.is_cancelled.is_(False),
+        Event.start_datetime >= start,
+        Event.start_datetime < end,
+    )
+    if teaching_only:
+        query = query.filter(Event.event_type.in_(TEACHING_TYPES))
+    return query.order_by(Event.start_datetime).all()
+
+
 def active_reminders(db: Session, user: User, limit: int = 100) -> list[dict]:
     """Pending reminders with the event each belongs to."""
     now = datetime.now(timezone.utc)

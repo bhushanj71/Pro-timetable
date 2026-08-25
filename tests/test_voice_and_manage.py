@@ -130,6 +130,114 @@ def test_an_unmatched_target_is_reported_not_invented(auth_client):
     assert len(auth_client.get("/api/events").json()) == before
 
 
+# --- Holidays --------------------------------------------------------------
+
+@pytest.mark.parametrize("prompt", [
+    "Tomorrow is a holiday",
+    "I have a holiday tomorrow",
+    "No classes on Friday",
+    "College is closed tomorrow",
+    "I'm on leave tomorrow",
+    "Cancel all classes on Monday",
+])
+def test_a_day_off_is_recognised(prompt):
+    svc = AIService.__new__(AIService)
+    ctx = {"today": "2026-08-25", "weekday": "Tuesday", "timezone": "Asia/Kolkata"}
+    assert svc._fallback_rule_based(prompt, ctx)["intent"] == "CANCEL_DAY"
+
+
+@pytest.mark.parametrize("prompt", [
+    "Delete my DBMS lecture",
+    "Add a DBMS lecture tomorrow at 10 AM",
+    "Move my DBMS lecture to 11 AM",
+])
+def test_ordinary_commands_are_not_read_as_holidays(prompt):
+    svc = AIService.__new__(AIService)
+    ctx = {"today": "2026-08-25", "weekday": "Tuesday", "timezone": "Asia/Kolkata"}
+    assert svc._fallback_rule_based(prompt, ctx)["intent"] != "CANCEL_DAY"
+
+
+def test_a_holiday_cancels_teaching_and_leaves_the_rest(auth_client, db_session):
+    """A closed campus stops classes. It does not move a submission deadline
+    or a personal appointment, so those stay."""
+    tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
+    for title, typ, hour in [("DBMS Lecture", "lecture", 4), ("AI Lab", "lab", 7),
+                             ("Dept Meeting", "meeting", 9), ("Marks deadline", "deadline", 11)]:
+        st = tomorrow.replace(hour=hour, minute=0, second=0, microsecond=0)
+        auth_client.post("/api/events?force=true", json={
+            "title": title, "event_type": typ,
+            "start_datetime": st.isoformat(),
+            "end_datetime": (st + timedelta(hours=1)).isoformat()})
+
+    body = _ask(auth_client, "Tomorrow is a holiday")
+    assert body["intent"] == "CANCEL_DAY"
+    assert body["requires_confirmation"] is True, "a whole day must be shown before it goes"
+    assert {m["title"] for m in body["matches"]} == {"DBMS Lecture", "AI Lab"}
+
+    result = auth_client.post("/api/ai/confirm", json={"extraction": body["extraction"]}).json()
+    assert result["ok"] is True and result["cancelled"] == 2
+
+    still_on = {e["title"] for e in auth_client.get("/api/events").json()}
+    assert still_on == {"Dept Meeting", "Marks deadline"}
+
+
+def test_a_cancelled_day_is_recoverable(auth_client, db_session):
+    """Cancelled, not deleted: a festival gets moved and the professor should
+    get the day back without retyping a timetable."""
+    tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
+    st = tomorrow.replace(hour=5, minute=0, second=0, microsecond=0)
+    ev = auth_client.post("/api/events?force=true", json={
+        "title": "DBMS Lecture", "event_type": "lecture",
+        "start_datetime": st.isoformat(),
+        "end_datetime": (st + timedelta(hours=1)).isoformat()}).json()[0]
+
+    body = _ask(auth_client, "Tomorrow is a holiday")
+    auth_client.post("/api/ai/confirm", json={"extraction": body["extraction"]})
+
+    row = db_session.query(Event).filter(Event.id == ev["id"]).one()
+    assert row.is_cancelled is True
+    assert row.start_datetime is not None, "the row survives so the day can be restored"
+
+
+def test_a_holiday_silences_that_day_s_reminders(auth_client, db_session):
+    tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
+    st = tomorrow.replace(hour=6, minute=0, second=0, microsecond=0)
+    ev = auth_client.post("/api/events?force=true", json={
+        "title": "AI Lab", "event_type": "lab",
+        "start_datetime": st.isoformat(),
+        "end_datetime": (st + timedelta(hours=2)).isoformat()}).json()[0]
+    assert db_session.query(Reminder).filter(Reminder.event_id == ev["id"]).count() > 0
+
+    body = _ask(auth_client, "No classes tomorrow")
+    auth_client.post("/api/ai/confirm", json={"extraction": body["extraction"]})
+
+    pending = db_session.query(Reminder).filter(
+        Reminder.event_id == ev["id"], Reminder.is_sent.is_(False)).count()
+    assert pending == 0, "a cancelled class must not still buzz the phone"
+
+
+def test_a_holiday_on_a_free_day_says_so(auth_client):
+    body = _ask(auth_client, "Tomorrow is a holiday")
+    assert body["requires_confirmation"] is False
+    assert "nothing scheduled" in body["summary"].lower()
+
+
+def test_a_holiday_only_touches_the_named_day(auth_client):
+    now = datetime.now(timezone.utc)
+    for days in (1, 2):
+        st = (now + timedelta(days=days)).replace(hour=5, minute=0, second=0, microsecond=0)
+        auth_client.post("/api/events?force=true", json={
+            "title": f"Lecture day {days}", "event_type": "lecture",
+            "start_datetime": st.isoformat(),
+            "end_datetime": (st + timedelta(hours=1)).isoformat()})
+
+    body = _ask(auth_client, "Tomorrow is a holiday")
+    auth_client.post("/api/ai/confirm", json={"extraction": body["extraction"]})
+
+    left = {e["title"] for e in auth_client.get("/api/events").json()}
+    assert left == {"Lecture day 2"}
+
+
 # --- Look-ups --------------------------------------------------------------
 
 def test_next_class_and_the_spoken_question_agree(auth_client):
