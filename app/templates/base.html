@@ -113,7 +113,6 @@
           <button class="icon-btn" id="notif-bell" aria-label="Notifications">
             🔔<span id="notif-count" class="badge hidden">0</span>
           </button>
-          <div id="notif-panel" class="popover hidden"></div>
 
           <!-- The name is the control. Tapping it opens the account menu,
                which is where the choice between the two views lives -- one
@@ -266,6 +265,11 @@
 {% endif %}
 
 
+  <!-- Outside .topbar on purpose. That header has a backdrop-filter, which
+       makes it the containing block for position:fixed descendants -- so
+       this panel's bottom sheet was resolving against a 65px header rather
+       than the viewport, and hanging off the bottom of the screen. -->
+  <div id="notif-panel" class="popover hidden"></div>
   <div id="toast-container" class="toast-container"></div>
   <script src="/static/js/app.js?v={{ v }}"></script>
   <!-- Before every page script: they read through its cache. -->

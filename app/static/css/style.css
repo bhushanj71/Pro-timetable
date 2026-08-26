@@ -1040,8 +1040,11 @@ input, select, textarea, button { font-size: inherit; }
 .toast.error { border-left-color: var(--danger); }
 
 .popover {
-  position: absolute; top: 52px; right: 0;
-  width: 330px; max-height: 420px; overflow-y: auto;
+  /* Fixed to the viewport, not absolute to the bar. The bell is always at the
+     top right, so a viewport anchor puts the panel in the same place while
+     letting the mobile bottom sheet actually reach the bottom. */
+  position: fixed; top: 62px; right: 18px;
+  width: 330px; max-height: min(420px, calc(100vh - 90px)); overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1179,7 +1182,7 @@ input, select, textarea, button { font-size: inherit; }
   .btn-ask { padding: 10px 15px; }
   .toast-container { left: 15px; right: 15px; bottom: 15px; }
   .toast { max-width: none; }
-  .popover { width: min(330px, calc(100vw - 30px)); }
+  .popover { width: min(330px, calc(100vw - 30px)); right: 15px; }
   .form-row { flex-direction: column; gap: 0; }
   .modal-card { padding: 20px; border-radius: var(--radius); }
 }

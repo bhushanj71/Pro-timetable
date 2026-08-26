@@ -57,6 +57,10 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
      a long page ends up under the bar. Reserve the inset here too. */
   .content { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
 
+  /* One source of truth: anything that has to sit clear of the tab bar reads
+     this rather than guessing. */
+  :root { --bottom-nav-h: 64px; }
+
   .bottom-nav {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 70;
     display: flex; justify-content: space-around; align-items: stretch;

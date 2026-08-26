@@ -53,7 +53,17 @@
 /* --------------------------------------------------------------------------
    Counts, each carrying the seven days behind it
    -------------------------------------------------------------------------- */
-.wk-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
+/* minmax(0,...) not 1fr: a 1fr track refuses to shrink below its content,
+   and the icon, number and sparkline together overflowed the row by 8px
+   at 852px -- a phone held sideways. */
+.wk-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; }
+@media (max-width: 900px) {
+  /* The sparkline is the first thing to go: the number it annotates is
+     still right beside it. */
+  .wk-stats { gap: 10px; }
+  .wk-stat { grid-template-columns: auto 1fr; gap: 4px 10px; }
+  .wk-stat .wk-spark { display: none; }
+}
 .wk-stat {
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -415,7 +425,10 @@
     width: auto; max-width: none;
     max-height: 72vh;
     border-radius: 20px 20px 0 0;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    /* Clears the bottom nav, which is fixed over the same corner, plus the
+       home indicator underneath it. Without this the last notification sits
+       behind the tab bar and cannot be read or tapped. */
+    padding-bottom: calc(var(--bottom-nav-h, 60px) + 12px + env(safe-area-inset-bottom, 0px));
     animation: sheetUp 260ms var(--ease-out) both;
     transform-origin: bottom center;
   }
