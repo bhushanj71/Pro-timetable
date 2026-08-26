@@ -518,6 +518,11 @@ class WorkNotification(Base):
     # few minutes; without a key to check against, each pass would send the
     # same "due tomorrow" again.
     dedupe_key: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+
+    # When this reached the professor's device. Null means not yet, and
+    # the delivery pass claims rows by setting it, so running the pass
+    # twice cannot buzz the same phone twice.
+    pushed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

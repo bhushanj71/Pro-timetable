@@ -45,7 +45,12 @@ def process_reminders(authorization: str | None = Header(default=None), db: Sess
     try:
         from app.services.work_notify import sweep_work_deadlines
 
+        from app.services.work_notify import deliver_pending_pushes
+
         result["work"] = sweep_work_deadlines(db)
+        # Backstop: anything a request could not push (device offline,
+        # server restarted mid-flight) goes out on the next sweep.
+        result["work_push"] = deliver_pending_pushes(db)
     except Exception:
         # A work-notification problem must not stop personal reminders going out.
         logger.exception("Work deadline sweep failed")

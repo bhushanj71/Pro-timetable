@@ -649,3 +649,133 @@ def test_a_receipt_never_becomes_a_reminder(owner, db_session):
 
     titles = [r.title for r in db_session.query(Reminder).all()]
     assert not any(t.startswith("Added ") for t in titles)
+
+
+# --- Push delivery for bell notifications ----------------------------------
+
+def _fake_push(monkeypatch):
+    """Capture web-push calls instead of making them."""
+    from app.services import notifier
+    import pywebpush
+
+    sent = []
+
+    class _Exc(Exception):
+        pass
+
+    monkeypatch.setattr(notifier, "push_configured", lambda: True)
+    monkeypatch.setattr(notifier.settings, "VAPID_PRIVATE_KEY", "test-key", raising=False)
+    monkeypatch.setattr(pywebpush, "webpush", lambda **kw: sent.append(kw))
+    monkeypatch.setattr(pywebpush, "WebPushException", _Exc)
+    return sent
+
+
+def _register_device(client, endpoint="https://fcm.googleapis.com/fcm/send/dev1"):
+    client.post("/api/push/subscribe", json={
+        "endpoint": endpoint,
+        "keys": {"p256dh": "BKxQ" + "a" * 40, "auth": "sEcRe7abcdefgh"}})
+
+
+def test_a_bell_notification_is_pushed_to_the_device(owner, rahul, db_session, monkeypatch):
+    """Every notification in the bell should also reach the phone."""
+    import json as _json
+    from app.services.work_notify import deliver_pending_pushes
+
+    sent = _fake_push(monkeypatch)
+    _register_device(rahul)
+
+    c = _community(owner)
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    owner.post(f"/api/work/communities/{c['id']}/tasks", json={
+        "title": "Build Authentication API", "assignee_ids": [ids["Rahul"]]})
+
+    deliver_pending_pushes(db_session)
+
+    assert sent, "the assignee's phone should have been pushed"
+    payload = _json.loads(sent[-1]["data"])
+    assert "Build Authentication API" in payload["title"]
+    assert payload["url"].startswith("/work"), "tapping it must land on the task"
+
+
+def test_a_notification_is_pushed_only_once(owner, rahul, db_session, monkeypatch):
+    """The delivery pass runs from requests and from the cron sweep. Both
+    finding the same row must not buzz the phone twice."""
+    from app.services.work_notify import deliver_pending_pushes
+
+    sent = _fake_push(monkeypatch)
+    _register_device(rahul)
+
+    c = _community(owner)
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    owner.post(f"/api/work/communities/{c['id']}/tasks", json={
+        "title": "Once Only", "assignee_ids": [ids["Rahul"]]})
+
+    deliver_pending_pushes(db_session)
+    first = len(sent)
+    deliver_pending_pushes(db_session)
+    deliver_pending_pushes(db_session)
+
+    assert len(sent) == first, "already-pushed notifications must not be resent"
+
+
+def test_your_own_actions_do_not_buzz_your_phone(owner, db_session, monkeypatch):
+    """A receipt for something you just did belongs in the bell as a record,
+    but pushing it buzzes the phone already in your hand."""
+    from app.services.work_notify import deliver_pending_pushes
+
+    sent = _fake_push(monkeypatch)
+    _register_device(owner)
+
+    start = datetime.now(timezone.utc) + timedelta(days=2)
+    owner.post("/api/events?force=true", json={
+        "title": "My Own Lecture", "event_type": "lecture",
+        "start_datetime": start.isoformat(),
+        "end_datetime": (start + timedelta(hours=1)).isoformat()})
+
+    deliver_pending_pushes(db_session)
+    titles = [s.get("data", "") for s in sent]
+    assert not any("My Own Lecture" in str(t) for t in titles)
+
+
+def test_a_deadline_notice_is_pushed(owner, rahul, db_session, monkeypatch):
+    from app.services.work_notify import deliver_pending_pushes, sweep_work_deadlines
+
+    sent = _fake_push(monkeypatch)
+    _register_device(rahul)
+
+    c = _community(owner)
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    due = datetime.now(timezone.utc) - timedelta(hours=2)
+    task = owner.post(f"/api/work/communities/{c['id']}/tasks", json={
+        "title": "Late Work", "assignee_ids": [ids["Rahul"]], "due_date": due.isoformat()}).json()
+    rahul.post(f"/api/work/tasks/{task['id']}/respond", json={"accept": True})
+
+    sweep_work_deadlines(db_session)
+    deliver_pending_pushes(db_session)
+
+    import json as _json
+    assert any("overdue" in _json.loads(s["data"])["title"].lower() for s in sent)
+
+
+def test_push_respects_the_users_switch(owner, rahul, db_session, monkeypatch):
+    from app.models import User
+    from app.services.work_notify import deliver_pending_pushes
+
+    sent = _fake_push(monkeypatch)
+    _register_device(rahul)
+
+    them = db_session.query(User).filter(User.email == "w_rahul@example.com").one()
+    them.notify_push = False
+    db_session.commit()
+
+    c = _community(owner)
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    owner.post(f"/api/work/communities/{c['id']}/tasks", json={
+        "title": "Silent", "assignee_ids": [ids["Rahul"]]})
+
+    deliver_pending_pushes(db_session)
+    assert sent == []

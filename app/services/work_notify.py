@@ -214,3 +214,103 @@ def sweep_work_deadlines(db: Session, now: datetime | None = None) -> dict:
 
 def _aware(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+# ---------------------------------------------------------------------------
+# Push delivery
+# ---------------------------------------------------------------------------
+# Notifications that describe something the professor just did themselves.
+# They belong in the bell as a record, but pushing them buzzes the phone that
+# is already in their hand for an action they just took.
+_SELF_AUTHORED = {
+    "event_created", "event_updated", "event_deleted", "event_cancelled",
+    "personal_task_created", "personal_task_completed", "personal_task_deleted",
+    "personal_reminder_set",
+}
+
+PUSH_ICON = {
+    Kind.TASK_ASSIGNED: "\U0001F4E5", Kind.TASK_ACCEPTED: "✅",
+    Kind.TASK_DECLINED: "❌", Kind.TASK_STARTED: "\U0001F680",
+    Kind.TASK_PROGRESS: "\U0001F4CA", Kind.TASK_COMPLETED: "\U0001F389",
+    Kind.TASK_ALL_COMPLETED: "\U0001F3C1", Kind.TASK_DUE_SOON: "⏰",
+    Kind.TASK_DUE: "⏰", Kind.TASK_OVERDUE: "\U0001F6A8",
+    Kind.ASSIGNMENT_REMINDER: "\U0001F4E5", Kind.TASK_COMMENT: "\U0001F4AC",
+    Kind.COMMUNITY_INVITE: "\U0001F465",
+}
+
+
+def deliver_pending_pushes(db: Session, limit: int = 200) -> dict:
+    """Push every bell notification that hasn't reached a device yet.
+
+    Claims rows by stamping pushed_at, so this is safe to run from the request
+    path and the cron sweep at once: whichever gets there first wins and the
+    other finds nothing to do.
+    """
+    from app.models import PushSubscription
+    from app.services.notifier import push_configured, send_push_to_user
+
+    if not push_configured():
+        return {"pushed": 0, "skipped": "push is not configured on this server"}
+
+    pending = (
+        db.query(WorkNotification)
+        .filter(WorkNotification.pushed_at.is_(None))
+        .order_by(WorkNotification.created_at)
+        .limit(limit)
+        .all()
+    )
+    if not pending:
+        return {"pushed": 0}
+
+    now = datetime.now(timezone.utc)
+    devices: dict[str, int] = {}
+    pushed = 0
+
+    for n in pending:
+        # Stamped whatever happens next: a notification that cannot be pushed
+        # is not one to retry forever, and it is already in the bell.
+        n.pushed_at = now
+
+        if n.kind in _SELF_AUTHORED:
+            continue
+
+        user = db.get(User, n.user_id)
+        if not user or not user.notify_push:
+            continue
+
+        if user.id not in devices:
+            devices[user.id] = (
+                db.query(PushSubscription).filter(PushSubscription.user_id == user.id).count()
+            )
+        if not devices[user.id]:
+            continue
+
+        icon = PUSH_ICON.get(n.kind, "\U0001F514")
+        # Deep-links to the task so the notification lands somewhere useful
+        # rather than on a dashboard the professor has to search.
+        url = f"/work?task={n.task_id}" if n.task_id else "/work"
+        try:
+            pushed += send_push_to_user(db, user, f"{icon} {n.title}", n.body or "", url=url)
+        except Exception:
+            logger.exception("Could not push notification %s", n.id)
+
+    db.commit()
+    return {"pushed": pushed, "considered": len(pending)}
+
+
+def deliver_in_background() -> None:
+    """Push whatever is pending, on its own session, after the response.
+
+    Handed to FastAPI's BackgroundTasks so a web-push round trip -- which can
+    take seconds per device -- never sits inside the request the professor is
+    waiting on.
+    """
+    from app.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        deliver_pending_pushes(db)
+    except Exception:
+        logger.exception("Background push delivery failed")
+    finally:
+        db.close()

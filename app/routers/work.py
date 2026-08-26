@@ -6,7 +6,7 @@ Every endpoint authorises through work_service, which returns 404 rather than
 """
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, selectinload
@@ -28,7 +28,7 @@ from app.models import (
 )
 from app.schemas import UTCModel
 from app.services.nlp_dates import ensure_aware_utc
-from app.services import work_service as ws
+from app.services import work_notify, work_service as ws
 
 router = APIRouter(prefix="/api/work", tags=["work"])
 
@@ -215,7 +215,7 @@ def get_community(community_id: str, db: Session = Depends(get_db), user: User =
 
 
 @router.post("/communities/{community_id}/invite", status_code=status.HTTP_201_CREATED)
-def invite_member(community_id: str, payload: InviteCreate,
+def invite_member(community_id: str, payload: InviteCreate, background: BackgroundTasks,
                   db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Invite someone. Admins and owners only."""
     ws.require_member(db, community_id, user, CommunityRole.ADMIN.value)
@@ -237,6 +237,7 @@ def invite_member(community_id: str, payload: InviteCreate,
 
     inv = ws.invite(db, community, user, invitee, payload.message)
     db.commit()
+    background.add_task(work_notify.deliver_in_background)
     return {"ok": True, "invitation_id": inv.id, "invited": _person(invitee)}
 
 
@@ -293,7 +294,7 @@ def my_invitations(db: Session = Depends(get_db), user: User = Depends(get_curre
 
 
 @router.post("/invitations/{invitation_id}/respond")
-def respond_invitation(invitation_id: str, payload: RespondBody,
+def respond_invitation(invitation_id: str, payload: RespondBody, background: BackgroundTasks,
                        db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     inv = (
         db.query(CommunityInvitation)
@@ -305,6 +306,7 @@ def respond_invitation(invitation_id: str, payload: RespondBody,
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Invitation not found")
     ws.respond_to_invite(db, inv, user, payload.accept)
     db.commit()
+    background.add_task(work_notify.deliver_in_background)
     return {"ok": True, "status": inv.status}
 
 
@@ -312,7 +314,7 @@ def respond_invitation(invitation_id: str, payload: RespondBody,
 # Tasks
 # ---------------------------------------------------------------------------
 @router.post("/communities/{community_id}/tasks", status_code=status.HTTP_201_CREATED)
-def create_task(community_id: str, payload: TaskCreate,
+def create_task(community_id: str, payload: TaskCreate, background: BackgroundTasks,
                 db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     ws.require_member(db, community_id, user)
     community = db.query(Community).options(selectinload(Community.members)).filter(
@@ -329,6 +331,7 @@ def create_task(community_id: str, payload: TaskCreate,
         estimated_minutes=payload.estimated_minutes,
     )
     db.commit()
+    background.add_task(work_notify.deliver_in_background)
     return _task(_load_task(db, task.id), me=user.id)
 
 
@@ -374,7 +377,7 @@ def get_task(task_id: str, db: Session = Depends(get_db), user: User = Depends(g
 
 
 @router.post("/tasks/{task_id}/respond")
-def respond_task(task_id: str, payload: RespondBody,
+def respond_task(task_id: str, payload: RespondBody, background: BackgroundTasks,
                  db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Accept or decline a task assigned to you. Until this, it is not yours."""
     task = _load_task(db, task_id)
@@ -383,11 +386,12 @@ def respond_task(task_id: str, payload: RespondBody,
         raise HTTPException(status.HTTP_404_NOT_FOUND, "You don't have an assignment on this task.")
     ws.respond_to_assignment(db, assignment, user, payload.accept, payload.reason)
     db.commit()
+    background.add_task(work_notify.deliver_in_background)
     return _task(_load_task(db, task_id), me=user.id)
 
 
 @router.put("/tasks/{task_id}/progress")
-def set_progress(task_id: str, payload: ProgressBody,
+def set_progress(task_id: str, payload: ProgressBody, background: BackgroundTasks,
                  db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     task = _load_task(db, task_id)
     assignment = next((a for a in task.assignments if a.user_id == user.id), None)
@@ -395,11 +399,12 @@ def set_progress(task_id: str, payload: ProgressBody,
         raise HTTPException(status.HTTP_404_NOT_FOUND, "You don't have an assignment on this task.")
     ws.update_progress(db, assignment, user, payload.progress, payload.note)
     db.commit()
+    background.add_task(work_notify.deliver_in_background)
     return _task(_load_task(db, task_id), me=user.id)
 
 
 @router.post("/tasks/{task_id}/comments", status_code=status.HTTP_201_CREATED)
-def add_comment(task_id: str, payload: CommentBody,
+def add_comment(task_id: str, payload: CommentBody, background: BackgroundTasks,
                 db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     task = _load_task(db, task_id)
     ws.require_member(db, task.community_id, user)
@@ -410,6 +415,7 @@ def add_comment(task_id: str, payload: CommentBody,
             ws.notify(db, uid, "task_comment", f"{user.name} commented on “{task.title}”",
                       payload.body.strip()[:160], community_id=task.community_id, task_id=task.id)
     db.commit()
+    background.add_task(work_notify.deliver_in_background)
     return _task(_load_task(db, task_id), detail=True, me=user.id)
 
 

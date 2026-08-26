@@ -167,6 +167,7 @@ _ADDITIVE_COLUMNS = {
         ("actor_id", "VARCHAR(36)"),
         ("assignment_id", "VARCHAR(36)"),
         ("dedupe_key", "VARCHAR(120)"),
+        ("pushed_at", "TIMESTAMP"),
     ],
 }
 

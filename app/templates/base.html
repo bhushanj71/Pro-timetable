@@ -106,22 +106,6 @@
       <header class="topbar" id="topbar">
         <button class="icon-btn menu-btn" id="menu-btn" aria-label="Open menu">☰</button>
 
-        <!-- One account, two views. Which one is active has to be obvious at a
-             glance, because the whole point is that the data does not mix. -->
-        <div class="profile-switch" role="tablist" aria-label="Profile">
-          <a class="ps-opt {% if request.url.path != '/work' %}active{% endif %}"
-             href="/dashboard" role="tab" data-profile="personal"
-             aria-selected="{{ 'false' if request.url.path == '/work' else 'true' }}">
-            <span aria-hidden="true">👤</span> Personal
-          </a>
-          <a class="ps-opt {% if request.url.path == '/work' %}active{% endif %}"
-             href="/work" role="tab" data-profile="work"
-             aria-selected="{{ 'true' if request.url.path == '/work' else 'false' }}">
-            <span aria-hidden="true">💼</span> Work
-            <span class="ps-badge hidden" id="ps-work-badge">0</span>
-          </a>
-        </div>
-
         <div class="topbar-actions">
           <button class="icon-btn" id="theme-btn" aria-label="Theme">☀️</button>
           <div id="theme-menu" class="theme-menu hidden"></div>
@@ -131,11 +115,31 @@
           </button>
           <div id="notif-panel" class="popover hidden"></div>
 
-          <div class="user-chip">
-            <div class="user-avatar">{{ user.name[:1] | upper }}</div>
-            <div>
-              <div class="user-name">{{ user.name }}</div>
-              <div class="user-role">{{ user.designation or ("Administrator" if user.is_admin else "Professor") }}</div>
+          <!-- Identity and the profile switcher read as one block: which
+               account, and which of its two views. Putting the switcher under
+               the name keeps that relationship visible instead of stranding it
+               at the far end of the bar from the person it belongs to. -->
+          <div class="user-block">
+            <div class="user-chip">
+              <div class="user-avatar">{{ user.name[:1] | upper }}</div>
+              <div class="user-meta">
+                <div class="user-name">{{ user.name }}</div>
+                <div class="user-role">{{ user.designation or ("Administrator" if user.is_admin else "Professor") }}</div>
+              </div>
+            </div>
+
+            <div class="profile-switch" role="tablist" aria-label="Profile">
+              <a class="ps-opt {% if request.url.path != '/work' %}active{% endif %}"
+                 href="/dashboard" role="tab" data-profile="personal"
+                 aria-selected="{{ 'false' if request.url.path == '/work' else 'true' }}">
+                <span aria-hidden="true">👤</span> Personal
+              </a>
+              <a class="ps-opt {% if request.url.path == '/work' %}active{% endif %}"
+                 href="/work" role="tab" data-profile="work"
+                 aria-selected="{{ 'true' if request.url.path == '/work' else 'false' }}">
+                <span aria-hidden="true">💼</span> Work
+                <span class="ps-badge hidden" id="ps-work-badge">0</span>
+              </a>
             </div>
           </div>
         </div>

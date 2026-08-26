@@ -282,3 +282,61 @@
 }
 .wn-tag.work { background: var(--primary-soft); color: var(--primary-hover); }
 .wn-tag.personal { background: var(--info-soft); color: var(--info); }
+
+/* ==========================================================================
+   Identity block: who you are, and which of your two views is open
+   ========================================================================== */
+.user-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+.user-block .user-chip { padding: 0; background: none; border: none; box-shadow: none; }
+.user-meta { min-width: 0; }
+
+/* Sits under the name rather than at the far end of the bar. The switcher
+   belongs to the account, and the two should read as one block. */
+.user-block .profile-switch { margin: 0; }
+.user-block .ps-opt { padding: 5px 12px; font-size: 0.74rem; }
+
+/* --------------------------------------------------------------------------
+   Phone
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .topbar { flex-wrap: wrap; row-gap: 8px; align-items: center; }
+  /* .user-block lives inside .topbar-actions, so its full-width rule is
+     measured against that box -- which has to wrap for the block to get
+     a row of its own. Without this the switcher stayed pill-sized at
+     250px on a 360px screen. */
+  .topbar-actions { flex-wrap: wrap; row-gap: 8px; width: 100%; justify-content: flex-end; }
+
+  /* The name and role are the least useful thing on a 360px bar -- the
+     professor knows who they are. The avatar keeps the identity anchor and
+     the row it frees goes to the switcher, which is a control. */
+  .user-block .user-meta { display: none; }
+
+  /* The switcher lives inside .user-block now, so stretching it has to happen
+     in that container -- a flex rule aimed at .topbar reaches the block, not
+     the switcher inside it, and the control stayed pill-sized.
+
+     Avatar and switcher share a full-width second row: the switcher is the
+     most-used control in the bar and both halves should be a comfortable
+     thumb target. */
+  .user-block {
+    order: 10;
+    flex: 1 0 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+  .user-block .user-chip { flex: 0 0 auto; }
+  .user-block .profile-switch { flex: 1; }
+  .topbar .ps-opt { flex: 1; justify-content: center; min-height: 44px; }
+}
+
+@media (max-width: 380px) {
+  .topbar-actions { gap: 6px; }
+  .topbar .ps-opt { font-size: 0.72rem; padding: 8px 6px; }
+}
