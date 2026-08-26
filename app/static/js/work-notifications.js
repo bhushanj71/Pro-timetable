@@ -185,8 +185,13 @@ document.getElementById("notif-bell")?.addEventListener("click", async () => {
 /* Keep the badge current without becoming a polling client. Anything the user
    does themselves refreshes it immediately; this is the backstop for things
    other people do. */
-renderNotificationCentre();
-setInterval(renderNotificationCentre, 60_000);
+/* Only where there is a session to poll for. This ran on the sign-in page
+   too, where every call 401s -- noise in the console, and one more thing
+   racing the form. */
+if (document.getElementById("notif-bell")) {
+  renderNotificationCentre();
+  setInterval(renderNotificationCentre, 60_000);
+}
 window.addEventListener("work-updated", renderNotificationCentre);
 window.addEventListener("schedule-updated", renderNotificationCentre);
 

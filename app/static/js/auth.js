@@ -4,6 +4,9 @@ document.getElementById("login-form")?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const errorEl = document.getElementById("login-error");
   errorEl.textContent = "";
+  // Raised before the request, not after it: the wait being covered starts at
+  // the click, and it also stops a second submit while the first is in flight.
+  showRouteVeil("Signing you in…", "Fetching your schedule.");
   try {
     await apiFetch("/api/auth/login", {
       method: "POST",
@@ -12,8 +15,11 @@ document.getElementById("login-form")?.addEventListener("submit", async (e) => {
         password: document.getElementById("password").value,
       },
     });
+    // Deliberately left up: the dashboard is still loading, and taking the
+    // veil down here would flash the empty login form behind it.
     window.location.href = "/dashboard";
   } catch (err) {
+    hideRouteVeil();
     errorEl.textContent = err.message || "Login failed";
   }
 });
@@ -59,6 +65,9 @@ document.getElementById("register-form")?.addEventListener("submit", async (e) =
     return;
   }
 
+  // After every validation gate above, so the veil never covers a form the
+  // user still has to correct.
+  showRouteVeil("Creating your account…", "Setting up your timetable.");
   try {
     await apiFetch("/api/auth/register", {
       method: "POST",
@@ -76,6 +85,7 @@ document.getElementById("register-form")?.addEventListener("submit", async (e) =
     });
     window.location.href = "/dashboard";
   } catch (err) {
+    hideRouteVeil();
     errorEl.textContent = err.message || "Registration failed";
   }
 });

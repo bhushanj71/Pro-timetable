@@ -1550,3 +1550,44 @@ pre {
   .pb-copy { flex: 1 1 60%; }
   #pb-enable { order: 3; width: 100%; }
 }
+
+
+/* ==========================================================================
+   Route veil: shown while signing in or out
+   Both actions end in a full page load, so the gap between the click and the
+   new page is dead time with nothing on screen. This covers it, and doubles
+   as a lock -- the form underneath cannot be submitted twice.
+   ========================================================================== */
+.route-veil {
+  position: fixed; inset: 0; z-index: 400;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 18px;
+  background: var(--bg);
+  animation: veilIn 160ms var(--ease-out) both;
+}
+.route-veil-spinner {
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  border: 3px solid var(--border-strong);
+  border-top-color: var(--primary);
+  animation: veilSpin 720ms linear infinite;
+}
+.route-veil-label {
+  font-size: 0.92rem; font-weight: 700; color: var(--text);
+  letter-spacing: -0.01em;
+}
+.route-veil-sub { font-size: 0.8rem; color: var(--text-muted); margin-top: -10px; }
+
+@keyframes veilIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes veilSpin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  /* A pulse rather than a spin, and no fade -- but never nothing, because
+     this is the only thing telling the professor the click registered. */
+  .route-veil { animation: none; }
+  .route-veil-spinner {
+    animation: veilPulse 1.4s var(--ease) infinite;
+    border-top-color: var(--primary);
+  }
+  @keyframes veilPulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+}

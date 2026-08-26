@@ -1,9 +1,17 @@
 /* --------------------------------------------------------------------------
    Hero: title, search, primary action
    -------------------------------------------------------------------------- */
+/* The sections had no gap between them at all: measured at 1476px, the
+   inbox card's bottom edge and the row below it were both at y=480, and that
+   row's bottom and "Assigned by me" were both at y=648. Two 1px borders
+   touching read as one divider inside a single tall card, which is what made
+   the whole thing look like one entangled block. One rhythm here, matching
+   the 16px already between the two columns. */
+.work-mode { display: flex; flex-direction: column; gap: 16px; }
+
 .wk-hero {
   display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
+  gap: 16px; flex-wrap: wrap;
 }
 .wk-hero-text h2 {
   display: flex; align-items: center; gap: 10px;
@@ -56,7 +64,7 @@
 /* minmax(0,...) not 1fr: a 1fr track refuses to shrink below its content,
    and the icon, number and sparkline together overflowed the row by 8px
    at 852px -- a phone held sideways. */
-.wk-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; }
+.wk-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 @media (max-width: 900px) {
   /* The sparkline is the first thing to go: the number it annotates is
      still right beside it. */
@@ -131,6 +139,10 @@
 .wk-card[data-accent]::before {
   content: ""; position: absolute; inset: 0 auto 0 0; width: 3px;
   background: linear-gradient(180deg, var(--accent), transparent 85%);
+  /* Rounded to the card's own corner. A square-ended bar on a rounded card
+     pokes past the corner and looks like it belongs to the page, not the
+     card. */
+  border-radius: var(--radius) 0 0 var(--radius);
 }
 .wk-card[data-accent="active"] { --accent: var(--primary); }
 .wk-card[data-accent="info"]   { --accent: var(--info); }

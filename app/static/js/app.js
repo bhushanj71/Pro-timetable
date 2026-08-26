@@ -62,10 +62,26 @@ async function apiFetch(url, options = {}) {
 
   const res = await fetch(url, opts);
   if (res.status === 401) {
-    // A 401 on a page that needs a session means it expired — send them to
-    // sign in again, unless they're deliberately on their way out.
-    if (!isSigningOut) window.location.href = "/login";
-    throw new Error("Not authenticated");
+    // A 401 from the sign-in and sign-up endpoints is a rejected credential,
+    // not an expired session. Redirecting on those reloaded the very page the
+    // error was about to be written to, so a wrong password produced a blank
+    // form and no explanation.
+    const isCredentialCheck = /\/api\/auth\/(login|register|token)\b/.test(url);
+    // Nor is there anywhere to send someone who is already there: that is a
+    // reload, and it wipes whatever the form was trying to say.
+    const alreadyAtSignIn = /^\/(login|register)\b/.test(window.location.pathname);
+
+    if (!isSigningOut && !isCredentialCheck && !alreadyAtSignIn) {
+      window.location.href = "/login";
+    }
+    let message = "Not authenticated";
+    try {
+      const data = await res.json();
+      if (data?.detail) message = data.detail;
+    } catch (_) {
+      // Body already read or not JSON; the default message stands.
+    }
+    throw new Error(message);
   }
   if (!res.ok) {
     let detail = "Something went wrong";
@@ -99,9 +115,41 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 }
 
+/* ---------------- Route veil ----------------
+   Signing in and signing out both end in a full page load. Between the click
+   and the new document there is nothing on screen saying the click landed,
+   which is exactly long enough for someone to press the button again. This
+   covers that gap and locks the form underneath at the same time. */
+function showRouteVeil(label, sub) {
+  let veil = document.getElementById("route-veil");
+  if (veil) return veil;
+
+  veil = document.createElement("div");
+  veil.id = "route-veil";
+  veil.className = "route-veil";
+  // polite, not assertive: this is progress, not an alert.
+  veil.setAttribute("role", "status");
+  veil.setAttribute("aria-live", "polite");
+  veil.innerHTML = `
+    <div class="route-veil-spinner" aria-hidden="true"></div>
+    <div class="route-veil-label">${esc(label)}</div>
+    ${sub ? `<div class="route-veil-sub">${esc(sub)}</div>` : ""}`;
+  document.body.appendChild(veil);
+  return veil;
+}
+
+function hideRouteVeil() {
+  document.getElementById("route-veil")?.remove();
+}
+
+/* A cached page restored with the back button keeps the DOM it was unloaded
+   with -- including a veil that has nothing left to wait for. */
+window.addEventListener("pageshow", (e) => { if (e.persisted) hideRouteVeil(); });
+
 /* ---------------- Logout ---------------- */
 document.getElementById("logout-btn")?.addEventListener("click", async () => {
   isSigningOut = true;
+  showRouteVeil("Signing you out…", "See you soon.");
   try {
     await apiFetch("/api/auth/logout", { method: "POST" });
   } catch (_) {
