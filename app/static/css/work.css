@@ -1,68 +1,200 @@
-/* ==========================================================================
-   Work mode
-   Same design language as Personal -- glass panels, warm coral, one easing
-   curve -- so switching modes reads as changing view, not changing app.
-   ========================================================================== */
-
 /* --------------------------------------------------------------------------
-   Profile switcher
-   The active mode has to be unmistakable: the entire promise is that the two
-   sets of data never mix, so "which am I in" can never be a guess.
+   Hero: title, search, primary action
    -------------------------------------------------------------------------- */
-.profile-switch {
-  display: inline-flex;
-  gap: 3px;
-  padding: 3px;
-  margin-right: auto;
+.wk-hero {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
+}
+.wk-hero-text h2 {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; margin: 0;
+}
+.wk-hero-text .muted-text { margin: 4px 0 0; font-size: 0.83rem; }
+.wk-hero-icon { font-size: 1.25rem; }
+.wk-hero-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.wk-search {
+  position: relative; display: flex; align-items: center;
+  min-width: 240px; flex: 1 1 240px;
+}
+.wk-search-icon {
+  position: absolute; left: 13px; font-size: 0.82rem;
+  opacity: 0.55; pointer-events: none;
+}
+.wk-search input {
+  width: 100%;
+  padding: 10px 34px 10px 36px;
   border-radius: var(--radius-pill);
-  background: var(--glass-bg-faint, var(--surface-alt));
   border: 1px solid var(--glass-rim, var(--border));
+  background: var(--glass-bg-faint, var(--surface));
   -webkit-backdrop-filter: var(--glass-blur-sm);
   backdrop-filter: var(--glass-blur-sm);
+  color: var(--text); font: inherit; font-size: 0.84rem;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
-.ps-opt {
-  position: relative;
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 15px;
-  border-radius: var(--radius-pill);
-  font-size: 0.8rem; font-weight: 700;
-  color: var(--text-soft);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: color var(--t-fast) var(--ease), background var(--t) var(--ease),
-              box-shadow var(--t) var(--ease);
+.wk-search input::placeholder { color: var(--text-muted); }
+.wk-search input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-ring);
 }
-.ps-opt:hover { color: var(--text); }
-.ps-opt.active {
-  background: var(--surface);
-  color: var(--primary);
-  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.5);
-}
-.ps-badge {
-  min-width: 17px; height: 17px; padding: 0 4px;
-  border-radius: var(--radius-pill);
-  background: var(--danger); color: #fff;
-  font-size: 0.62rem; font-weight: 800;
+/* The browser's own clear affordance is inconsistent across engines and
+   invisible in dark mode, so it is replaced with one that matches. */
+.wk-search input::-webkit-search-cancel-button { display: none; }
+.wk-search-clear {
+  position: absolute; right: 6px;
+  width: 26px; height: 26px; border: none; border-radius: 50%;
+  background: none; color: var(--text-muted);
+  font-size: 0.7rem; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
 }
+.wk-search-clear:hover { background: var(--surface-alt); color: var(--text); }
 
 /* --------------------------------------------------------------------------
-   Counts
+   Counts, each carrying the seven days behind it
    -------------------------------------------------------------------------- */
-.wk-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.wk-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
 .wk-stat {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "icon body spark" "note note note";
+  align-items: center;
+  gap: 4px 13px;
   padding: 16px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--glass-bg, var(--surface));
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-rim, var(--border));
-  text-align: center;
+  text-align: left;
 }
-.wk-stat-n { font-size: 1.7rem; font-weight: 800; color: var(--primary); line-height: 1.1; }
-.wk-stat-l { font-size: 0.74rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.wk-stat-icon {
+  grid-area: icon;
+  width: 42px; height: 42px; border-radius: 13px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 1.05rem;
+  background: var(--tone-soft); color: var(--tone);
+  border: 1px solid color-mix(in srgb, var(--tone) 22%, transparent);
+}
+.wk-stat-body { grid-area: body; min-width: 0; }
+/* The number uses --tone-ink, not --tone. The bright tone is a graphic
+   colour: correct on the icon tile and the sparkline, but measured at 2.20:1
+   against the light background as text. --tone-ink is the same hue darkened
+   until it clears 3:1 as large text, verified at the smallest text-size
+   setting (0.9 x 1.85rem = 26.6px bold, still large text). */
+.wk-stat-n { font-size: 1.85rem; font-weight: 800; color: var(--tone-ink, var(--tone)); line-height: 1.05; }
+.wk-stat-l {
+  font-size: 0.68rem; color: var(--text-muted); font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.07em; margin-top: 1px;
+}
+.wk-stat-note {
+  grid-area: note;
+  font-size: 0.72rem; color: var(--text-muted);
+  margin-top: 9px; overflow-wrap: anywhere;
+}
+
+/* Per-card tone. The sparkline inherits it through currentColor, so one
+   declaration colours the icon, the number and the line together. */
+.wk-stat[data-tone="active"]  { --tone: var(--primary); --tone-soft: var(--primary-soft); --tone-ink: #c56952; }
+.wk-stat[data-tone="pending"] { --tone: var(--warning); --tone-soft: var(--warning-soft); --tone-ink: #a77b46; }
+.wk-stat[data-tone="done"]    { --tone: var(--success); --tone-soft: var(--success-soft); --tone-ink: #449175; }
+
+/* On a dark ground the bright tone is already the high-contrast choice, so
+   the darkened ink would be the wrong direction. */
+:root[data-theme="dark"] .wk-stat,
+:root[data-theme="dark"] .wk-stat[data-tone] { --tone-ink: var(--tone); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .wk-stat[data-tone] { --tone-ink: var(--tone); }
+}
+
+.wk-spark { grid-area: spark; color: var(--tone); line-height: 0; }
+.wk-spark-svg { width: 76px; height: 26px; display: block; }
 
 .wk-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+/* --------------------------------------------------------------------------
+   Card chrome
+   -------------------------------------------------------------------------- */
+.wk-card { position: relative; overflow: hidden; }
+/* A hairline of the card's own colour along the leading edge, so the three
+   sections are told apart peripherally rather than by reading the heading. */
+.wk-card[data-accent]::before {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 3px;
+  background: linear-gradient(180deg, var(--accent), transparent 85%);
+}
+.wk-card[data-accent="active"] { --accent: var(--primary); }
+.wk-card[data-accent="info"]   { --accent: var(--info); }
+.wk-card[data-accent="lab"]    { --accent: var(--cat-lab); }
+
+.wk-card-head { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }
+.wk-card-head h3 { margin: 0; font-size: 0.97rem; font-weight: 800; }
+.wk-card-titles { flex: 1 1 auto; min-width: 0; }
+.wk-card-sub { margin: 3px 0 0; font-size: 0.78rem; color: var(--text-muted); }
+.wk-card-icon {
+  flex: 0 0 auto;
+  width: 36px; height: 36px; border-radius: 11px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.95rem;
+  background: var(--tone-soft); color: var(--tone);
+  border: 1px solid color-mix(in srgb, var(--tone) 20%, transparent);
+}
+.wk-card-icon[data-tone="active"] { --tone: var(--primary); --tone-soft: var(--primary-soft); }
+.wk-card-icon[data-tone="info"]   { --tone: var(--info);    --tone-soft: var(--info-soft); }
+.wk-card-icon[data-tone="lab"]    { --tone: var(--cat-lab); --tone-soft: var(--cat-lab-soft); }
+.wk-card-icon[data-tone="alert"]  { --tone: var(--cat-deadline); --tone-soft: var(--cat-deadline-soft); }
+
+.wk-sort {
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text-soft);
+  font: inherit; font-size: 0.76rem; font-weight: 700;
+  cursor: pointer;
+}
+.wk-sort:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-ring); }
+
+/* The card's footer: one full-width row, so the target is the width of the
+   card rather than the width of the words. */
+.wk-viewall {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; margin-top: 6px;
+  padding: 12px 13px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: none;
+  color: var(--text-soft);
+  font: inherit; font-size: 0.8rem; font-weight: 700;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.wk-viewall:hover { background: var(--primary-softer); color: var(--primary); border-color: var(--primary-soft); }
+.wk-viewall:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-ring); }
+.wk-chev { color: var(--text-muted); font-size: 1.05rem; line-height: 1; flex: 0 0 auto; }
+.wk-viewall .wk-chev { transition: transform var(--t) var(--ease); }
+.wk-viewall.is-open .wk-chev { transform: rotate(90deg); }
+
+/* --------------------------------------------------------------------------
+   Waiting on you
+   -------------------------------------------------------------------------- */
+.wk-inbox { min-height: 108px; }
+/* The illustration is the empty state and nothing more: it sits behind the
+   text, is decorative to a screen reader, and disappears the moment a real
+   obligation arrives. */
+.wk-inbox-art {
+  position: absolute; right: 26px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 2.6rem;
+  opacity: 0.9;
+  pointer-events: none;
+}
+.wk-inbox-art::after {
+  content: ""; position: absolute; inset: -34px;
+  background: radial-gradient(circle, var(--primary-soft) 0%, transparent 68%);
+  opacity: 0.7; z-index: -1;
+}
+.wk-inbox.has-items .wk-card-head { margin-bottom: 6px; }
 
 /* --------------------------------------------------------------------------
    Requests: the only things here that block someone else
@@ -94,8 +226,31 @@
 }
 .wk-task:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
 .wk-task-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
-.wk-task-title { font-weight: 700; font-size: 0.87rem; min-width: 0; }
-.wk-task-meta { font-size: 0.74rem; color: var(--text-muted); margin-top: 6px; }
+.wk-task-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+.wk-task-main { flex: 1 1 auto; min-width: 0; }
+.wk-task-right { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.wk-task-title { font-weight: 700; font-size: 0.87rem; min-width: 0; overflow-wrap: anywhere; }
+.wk-task-meta { font-size: 0.74rem; color: var(--text-muted); margin-top: 4px; overflow-wrap: anywhere; }
+
+/* Priority as a colour rather than an emoji: emoji render at wildly different
+   sizes and baselines per platform, and this has to line up with a title. */
+.wk-dot {
+  flex: 0 0 auto;
+  width: 9px; height: 9px; border-radius: 50%;
+  margin-top: 5px;
+  background: var(--text-muted);
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
+}
+.wk-dot[data-p="low"]    { background: var(--success); }
+.wk-dot[data-p="medium"] { background: var(--warning); }
+.wk-dot[data-p="high"]   { background: #e08a4b; }
+.wk-dot[data-p="urgent"] { background: var(--danger); }
+
+.wk-badge {
+  padding: 3px 9px; border-radius: var(--radius-pill);
+  font-size: 0.68rem; font-weight: 800; white-space: nowrap;
+}
+.wk-badge.done { background: var(--success-soft); color: var(--success); }
 .wk-pct { font-size: 0.78rem; font-weight: 800; color: var(--primary); flex: 0 0 auto; }
 
 .wk-bar {
@@ -144,7 +299,15 @@
   transition: transform var(--t) var(--ease), background var(--t) var(--ease);
 }
 .wk-community:hover { transform: translateX(2px); background: var(--primary-softer); }
-.wk-community-icon { font-size: 1.4rem; }
+.wk-community-main { flex: 1 1 auto; min-width: 0; }
+.wk-community-icon {
+  flex: 0 0 auto;
+  width: 38px; height: 38px; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 1.05rem;
+  background: var(--info-soft);
+  border: 1px solid color-mix(in srgb, var(--info) 20%, transparent);
+}
 .wk-community-name { font-weight: 700; font-size: 0.88rem; }
 
 /* Overall progress and the rule behind it */
@@ -172,14 +335,43 @@
    -------------------------------------------------------------------------- */
 @media (max-width: 768px) {
   .wk-columns { grid-template-columns: 1fr; }
-  .wk-stats { gap: 8px; }
-  .wk-stat { padding: 12px 8px; }
-  .wk-stat-n { font-size: 1.35rem; }
-  /* The switcher is the most important control on the page; it keeps its full
-     size and takes the whole row rather than being squeezed beside the icons. */
-  .profile-switch { order: -1; width: 100%; margin: 0 0 8px; justify-content: center; }
-  .ps-opt { flex: 1; justify-content: center; }
+  .wk-hero { gap: 12px; }
+  .wk-hero-text h2 { font-size: 1.3rem; }
+  .wk-hero-tools { width: 100%; }
+  .wk-search { flex: 1 1 100%; min-width: 0; }
+  .wk-hero-tools .btn { width: 100%; }
+  .wk-search input { padding-block: 12px; }
+
+  /* Three columns cannot carry an icon, a number and a sparkline at phone
+     width -- measured at 360px the number column collapsed to 50px. One card
+     per row keeps all three legible and still fits above the fold. */
+  .wk-stats { grid-template-columns: 1fr; gap: 10px; }
+  .wk-stat {
+    grid-template-areas: "icon body spark" "note note note";
+    padding: 13px 14px;
+  }
+  .wk-stat-body { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+  .wk-stat-n { font-size: 1.5rem; }
+  .wk-stat-l { margin-top: 0; }
+  .wk-stat-note { margin-top: 7px; }
+  .wk-stat-icon { width: 38px; height: 38px; }
+
+  .wk-inbox-art { font-size: 2.1rem; right: 16px; }
+  .wk-card-head { gap: 10px; }
+  .wk-viewall { padding: 14px 13px; }
+  /* Measured at 360px: padding alone left the select at 35px, under the
+     44px touch minimum, because a select sizes from its line box. */
+  .wk-sort { padding: 9px 12px; min-height: 44px; }
+  .wk-search-clear { width: 40px; height: 40px; right: 4px; }
   .wk-tl-when { flex-basis: 74px; }
+}
+
+@media (max-width: 380px) {
+  /* The caption is the first thing to go: the count and its trend still say
+     what the card is for. */
+  .wk-stat { gap: 3px 10px; }
+  .wk-spark-svg { width: 58px; }
+  .wk-inbox-art { display: none; }
 }
 
 /* ==========================================================================

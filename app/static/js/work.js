@@ -10,7 +10,7 @@ document.querySelectorAll("[data-close-modal]").forEach((b) =>
   b.addEventListener("click", () => wkModal(b.dataset.closeModal, false))
 );
 
-const PRIORITY_DOT = { low: "🟢", medium: "🟡", high: "🟠", urgent: "🔴" };
+const PRIORITY_DOT = { low: "\u{1F7E2}", medium: "\u{1F7E1}", high: "\u{1F7E0}", urgent: "\u{1F534}" };
 const STATUS_LABEL = {
   pending: "Awaiting your answer",
   accepted: "Accepted",
@@ -18,6 +18,15 @@ const STATUS_LABEL = {
   completed: "Completed",
   declined: "Declined",
 };
+
+/* How many rows a card shows before "View all". Three keeps every card on the
+   dashboard the same height, so the page reads as a summary rather than as
+   three lists of unpredictable length. */
+const PREVIEW = 3;
+
+/* Everything the dashboard drew last, so filtering and expanding redraw from
+   memory instead of going back to the server on every keystroke. */
+const WK = { data: null, created: [], query: "", expanded: {}, sort: "recent" };
 
 function bar(pct, cls = "") {
   return `<div class="wk-bar ${cls}"><span style="width:${Math.max(0, Math.min(100, pct))}%"></span></div>`;
@@ -36,20 +45,130 @@ function personRow(a) {
     </div>`;
 }
 
-/* ---------------- Dashboard ---------------- */
-async function loadWork() {
-  const [data, invites] = await Promise.all([
-    cachedFetch("/api/work/dashboard"),
-    cachedFetch("/api/work/invitations"),
-  ]);
+/* ---------------- Sparklines ----------------
+   Drawn from the seven daily readings the server sends, never invented. A
+   series that never moved is drawn as a dashed flat line rather than a solid
+   one, because a confident horizontal stroke reads as a measurement and this
+   is the absence of one. */
+function sparkline(series, tone) {
+  if (!Array.isArray(series) || series.length < 2) return "";
+  const W = 76, H = 26, PAD = 3;
+  const lo = Math.min(...series), hi = Math.max(...series);
+  const flat = hi === lo;
+  const span = flat ? 1 : hi - lo;
+  const x = (i) => PAD + (i * (W - PAD * 2)) / (series.length - 1);
+  const y = (v) => (flat ? H / 2 : H - PAD - ((v - lo) / span) * (H - PAD * 2));
 
-  document.getElementById("wk-n-active").textContent = data.counts.active;
-  document.getElementById("wk-n-pending").textContent = data.counts.pending;
-  document.getElementById("wk-n-done").textContent = data.counts.completed;
+  const pts = series.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+
+  if (flat) {
+    return `<svg viewBox="0 0 ${W} ${H}" class="wk-spark-svg" aria-hidden="true">
+      <polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-dasharray="5 5" opacity="0.45"/></svg>`;
+  }
+  const id = `sg-${tone}`;
+  return `<svg viewBox="0 0 ${W} ${H}" class="wk-spark-svg" aria-hidden="true">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="currentColor" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
+    </linearGradient></defs>
+    <polygon points="${pts} ${x(series.length - 1).toFixed(1)},${H} ${x(0).toFixed(1)},${H}" fill="url(#${id})"/>
+    <polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${x(series.length - 1).toFixed(1)}" cy="${y(series[series.length - 1]).toFixed(1)}" r="2.4" fill="currentColor"/>
+  </svg>`;
+}
+
+/* The caption under each count, said from the data -- so it can report a real
+   problem instead of always cheering. */
+function statNote(kind, data) {
+  const field = kind === "done" ? "completed" : kind;
+  const n = data.counts[field];
+  const series = (data.trends || {})[field] || [];
+  const week = series.length ? n - series[0] : 0;
+
+  if (kind === "active") {
+    if (!n) return "Nothing on your plate";
+    const now = new Date();
+    const overdue = data.active_tasks.filter((t) => t.due_date && new Date(t.due_date) < now).length;
+    if (overdue) return `${overdue} past its due date`;
+    if (data.due_soon.length) return `${data.due_soon.length} due within 2 days`;
+    return "Keep going — you're on track";
+  }
+  if (kind === "pending") {
+    return n ? `${n} waiting on your answer` : "No pending tasks";
+  }
+  if (!n) return "Nothing finished yet";
+  return week > 0 ? `+${week} finished this week` : "Good work";
+}
+
+function paintStat(kind, id, data) {
+  const field = kind === "done" ? "completed" : kind;
+  const el = document.getElementById(`wk-n-${id}`);
+  if (el) el.textContent = data.counts[field];
+  const spark = document.getElementById(`wk-spark-${id}`);
+  if (spark) spark.innerHTML = sparkline((data.trends || {})[field], id);
+  const note = document.getElementById(`wk-note-${id}`);
+  if (note) note.textContent = statNote(kind, data);
+}
+
+/* ---------------- Rows ---------------- */
+const matches = (text) => !WK.query || String(text).toLowerCase().includes(WK.query);
+
+function taskRow(t, pct, meta, badge = "") {
+  return `
+    <div class="wk-task" data-open-task="${t.id}">
+      <div class="wk-task-row">
+        <span class="wk-dot" data-p="${esc(t.priority || "medium")}"></span>
+        <div class="wk-task-main">
+          <div class="wk-task-title">${esc(t.title)}</div>
+          <div class="wk-task-meta">${meta}</div>
+        </div>
+        <div class="wk-task-right">
+          <span class="wk-pct">${pct}%</span>
+          ${badge}
+        </div>
+      </div>
+      ${bar(pct)}
+    </div>`;
+}
+
+/* Renders at most PREVIEW rows and wires the card's own "View all" toggle. */
+function paintList(boxId, buttonId, key, items, render, emptyText, label) {
+  const box = document.getElementById(boxId);
+  const btn = document.getElementById(buttonId);
+  if (!box) return;
+
+  if (!items.length) {
+    box.innerHTML = `<div class="wk-empty">${esc(emptyText)}</div>`;
+    if (btn) btn.classList.add("hidden");
+    return;
+  }
+
+  const open = WK.expanded[key];
+  box.innerHTML = (open ? items : items.slice(0, PREVIEW)).map(render).join("");
+
+  if (!btn) return;
+  if (items.length <= PREVIEW) {
+    btn.classList.add("hidden");
+    return;
+  }
+  btn.classList.remove("hidden");
+  btn.querySelector("span").textContent = open ? "Show less" : `View all ${items.length} ${label}`;
+  btn.classList.toggle("is-open", !!open);
+}
+
+/* ---------------- Dashboard ---------------- */
+function paintDashboard() {
+  const data = WK.data;
+  if (!data) return;
+
+  paintStat("active", "active", data);
+  paintStat("pending", "pending", data);
+  paintStat("done", "done", data);
 
   // --- Community invitations ---
-  const invBox = document.getElementById("wk-invites");
-  invBox.innerHTML = invites.invitations.map((i) => `
+  document.getElementById("wk-invites").innerHTML = data.invitations.map((i) => `
     <div class="wk-request">
       <div class="wk-request-main">
         <div class="wk-request-title">${esc(i.community.icon)} ${esc(i.community.name)}</div>
@@ -62,11 +181,10 @@ async function loadWork() {
     </div>`).join("");
 
   // --- Task requests ---
-  const reqBox = document.getElementById("wk-requests");
-  reqBox.innerHTML = data.requests.map((t) => `
+  document.getElementById("wk-requests").innerHTML = data.requests.map((t) => `
     <div class="wk-request">
       <div class="wk-request-main">
-        <div class="wk-request-title">${PRIORITY_DOT[t.priority] || ""} ${esc(t.title)}</div>
+        <div class="wk-request-title"><span class="wk-dot" data-p="${esc(t.priority || "medium")}"></span> ${esc(t.title)}</div>
         <div class="wk-request-meta">
           ${esc(t.creator.name)} · ${esc(t.community.name)}${t.due_date ? " · due " + fmtDate(t.due_date) : ""}
         </div>
@@ -77,60 +195,116 @@ async function loadWork() {
       </div>
     </div>`).join("");
 
-  if (!invites.invitations.length && !data.requests.length) {
-    reqBox.innerHTML = `<div class="wk-empty">Nothing needs your answer right now.</div>`;
+  // The illustration is the empty state. Once something is genuinely waiting,
+  // it gets out of the way rather than decorating an obligation.
+  const waiting = data.invitations.length + data.requests.length;
+  document.getElementById("wk-inbox-card")?.classList.toggle("has-items", waiting > 0);
+  document.getElementById("wk-inbox-art")?.classList.toggle("hidden", waiting > 0);
+  const sub = document.getElementById("wk-inbox-sub");
+  if (sub) {
+    sub.textContent = waiting
+      ? `${waiting} ${waiting === 1 ? "thing needs" : "things need"} your answer.`
+      : "Nothing needs your answer right now.";
   }
 
   // --- My active tasks ---
-  document.getElementById("wk-active").innerHTML = data.active_tasks.length
-    ? data.active_tasks.map((t) => `
-        <div class="wk-task" data-open-task="${t.id}">
-          <div class="wk-task-head">
-            <span class="wk-task-title">${PRIORITY_DOT[t.priority] || ""} ${esc(t.title)}</span>
-            <span class="wk-pct">${t.my_progress}%</span>
-          </div>
-          ${bar(t.my_progress)}
-          <div class="wk-task-meta">${esc(t.community.name)}${t.due_date ? " · due " + fmtDate(t.due_date) : ""}</div>
-        </div>`).join("")
-    : `<div class="wk-empty">No active tasks. Accepted work appears here.</div>`;
+  const active = data.active_tasks.filter((t) => matches(t.title) || matches(t.community.name));
+  paintList("wk-active", "wk-viewall-active", "active", active,
+    (t) => taskRow(t, t.my_progress,
+      `${esc(t.community.name)}${t.due_date ? " · due " + fmtDate(t.due_date) : ""}`),
+    WK.query ? "No active tasks match that search." : "No active tasks. Accepted work appears here.",
+    "active tasks");
 
   // --- Communities ---
-  document.getElementById("wk-communities").innerHTML = data.communities.length
-    ? data.communities.map((c) => `
-        <div class="wk-community" data-open-community="${c.id}">
-          <span class="wk-community-icon">${esc(c.icon)}</span>
-          <div style="flex:1;min-width:0">
-            <div class="wk-community-name">${esc(c.name)}</div>
-            <div class="wk-task-meta">${c.member_count} member${c.member_count === 1 ? "" : "s"} · ${esc(c.my_role)}</div>
-          </div>
-        </div>`).join("")
-    : `<div class="wk-empty">No communities yet. Create one to start assigning work.</div>`;
+  paintList("wk-communities", "wk-viewall-communities", "communities",
+    data.communities.filter((c) => matches(c.name)),
+    (c) => `
+      <div class="wk-community" data-open-community="${c.id}">
+        <span class="wk-community-icon">${esc(c.icon)}</span>
+        <div class="wk-community-main">
+          <div class="wk-community-name">${esc(c.name)}</div>
+          <div class="wk-task-meta">${c.member_count} member${c.member_count === 1 ? "" : "s"} · ${esc(c.my_role)}</div>
+        </div>
+        <span class="wk-chev" aria-hidden="true">›</span>
+      </div>`,
+    WK.query ? "No communities match that search." : "No communities yet. Create one to start assigning work.",
+    "communities");
 
-  loadCreatedTasks();
+  paintCreated();
 }
 
-/* ---------------- Tasks I assigned ---------------- */
-async function loadCreatedTasks() {
-  const box = document.getElementById("wk-created");
-  const { tasks } = await cachedFetch("/api/work/tasks?scope=created");
-  box.innerHTML = tasks.length
-    ? tasks.map((t) => {
-        const p = t.progress;
-        return `
-        <div class="wk-task" data-open-task="${t.id}">
-          <div class="wk-task-head">
-            <span class="wk-task-title">${PRIORITY_DOT[t.priority] || ""} ${esc(t.title)}</span>
-            <span class="wk-pct">${p.overall}%</span>
-          </div>
-          ${bar(p.overall)}
-          <div class="wk-task-meta">
-            ${p.accepted} accepted${p.pending ? ` · ${p.pending} pending` : ""}${p.declined ? ` · ${p.declined} declined` : ""}
-            · ${esc(t.community.name)}
-          </div>
-        </div>`;
-      }).join("")
-    : `<div class="wk-empty">Nothing assigned yet.</div>`;
+const SORTERS = {
+  recent: () => 0,   // the server already returns newest first
+  progress: (a, b) => b.progress.overall - a.progress.overall,
+  title: (a, b) => a.title.localeCompare(b.title),
+  due: (a, b) => {
+    if (!a.due_date) return 1;
+    if (!b.due_date) return -1;
+    return new Date(a.due_date) - new Date(b.due_date);
+  },
+};
+
+function paintCreated() {
+  const items = WK.created
+    .filter((t) => matches(t.title) || matches(t.community.name))
+    .slice()
+    .sort(SORTERS[WK.sort] || SORTERS.recent);
+
+  paintList("wk-created", "wk-viewall-created", "created", items, (t) => {
+    const p = t.progress;
+    const done = p.overall === 100 && p.accepted > 0;
+    const meta = `${p.accepted} accepted${p.pending ? ` · ${p.pending} pending` : ""}` +
+      `${p.declined ? ` · ${p.declined} declined` : ""} · ${esc(t.community.name)}`;
+    return taskRow(t, p.overall, meta, done ? `<span class="wk-badge done">Completed</span>` : "");
+  }, WK.query ? "Nothing assigned matches that search." : "Nothing assigned yet.", "assigned tasks");
 }
+
+async function loadWork() {
+  const [data, invites, created] = await Promise.all([
+    cachedFetch("/api/work/dashboard"),
+    cachedFetch("/api/work/invitations"),
+    cachedFetch("/api/work/tasks?scope=created"),
+  ]);
+  WK.data = { ...data, invitations: invites.invitations };
+  WK.created = created.tasks;
+  paintDashboard();
+}
+
+/* ---------------- Search, expand, sort ---------------- */
+let wkSearchTimer;
+document.getElementById("wk-search")?.addEventListener("input", (e) => {
+  const value = e.target.value.trim().toLowerCase();
+  document.getElementById("wk-search-clear")?.classList.toggle("hidden", !value);
+  clearTimeout(wkSearchTimer);
+  // Short debounce: filtering is local, but redrawing three lists on every
+  // keypress of a fast typist is wasted work.
+  wkSearchTimer = setTimeout(() => {
+    WK.query = value;
+    paintDashboard();
+  }, 90);
+});
+
+document.getElementById("wk-search-clear")?.addEventListener("click", () => {
+  const input = document.getElementById("wk-search");
+  input.value = "";
+  WK.query = "";
+  document.getElementById("wk-search-clear").classList.add("hidden");
+  paintDashboard();
+  input.focus();
+});
+
+document.getElementById("wk-created-sort")?.addEventListener("change", (e) => {
+  WK.sort = e.target.value;
+  paintCreated();
+});
+
+document.querySelectorAll(".wk-viewall").forEach((btn) => {
+  const key = btn.id.replace("wk-viewall-", "");
+  btn.addEventListener("click", () => {
+    WK.expanded[key] = !WK.expanded[key];
+    paintDashboard();
+  });
+});
 
 /* ---------------- Task detail ---------------- */
 async function openTask(taskId) {

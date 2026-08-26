@@ -4,44 +4,110 @@
 {% block content %}
 <div class="work-mode">
 
-  <section class="section-title">
-    <div>
-      <h2>💼 Work</h2>
+  <section class="wk-hero">
+    <div class="wk-hero-text">
+      <h2><span class="wk-hero-icon" aria-hidden="true">💼</span> Work</h2>
       <p class="muted-text">Communities, assignments and progress. Separate from your personal schedule.</p>
     </div>
-    <button class="btn btn-primary" id="wk-new-community">+ Create Community</button>
+    <div class="wk-hero-tools">
+      <!-- Search is the fastest route to a task once there are more than a
+           screenful; it filters what is already loaded, so it answers on the
+           keystroke rather than on a round trip. -->
+      <div class="wk-search">
+        <span class="wk-search-icon" aria-hidden="true">🔍</span>
+        <input type="search" id="wk-search" placeholder="Search tasks or communities..."
+               autocomplete="off" aria-label="Search tasks or communities">
+        <button class="wk-search-clear hidden" id="wk-search-clear" aria-label="Clear search">✕</button>
+      </div>
+      <button class="btn btn-primary" id="wk-new-community">+ Create Community</button>
+    </div>
   </section>
 
-  <!-- Counts -->
+  <!-- Counts, each with the seven days behind it. -->
   <div class="wk-stats" id="wk-stats">
-    <div class="wk-stat"><div class="wk-stat-n sk sk-line" id="wk-n-active">—</div><div class="wk-stat-l">Active</div></div>
-    <div class="wk-stat"><div class="wk-stat-n" id="wk-n-pending">—</div><div class="wk-stat-l">Pending</div></div>
-    <div class="wk-stat"><div class="wk-stat-n" id="wk-n-done">—</div><div class="wk-stat-l">Completed</div></div>
+    <div class="wk-stat" data-tone="active">
+      <span class="wk-stat-icon" aria-hidden="true">📈</span>
+      <div class="wk-stat-body">
+        <div class="wk-stat-n" id="wk-n-active">—</div>
+        <div class="wk-stat-l">Active</div>
+      </div>
+      <div class="wk-spark" id="wk-spark-active"></div>
+      <div class="wk-stat-note" id="wk-note-active"></div>
+    </div>
+    <div class="wk-stat" data-tone="pending">
+      <span class="wk-stat-icon" aria-hidden="true">⏱️</span>
+      <div class="wk-stat-body">
+        <div class="wk-stat-n" id="wk-n-pending">—</div>
+        <div class="wk-stat-l">Pending</div>
+      </div>
+      <div class="wk-spark" id="wk-spark-pending"></div>
+      <div class="wk-stat-note" id="wk-note-pending"></div>
+    </div>
+    <div class="wk-stat" data-tone="done">
+      <span class="wk-stat-icon" aria-hidden="true">✅</span>
+      <div class="wk-stat-body">
+        <div class="wk-stat-n" id="wk-n-done">—</div>
+        <div class="wk-stat-l">Completed</div>
+      </div>
+      <div class="wk-spark" id="wk-spark-done"></div>
+      <div class="wk-stat-note" id="wk-note-done"></div>
+    </div>
   </div>
 
   <!-- Anything waiting on this person comes first: an unanswered request is
        the only thing here that blocks someone else. -->
-  <div class="card" id="wk-inbox-card">
-    <h3>📥 Waiting on you</h3>
+  <div class="card wk-card wk-inbox" id="wk-inbox-card">
+    <div class="wk-card-head">
+      <span class="wk-card-icon" data-tone="alert" aria-hidden="true">🔔</span>
+      <div class="wk-card-titles">
+        <h3>Waiting on you</h3>
+        <p class="wk-card-sub" id="wk-inbox-sub">Nothing needs your answer right now.</p>
+      </div>
+    </div>
+    <div class="wk-inbox-art" id="wk-inbox-art" aria-hidden="true">📋</div>
     <div id="wk-invites"></div>
     <div id="wk-requests"></div>
   </div>
 
   <div class="wk-columns">
-    <div class="card">
-      <h3>🔥 My active tasks</h3>
+    <div class="card wk-card" data-accent="active">
+      <div class="wk-card-head">
+        <span class="wk-card-icon" data-tone="active" aria-hidden="true">🔥</span>
+        <div class="wk-card-titles"><h3>My active tasks</h3></div>
+      </div>
       <div id="wk-active"></div>
+      <button class="wk-viewall hidden" id="wk-viewall-active">
+        <span>View all active tasks</span><span class="wk-chev" aria-hidden="true">›</span>
+      </button>
     </div>
 
-    <div class="card">
-      <h3>👥 My communities</h3>
+    <div class="card wk-card" data-accent="info">
+      <div class="wk-card-head">
+        <span class="wk-card-icon" data-tone="info" aria-hidden="true">👥</span>
+        <div class="wk-card-titles"><h3>My communities</h3></div>
+      </div>
       <div id="wk-communities"></div>
+      <button class="wk-viewall hidden" id="wk-viewall-communities">
+        <span>View all communities</span><span class="wk-chev" aria-hidden="true">›</span>
+      </button>
     </div>
   </div>
 
-  <div class="card">
-    <h3>📤 Assigned by me</h3>
+  <div class="card wk-card" data-accent="lab">
+    <div class="wk-card-head">
+      <span class="wk-card-icon" data-tone="lab" aria-hidden="true">📋</span>
+      <div class="wk-card-titles"><h3>Assigned by me</h3></div>
+      <select class="wk-sort" id="wk-created-sort" aria-label="Sort tasks assigned by me">
+        <option value="recent">Recent</option>
+        <option value="progress">Progress</option>
+        <option value="due">Due date</option>
+        <option value="title">Name</option>
+      </select>
+    </div>
     <div id="wk-created"></div>
+    <button class="wk-viewall hidden" id="wk-viewall-created">
+      <span>View all assigned tasks</span><span class="wk-chev" aria-hidden="true">›</span>
+    </button>
   </div>
 </div>
 

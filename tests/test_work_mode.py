@@ -779,3 +779,59 @@ def test_push_respects_the_users_switch(owner, rahul, db_session, monkeypatch):
 
     deliver_pending_pushes(db_session)
     assert sent == []
+
+
+# --- Dashboard trends ------------------------------------------------------
+
+def test_each_trend_series_ends_on_the_count_it_is_drawn_beside(owner, rahul):
+    """The sparkline is a claim about the number printed next to it.
+
+    If the last reading of a series ever disagrees with the headline count,
+    the card shows a line that contradicts its own figure -- so this is the
+    property worth pinning, not the shape of the curve.
+    """
+    c = _community(owner)
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+
+    # One accepted, one left unanswered, one carried to completion.
+    for title in ("Accepted work", "Unanswered work", "Finished work"):
+        owner.post(f"/api/work/communities/{c['id']}/tasks",
+                   json={"title": title, "assignee_ids": [ids["Rahul"]]})
+
+    tasks = {t["title"]: t for t in rahul.get("/api/work/tasks").json()["tasks"]}
+    rahul.post(f"/api/work/tasks/{tasks['Accepted work']['id']}/respond", json={"accept": True})
+    rahul.post(f"/api/work/tasks/{tasks['Finished work']['id']}/respond", json={"accept": True})
+    rahul.put(f"/api/work/tasks/{tasks['Finished work']['id']}/progress", json={"progress": 100})
+
+    d = rahul.get("/api/work/dashboard").json()
+    trends, counts = d["trends"], d["counts"]
+
+    assert set(trends) == {"active", "pending", "completed"}
+    for field in ("active", "pending", "completed"):
+        series = trends[field]
+        assert len(series) == 7, f"{field} should carry a week of readings"
+        assert all(isinstance(v, int) and v >= 0 for v in series)
+        assert series[-1] == counts[field], (
+            f"the {field} sparkline ends at {series[-1]} but the card prints {counts[field]}"
+        )
+
+    assert counts == {"active": 1, "pending": 1, "completed": 1}
+
+
+def test_a_declined_task_never_appears_as_active_in_the_trend(owner, rahul):
+    """Declining is not doing. A declined assignment must not raise the line
+    that says how much work someone is carrying."""
+    c = _community(owner)
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    owner.post(f"/api/work/communities/{c['id']}/tasks",
+               json={"title": "Not mine", "assignee_ids": [ids["Rahul"]]})
+
+    task = rahul.get("/api/work/tasks").json()["tasks"][0]
+    rahul.post(f"/api/work/tasks/{task['id']}/respond", json={"accept": False, "reason": "no capacity"})
+
+    trends = rahul.get("/api/work/dashboard").json()["trends"]
+    assert trends["active"][-1] == 0
+    assert trends["pending"][-1] == 0
+    assert trends["completed"][-1] == 0

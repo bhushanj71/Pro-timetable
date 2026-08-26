@@ -460,6 +460,7 @@ def work_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curre
 
     return {
         "counts": {"active": len(active), "pending": len(pending), "completed": len(done)},
+        "trends": _trends(mine),
         "requests": [
             {**_task(a.task, me=user.id), "assignment_id": a.id}
             for a in sorted(pending, key=lambda a: a.assigned_at, reverse=True)
@@ -473,6 +474,43 @@ def work_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curre
         "unread_notifications": db.query(WorkNotification).filter(
             WorkNotification.user_id == user.id, WorkNotification.read_at.is_(None)).count(),
     }
+
+
+def _trends(assignments: list[TaskAssignment], days: int = 7) -> dict:
+    """Seven daily readings behind each headline count.
+
+    A sparkline that is drawn rather than measured is a lie the size of a
+    card, so each series is reconstructed from the timestamps already on the
+    assignment: when it arrived, when it was answered, when it finished. Each
+    series is a running total, so its last point is exactly the number printed
+    beside it.
+    """
+    today = datetime.now(timezone.utc).replace(hour=23, minute=59, second=59, microsecond=0)
+    edges = [today - timedelta(days=d) for d in range(days - 1, -1, -1)]
+    series = {"active": [], "pending": [], "completed": []}
+
+    for edge in edges:
+        active = pending = completed = 0
+        for a in assignments:
+            arrived = ensure_aware_utc(a.assigned_at)
+            if arrived > edge:
+                continue                     # did not exist yet on this day
+            answered = ensure_aware_utc(a.responded_at) if a.responded_at else None
+            finished = ensure_aware_utc(a.completed_at) if a.completed_at else None
+
+            if finished and finished <= edge:
+                completed += 1
+            elif answered and answered <= edge:
+                # Answered, but a decline never became work anyone was doing.
+                if a.status != AssignmentStatus.DECLINED.value:
+                    active += 1
+            else:
+                pending += 1
+        series["active"].append(active)
+        series["pending"].append(pending)
+        series["completed"].append(completed)
+
+    return series
 
 
 @router.get("/notifications")
