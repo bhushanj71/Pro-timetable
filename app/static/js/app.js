@@ -368,20 +368,29 @@ async function refreshNow() {
 document.getElementById("refresh-btn")?.addEventListener("click", refreshNow);
 
 /* ---------------- Swipe the notification sheet away ----------------
-   On a phone the panel is a bottom sheet, and a bottom sheet that can only be
-   closed by reaching back up to the bell it came from is the wrong shape. A
-   downward drag dismisses it.
+   The panel drops from the bell at the top, so it is dismissed by pushing it
+   back where it came from: upwards.
 
-   The one rule that makes this usable: the drag only takes over when the list
-   is already scrolled to the top. Anywhere else, a downward swipe is someone
-   scrolling their notifications, and stealing it would make the list
-   impossible to read. */
+   The scroll conflict mirrors the bottom-sheet case and is worse. For a sheet
+   at the bottom, "drag down" is free the moment the list is at the top, which
+   is where it starts. For one at the top, "drag up" is only free once the
+   list is at its END -- and a list of forty notifications is almost never
+   scrolled to the end. Requiring that would make the gesture unreachable.
+
+   So the handle earns its keep: a drag starting on the strip along the bottom
+   edge dismisses whatever the list is doing, and a drag starting anywhere
+   else only takes over once there is nothing left to scroll. Tapping outside
+   and the bell itself both still close it, so the gesture is never the only
+   way out. */
 const SHEET_DISMISS_FRACTION = 0.28;   // of the sheet's own height
 const SHEET_FLICK_VELOCITY = 0.5;      // px per ms, measured over the last move
 // A flick still has to travel. Without this floor, velocity taken over a very
-// short gesture is enormous -- a 40px nudge read as a flick and threw the
+// short gesture is enormous -- a small nudge read as a flick and threw the
 // sheet away when it should have snapped back.
 const SHEET_FLICK_MIN_DISTANCE = 56;
+// How deep the grab strip along the bottom edge is. Generous, because it is
+// the one place the gesture always works.
+const SHEET_HANDLE_DEPTH = 56;
 
 function isSheetMode() {
   return window.matchMedia("(max-width: 768px)").matches;
@@ -424,16 +433,21 @@ function closeNotifPanel(panel, { animate = false } = {}) {
 
   panel.addEventListener("touchstart", (e) => {
     if (!isSheetMode() || e.touches.length !== 1) return;
-    // A sheet already on its way out is not draggable.
     if (panel.classList.contains("is-dismissing")) return;
-    startY = lastY = e.touches[0].clientY;
+
+    const touch = e.touches[0];
+    startY = lastY = touch.clientY;
     lastAt = Date.now();
     velocity = 0;
     delta = 0;
     dragging = false;
-    // Captured once, at the start: checking scrollTop mid-gesture would let a
-    // drag begin the instant the list happened to reach the top.
-    tracking = panel.scrollTop <= 0;
+
+    const box = panel.getBoundingClientRect();
+    const onHandle = touch.clientY >= box.bottom - SHEET_HANDLE_DEPTH;
+    const atEnd = panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 1;
+    // Decided once, at the start: re-checking mid-gesture would let a drag
+    // begin the instant the list happened to reach its end.
+    tracking = onHandle || atEnd;
     panel.classList.remove("is-settling");
   }, { passive: true });
 
@@ -445,10 +459,10 @@ function closeNotifPanel(panel, { animate = false } = {}) {
     if (dt > 0) velocity = (y - lastY) / dt;
     lastY = y;
     lastAt = now;
-    delta = y - startY;
+    delta = y - startY;   // negative is upward
 
-    if (delta <= 0) {
-      // Upward: hand it back to the scroller and do not take it again until
+    if (delta >= 0) {
+      // Downward: hand it back to the scroller and do not take it again until
       // the next touch.
       if (dragging) {
         dragging = false;
@@ -459,7 +473,7 @@ function closeNotifPanel(panel, { animate = false } = {}) {
       return;
     }
     // A few pixels of slop, so a tap with a shaky thumb is still a tap.
-    if (!dragging && delta < 8) return;
+    if (!dragging && delta > -8) return;
 
     if (!dragging) {
       dragging = true;
@@ -476,10 +490,12 @@ function closeNotifPanel(panel, { animate = false } = {}) {
     tracking = false;
     panel.classList.remove("is-dragging");
 
-    const far = delta > panel.offsetHeight * SHEET_DISMISS_FRACTION;
+    const travelled = -delta;                 // upward distance
+    const upwardVelocity = -velocity;
+    const far = travelled > panel.offsetHeight * SHEET_DISMISS_FRACTION;
     // A finger lifted after pausing has velocity ~0, so a long slow drag is
     // carried by `far` and a short fast one by `flicked`.
-    const flicked = velocity > SHEET_FLICK_VELOCITY && delta > SHEET_FLICK_MIN_DISTANCE;
+    const flicked = upwardVelocity > SHEET_FLICK_VELOCITY && travelled > SHEET_FLICK_MIN_DISTANCE;
 
     if (far || flicked) {
       closeNotifPanel(panel, { animate: true });

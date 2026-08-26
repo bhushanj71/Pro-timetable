@@ -429,20 +429,22 @@
 .wn-x:hover { opacity: 1; background: var(--danger-soft); color: var(--danger); }
 
 @media (max-width: 768px) {
-  /* A dropdown pinned to a top-right icon is unreachable one-handed and, at
-     40 items, taller than the screen. Bottom sheet instead. */
+  /* Down from the bell it belongs to, not up from the floor.
+
+     It still spans the width rather than being a dropdown pinned to a
+     40px icon -- at forty items that dropdown is taller than the screen and
+     unreadable -- but it now starts where the bell is, so the panel and the
+     control that opened it are the same gesture and the same place. */
   .popover {
     position: fixed;
-    top: auto; right: 0; bottom: 0; left: 0;
+    top: var(--topbar-h, 65px); right: 0; left: 0; bottom: auto;
     width: auto; max-width: none;
-    max-height: 72vh;
-    border-radius: 20px 20px 0 0;
-    /* Clears the bottom nav, which is fixed over the same corner, plus the
-       home indicator underneath it. Without this the last notification sits
-       behind the tab bar and cannot be read or tapped. */
-    padding-bottom: calc(var(--bottom-nav-h, 60px) + 12px + env(safe-area-inset-bottom, 0px));
-    animation: sheetUp 260ms var(--ease-out) both;
-    transform-origin: bottom center;
+    /* Stops short of the tab bar rather than running under it. */
+    max-height: calc(100vh - var(--topbar-h, 65px) - var(--bottom-nav-h, 64px) - 12px);
+    border-radius: 0 0 20px 20px;
+    padding-bottom: 6px;
+    animation: sheetDown 240ms var(--ease-out) both;
+    transform-origin: top center;
     /* The gesture moves this element, so nothing above it may capture the
        pan: the browser would otherwise start its own scroll or overscroll
        and fight the drag. */
@@ -454,11 +456,11 @@
      contents are replaced wholesale on every refresh and a real element would
      have to be re-inserted each time. Sticky so it stays put while the list
      scrolls under it. */
-  .popover::before {
+  .popover::after {
     content: "";
-    position: sticky; top: 0; z-index: 2;
+    position: sticky; bottom: 0; z-index: 2;
     display: block; width: 42px; height: 4px;
-    margin: -3px auto 9px;
+    margin: 9px auto -1px;
     border-radius: var(--radius-pill);
     background: var(--border-strong);
   }
@@ -475,7 +477,7 @@
   .popover.is-dismissing {
     animation: none;
     transition: transform 200ms var(--ease), opacity 200ms var(--ease);
-    transform: translateY(100%);
+    transform: translateY(-100%);
     opacity: 0.6;
   }
 

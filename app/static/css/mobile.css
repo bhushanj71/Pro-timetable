@@ -62,7 +62,7 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
 
   /* One source of truth: anything that has to sit clear of the tab bar reads
      this rather than guessing. */
-  :root { --bottom-nav-h: 64px; }
+  :root { --bottom-nav-h: 64px; --topbar-h: 65px; }
 
   .bottom-nav {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 70;
@@ -265,6 +265,7 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
 }
 
 @keyframes sheetUp { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes sheetDown { from { transform: translateY(-100%); } to { transform: none; } }
 
 /* Very narrow phones */
 @media (max-width: 340px) {
