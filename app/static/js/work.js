@@ -160,9 +160,14 @@ async function openTask(taskId) {
     <div class="wk-people">${t.assignments.map(personRow).join("")}</div>
 
     ${me && ["accepted", "in_progress", "completed"].includes(me.status) ? `
-      <div class="form-group" style="margin-top:16px">
-        <label for="wk-my-progress">My progress — ${me.progress}%</label>
-        <input type="range" id="wk-my-progress" min="0" max="100" step="5" value="${me.progress}">
+      <div class="form-group wk-progress-editor" style="margin-top:16px">
+        <label for="wk-my-progress">
+          My progress — <strong id="wk-my-progress-value">${me.progress}%</strong>
+          <span class="wk-dirty hidden" id="wk-progress-dirty">unsaved</span>
+        </label>
+        <div class="wk-bar wk-bar-live"><span id="wk-my-progress-bar" style="width:${me.progress}%"></span></div>
+        <input type="range" id="wk-my-progress" min="0" max="100" step="5" value="${me.progress}"
+               data-initial="${me.progress}" aria-describedby="wk-my-progress-value">
         <input type="text" id="wk-my-note" placeholder="What changed? (optional)" maxlength="2000" style="margin-top:8px">
         <button class="btn btn-sm btn-primary" id="wk-save-progress" data-task="${t.id}" style="margin-top:8px">Save progress</button>
       </div>` : ""}
@@ -349,6 +354,21 @@ async function openAssign(communityId) {
   wkModal("wk-detail-modal", false);
   wkModal("wk-task-modal", true);
 }
+
+/* The slider is rebuilt with the sheet, so this is delegated from the document
+   rather than bound to an element that will not exist yet. */
+document.addEventListener("input", (e) => {
+  if (e.target.id !== "wk-my-progress") return;
+  const pct = Number(e.target.value);
+  const label = document.getElementById("wk-my-progress-value");
+  const bar = document.getElementById("wk-my-progress-bar");
+  const dirty = document.getElementById("wk-progress-dirty");
+  if (label) label.textContent = `${pct}%`;
+  if (bar) bar.style.width = `${pct}%`;
+  // Says plainly that the number on screen is not yet the number on the
+  // server -- moving a slider looks like it saved, and it does not.
+  if (dirty) dirty.classList.toggle("hidden", pct === Number(e.target.dataset.initial));
+});
 
 document.getElementById("wk-t-create")?.addEventListener("click", async (e) => {
   const title = document.getElementById("wk-t-title").value.trim();

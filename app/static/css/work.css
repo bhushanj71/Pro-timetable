@@ -315,7 +315,6 @@
   /* The name and role are the least useful thing on a 360px bar -- the
      professor knows who they are. The avatar keeps the identity anchor and
      the row it frees goes to the switcher, which is a control. */
-  .user-block .user-meta { display: none; }
 
   /* The switcher lives inside .user-block now, so stretching it has to happen
      in that container -- a flex rule aimed at .topbar reaches the block, not
@@ -324,19 +323,143 @@
      Avatar and switcher share a full-width second row: the switcher is the
      most-used control in the bar and both halves should be a comfortable
      thumb target. */
-  .user-block {
-    order: 10;
-    flex: 1 0 100%;
-    flex-direction: row;
-    align-items: center;
-    gap: 10px;
-  }
-  .user-block .user-chip { flex: 0 0 auto; }
-  .user-block .profile-switch { flex: 1; }
-  .topbar .ps-opt { flex: 1; justify-content: center; min-height: 44px; }
 }
 
 @media (max-width: 380px) {
   .topbar-actions { gap: 6px; }
   .topbar .ps-opt { font-size: 0.72rem; padding: 8px 6px; }
+}
+
+/* ==========================================================================
+   Account menu
+   The name is the control: one affordance for "who am I" and "which view",
+   instead of a permanent switcher competing for a row on a phone.
+   ========================================================================== */
+.user-block { position: relative; }
+
+button.user-chip {
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 5px 10px 5px 5px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--glass-rim, var(--border));
+  background: var(--glass-bg-faint, var(--surface));
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  backdrop-filter: var(--glass-blur-sm);
+  color: var(--text);
+  font: inherit; text-align: left;
+  cursor: pointer;
+  position: relative;
+  transition: background var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+button.user-chip:hover { background: var(--glass-bg, var(--surface-alt)); }
+button.user-chip:focus-visible { outline: none; box-shadow: 0 0 0 4px var(--primary-ring); }
+button.user-chip .user-meta { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.user-caret { color: var(--text-muted); font-size: 0.7rem; margin-left: 2px; }
+
+/* The work count rides the account button, since the switcher that used to
+   carry it now lives inside the menu. */
+button.user-chip .ps-badge { position: absolute; top: -3px; right: -3px; }
+
+.user-menu {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  min-width: 232px; z-index: 130;
+  padding: 7px;
+  border-radius: var(--radius);
+  background: var(--glass-bg-strong, var(--surface));
+  -webkit-backdrop-filter: var(--glass-blur-lg);
+  backdrop-filter: var(--glass-blur-lg);
+  border: 1px solid var(--glass-rim, var(--border));
+  box-shadow: var(--glass-shadow-lg, var(--shadow-lg));
+  animation: scaleIn var(--t) var(--ease-out) both;
+  transform-origin: top right;
+}
+.um-head { padding: 9px 11px 11px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+.um-name { font-weight: 700; font-size: 0.87rem; }
+.um-mail { font-size: 0.73rem; color: var(--text-muted); overflow-wrap: anywhere; }
+
+.um-label {
+  padding: 5px 11px 3px;
+  font-size: 0.65rem; font-weight: 800; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.um-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  padding: 10px 11px;
+  border: none; background: none;
+  border-radius: 10px;
+  font: inherit; font-size: 0.84rem; font-weight: 600;
+  color: var(--text); text-decoration: none;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+}
+.um-item:hover { background: var(--surface-alt); }
+.um-item.active { background: var(--primary-softer); color: var(--primary); }
+/* The tick marks the view you are already in, so the menu answers "which am
+   I in" as well as offering the switch. */
+.um-tick { margin-left: auto; opacity: 0; color: var(--primary); font-weight: 800; }
+.um-item.active .um-tick { opacity: 1; }
+.um-count {
+  margin-left: auto;
+  min-width: 19px; height: 19px; padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--danger); color: #fff;
+  font-size: 0.65rem; font-weight: 800;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.um-item.active .um-count { margin-left: auto; }
+.um-sep { height: 1px; background: var(--border); margin: 6px 4px; }
+.um-danger:hover { background: var(--danger-soft); color: var(--danger); }
+
+/* ==========================================================================
+   Leaving a sheet without changing anything
+   ========================================================================== */
+.sheet-close {
+  position: absolute; top: 12px; right: 12px;
+  width: 34px; height: 34px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--glass-rim, var(--border));
+  background: var(--glass-bg-faint, var(--surface-alt));
+  color: var(--text-soft);
+  font-size: 0.8rem; cursor: pointer;
+  z-index: 2;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.sheet-close:hover { background: var(--danger-soft); color: var(--danger); }
+.modal-card { position: relative; }
+
+/* ==========================================================================
+   Live progress
+   ========================================================================== */
+.wk-bar-live { margin: 8px 0 10px; height: 9px; }
+/* No transition on the live bar: it tracks the thumb, and easing a drag makes
+   the fill lag behind the finger. */
+.wk-bar-live > span { transition: none; }
+
+.wk-progress-editor label { display: flex; align-items: center; gap: 8px; }
+.wk-progress-editor strong { color: var(--primary); font-size: 0.95rem; }
+/* Moving a slider looks like it saved. It has not. */
+.wk-dirty {
+  font-size: 0.64rem; font-weight: 800; letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 7px; border-radius: var(--radius-pill);
+  background: var(--warning-soft); color: var(--warning);
+}
+#wk-my-progress { width: 100%; }
+
+@media (max-width: 768px) {
+  /* The name is redundant on a phone -- the avatar is the identity anchor and
+     the menu repeats the full name at the top anyway. */
+  button.user-chip .user-meta { display: none; }
+  /* Measured at 32px tall with padding alone. This is the control that opens
+     the profile switch, so it is the last thing that should need a second
+     tap. */
+  button.user-chip { padding: 5px 8px 5px 5px; min-height: 44px; }
+  .user-menu { min-width: 236px; }
+  /* 39px measured; a menu row is a target like any other. Padding rather
+     than min-height, which the flex row was absorbing into its content box. */
+  .um-item { padding: 13px 11px; }
+  .sheet-close { width: 40px; height: 40px; top: 10px; right: 10px; }
+  #wk-my-progress { height: 34px; }
 }

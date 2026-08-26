@@ -66,14 +66,29 @@ async function collectNotifications() {
     })),
   ].sort((a, b) => new Date(b.at) - new Date(a.at));
 
-  return { rows, unread: (work.unread || 0) + (personal.unread || 0) };
+  return {
+    rows,
+    unread: (work.unread || 0) + (personal.unread || 0),
+    workUnread: work.unread || 0,
+  };
 }
 
-function setBadges(unread) {
+function setBadges(unread, workUnread = null) {
   const badge = document.getElementById("notif-count");
   if (badge) {
     badge.textContent = unread > 9 ? "9+" : unread;
     badge.classList.toggle("hidden", unread === 0);
+  }
+  // The account button carries the work count, because the switcher it used
+  // to sit on is now folded into that menu -- otherwise pending work would be
+  // invisible from Personal mode.
+  if (workUnread !== null) {
+    for (const id of ["ps-work-badge", "um-work-count"]) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.textContent = workUnread > 9 ? "9+" : workUnread;
+      el.classList.toggle("hidden", workUnread === 0);
+    }
   }
 }
 
@@ -87,7 +102,7 @@ async function renderNotificationCentre() {
   } catch (_) {
     return;
   }
-  setBadges(data.unread);
+  setBadges(data.unread, data.workUnread);
 
   let lastBucket = null;
   const rows = data.rows.map((n) => {
@@ -174,3 +189,38 @@ renderNotificationCentre();
 setInterval(renderNotificationCentre, 60_000);
 window.addEventListener("work-updated", renderNotificationCentre);
 window.addEventListener("schedule-updated", renderNotificationCentre);
+
+
+/* ---------------- Account menu ----------------
+   The name is the control: tapping it opens the account menu, which is where
+   the choice between Personal and Work lives. */
+const userMenu = () => document.getElementById("user-menu");
+
+document.getElementById("user-menu-btn")?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const menu = userMenu();
+  const open = menu.classList.toggle("hidden");
+  e.currentTarget.setAttribute("aria-expanded", String(!open));
+});
+
+document.addEventListener("click", (e) => {
+  const menu = userMenu();
+  const btn = document.getElementById("user-menu-btn");
+  if (menu && !menu.classList.contains("hidden") &&
+      !menu.contains(e.target) && !btn?.contains(e.target)) {
+    menu.classList.add("hidden");
+    btn?.setAttribute("aria-expanded", "false");
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  userMenu()?.classList.add("hidden");
+  document.getElementById("user-menu-btn")?.setAttribute("aria-expanded", "false");
+});
+
+// Logging out from the menu reuses the sidebar's handler rather than
+// duplicating the sign-out logic.
+document.getElementById("um-logout")?.addEventListener("click", () =>
+  document.getElementById("logout-btn")?.click()
+);

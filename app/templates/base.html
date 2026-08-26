@@ -115,31 +115,43 @@
           </button>
           <div id="notif-panel" class="popover hidden"></div>
 
-          <!-- Identity and the profile switcher read as one block: which
-               account, and which of its two views. Putting the switcher under
-               the name keeps that relationship visible instead of stranding it
-               at the far end of the bar from the person it belongs to. -->
+          <!-- The name is the control. Tapping it opens the account menu,
+               which is where the choice between the two views lives -- one
+               affordance instead of a permanent switcher competing with it
+               for space on a phone. -->
           <div class="user-block">
-            <div class="user-chip">
-              <div class="user-avatar">{{ user.name[:1] | upper }}</div>
-              <div class="user-meta">
-                <div class="user-name">{{ user.name }}</div>
-                <div class="user-role">{{ user.designation or ("Administrator" if user.is_admin else "Professor") }}</div>
-              </div>
-            </div>
+            <button class="user-chip" id="user-menu-btn" aria-haspopup="menu" aria-expanded="false">
+              <span class="user-avatar">{{ user.name[:1] | upper }}</span>
+              <span class="user-meta">
+                <span class="user-name">{{ user.name }}</span>
+                <span class="user-role">{{ user.designation or ("Administrator" if user.is_admin else "Professor") }}</span>
+              </span>
+              <span class="user-caret" aria-hidden="true">▾</span>
+              <span class="ps-badge hidden" id="ps-work-badge">0</span>
+            </button>
 
-            <div class="profile-switch" role="tablist" aria-label="Profile">
-              <a class="ps-opt {% if request.url.path != '/work' %}active{% endif %}"
-                 href="/dashboard" role="tab" data-profile="personal"
-                 aria-selected="{{ 'false' if request.url.path == '/work' else 'true' }}">
+            <div class="user-menu hidden" id="user-menu" role="menu">
+              <div class="um-head">
+                <div class="um-name">{{ user.name }}</div>
+                <div class="um-mail">{{ user.email }}</div>
+              </div>
+
+              <div class="um-label">Profile</div>
+              <a class="um-item {% if request.url.path != '/work' %}active{% endif %}"
+                 href="/dashboard" role="menuitem" data-profile="personal">
                 <span aria-hidden="true">👤</span> Personal
+                <span class="um-tick">✓</span>
               </a>
-              <a class="ps-opt {% if request.url.path == '/work' %}active{% endif %}"
-                 href="/work" role="tab" data-profile="work"
-                 aria-selected="{{ 'true' if request.url.path == '/work' else 'false' }}">
+              <a class="um-item {% if request.url.path == '/work' %}active{% endif %}"
+                 href="/work" role="menuitem" data-profile="work">
                 <span aria-hidden="true">💼</span> Work
-                <span class="ps-badge hidden" id="ps-work-badge">0</span>
+                <span class="um-count hidden" id="um-work-count">0</span>
+                <span class="um-tick">✓</span>
               </a>
+
+              <div class="um-sep"></div>
+              <a class="um-item" href="/profile" role="menuitem"><span aria-hidden="true">⚙️</span> Settings</a>
+              <button class="um-item um-danger" id="um-logout" role="menuitem"><span aria-hidden="true">🚪</span> Log out</button>
             </div>
           </div>
         </div>

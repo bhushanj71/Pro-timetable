@@ -128,9 +128,13 @@
 <!-- Task detail -->
 <div id="wk-taskdetail-modal" class="modal-backdrop hidden">
   <div class="modal-card" style="max-width:560px">
+    <!-- Opening a task to read it is the common case; leaving without
+         changing anything should not require scrolling past a progress
+         slider to find a button. -->
+    <button class="sheet-close" data-close-modal="wk-taskdetail-modal" aria-label="Close">✕</button>
     <div id="wk-taskdetail-body"></div>
     <div class="modal-actions">
-      <button class="btn" data-close-modal="wk-taskdetail-modal">Close</button>
+      <button class="btn" data-close-modal="wk-taskdetail-modal">Done — nothing to update</button>
     </div>
   </div>
 </div>
