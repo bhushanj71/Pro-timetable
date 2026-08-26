@@ -185,3 +185,79 @@ def test_the_location_is_not_left_in_the_title(parse):
     e = _event(parse("Add DBMS lab tomorrow from 2 to 4 pm in Lab 3"))
     assert "Lab 3" not in e["title"]
     assert e["location"] == "Lab 3"
+
+
+# --- How people and dictation engines actually write times -----------------
+
+def test_dotted_meridiems_are_read(parse):
+    """Reported from the app: "I have DSV lecture at 12:15 p.m." Every pattern
+    matched (am|pm) and none of them matched "p.m.", so "at 3 p.m." found no
+    time at all and the lecture was booked at the 09:00 working-day default --
+    six hours out, with "p.m." left sitting in the title."""
+    assert _extract_times("at 3 p.m.") == ["15:00"]
+    assert _extract_times("at 3 P.M.") == ["15:00"]
+    assert _extract_times("at 12:15 p.m.") == ["12:15"]
+    assert _extract_times("at 10 a.m.") == ["10:00"]
+    assert _extract_times("from 2 p.m. to 4 p.m.") == ["14:00", "16:00"]
+
+
+def test_a_dotted_meridiem_does_not_survive_into_the_title(parse):
+    e = _event(parse("I have a seminar at 3 p.m."))
+    assert e["title"] == "seminar"
+    assert (e["start_time"], e["end_time"]) == ("15:00", "16:00")
+
+
+def test_a_sentence_ending_full_stop_is_not_eaten(parse):
+    assert _clean_title("I have a seminar at 3 p.m.") == "seminar"
+
+
+# --- Rooms said as one word ------------------------------------------------
+
+@pytest.mark.parametrize("prompt,title,location", [
+    ("I have DSV lecture at 12:15 p.m. in the classroom", "DSV lecture", "Classroom"),
+    ("Meeting at 10 a.m. in the seminar hall", "Meeting", "Seminar Hall"),
+    ("Viva in auditorium at 11 am", "Viva", "Auditorium"),
+    ("Tutorial in classroom 5 at 2 pm", "Tutorial", "Classroom 5"),
+    ("ANN lecture at 9 am in room 302", "ANN lecture", "Room 302"),
+])
+def test_one_word_rooms_are_a_location_not_part_of_the_title(parse, prompt, title, location):
+    """The old rule only knew multi-word rooms ("in room 5"), so "in the
+    classroom" stayed in the title and no location was recorded at all."""
+    e = _event(parse(prompt))
+    assert e["title"] == title
+    assert e["location"] == location
+
+
+def test_the_article_is_not_part_of_the_room_name(parse):
+    """A class is held in the classroom, not in "The Classroom"."""
+    e = _event(parse("Lecture at 2 pm in the classroom"))
+    assert e["location"] == "Classroom"
+
+
+def test_a_room_does_not_swallow_the_next_clause(parse):
+    """"on classroom in the CS department" was captured as "Classroom In" --
+    the suffix took whatever word came next. A designator is a number or a
+    single letter."""
+    e = _event(parse("I have DSV lecture at 12:15 p.m. on classroom in the CS department"))
+    assert e["location"] == "Classroom"
+    assert "In" not in (e["location"] or "")
+
+
+# --- Saying why the weaker parser is answering -----------------------------
+
+def test_the_fallback_note_distinguishes_missing_from_broken(parse):
+    """It always claimed "no AI provider configured", which is a lie exactly
+    when one is configured and failing -- the case that needs acting on."""
+    from app.services import ai_service
+
+    original = dict(ai_service.LAST_PROVIDER_ERROR)
+    try:
+        ai_service.LAST_PROVIDER_ERROR["error"] = None
+        assert "no AI provider configured" in ai_service._fallback_note()
+
+        ai_service.LAST_PROVIDER_ERROR["error"] = "HTTPStatusError: 410 Gone"
+        note = ai_service._fallback_note()
+        assert "not responding" in note
+        assert "no AI provider configured" not in note
+    finally:
+        ai_service.LAST_PROVIDER_ERROR.update(original)

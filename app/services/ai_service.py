@@ -139,6 +139,55 @@ _MONTHS = {
 _RECURRING_WORDS = ("every", "each", "weekly", "fortnightly", "recurring", "all semester")
 
 
+# Where a class is held, as it is actually said. Kept in one place so the
+# title cleaner and the location extractor cannot drift apart and leave the
+# room in the title.
+_ROOM_WORDS = (
+    r"class\s?room|lecture\s?hall|seminar\s?hall|conference\s?room|"
+    r"auditorium|room|lab|laboratory|hall|block|theatre|theater|studio"
+)
+# What follows a room word when the room is numbered: 5, A, B2, 302,
+# A-301. Anything else is the next clause -- "classroom in the CS
+# department" was capturing "Classroom In".
+_ROOM_DESIGNATOR = r"(?:\s+(?:no\.?\s*)?(?:[A-Za-z]?-?\d+[A-Za-z]?|[A-Za-z]))?(?![A-Za-z])"
+
+_ROOM_PHRASE = (
+    r"\b(?:in|at|inside|on)\s+(?:the\s+|our\s+|my\s+)?"
+    r"(?:" + _ROOM_WORDS + r")" + _ROOM_DESIGNATOR
+)
+
+
+def _fallback_note() -> str:
+    """Why the weaker parser is answering.
+
+    The old wording always said "no AI provider configured", which was a lie
+    whenever one was configured and simply not answering -- the case that
+    actually needs acting on, and the one hardest to notice.
+    """
+    if LAST_PROVIDER_ERROR.get("error"):
+        return ("Parsed with the built-in fallback: the AI provider is configured "
+                "but not responding, so this reading is rougher than usual.")
+    return "Parsed with the built-in rule-based fallback (no AI provider configured)."
+
+
+def _normalise_meridiems(text: str) -> str:
+    """Rewrite "p.m." and its variants as "pm".
+
+    Every pattern below matches (am|pm), and none of them matched what people
+    and dictation engines actually write. "at 3 p.m." found no time at all, so
+    a three o'clock lecture was booked at nine -- the working-day default --
+    and "p.m." was left sitting in the title.
+    """
+    # "p.m.", "P. M.", "p m." -> "pm". The trailing dot goes only when it is
+    # part of the abbreviation, so a sentence-ending full stop survives.
+    return re.sub(
+        r"\b([ap])\s*\.\s*m\s*\.?(?=\s|$|[^\w.])",
+        lambda m: m.group(1).lower() + "m",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+
 def _says_recurring(lower: str) -> bool:
     return any(w in lower for w in _RECURRING_WORDS)
 
@@ -152,6 +201,9 @@ def _extract_times(lower: str) -> list[str]:
     it as the start, and invented an end an hour later.
     """
     out: list[str] = []
+    # Normalised here as well as by the caller: a helper that is only correct
+    # when someone else remembered to clean the string first is a trap.
+    lower = _normalise_meridiems(lower)
 
     # A range first, so its two ends are read together and the bare number can
     # borrow the meridiem stated at the other end.
@@ -271,10 +323,14 @@ def _clean_title(text: str) -> str:
     """
     from app.services.nlp_dates import WEEKDAYS
 
-    out = text
+    out = _normalise_meridiems(text)
     out = re.sub(r"remind me\s*\d*\s*minutes?\s*before", " ", out, flags=re.IGNORECASE)
-    # Location trails the title and is captured separately.
-    out = re.sub(r"\b(?:in|at)\s+(?:room|lab|hall|block)\s*[\w-]*", " ", out, flags=re.IGNORECASE)
+    # Location trails the title and is captured separately. "in the classroom"
+    # was being left behind because the old pattern only knew multi-word rooms
+    # ("in room 5"), not the one-word ones people mostly say.
+    out = re.sub(_ROOM_PHRASE, " ", out, flags=re.IGNORECASE)
+    # Any meridiem the time sweep could not pair with a number.
+    out = re.sub(r"\b[ap]\.?m\.?\b", " ", out, flags=re.IGNORECASE)
     # Dates, before the bare-number sweep takes their digits.
     out = re.sub(
         r"\b\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(?:" + "|".join(_MONTHS) + r")\b",
@@ -310,6 +366,11 @@ class AIServiceError(Exception):
 # A room is normally named right after "in", "at" or "room", and runs to the
 # end of the clause. Ordered longest-first so "AI Lab 2" wins over "Lab 2".
 _LOCATION_PATTERNS = [
+    # One-word rooms, with the article left out of the capture: a class is
+    # held in the classroom, not in "The Classroom".
+    r"\b(?:in|at|inside|on)\s+(?:the\s+|our\s+|my\s+)?"
+    r"((?:class\s?room|lecture\s?hall|seminar\s?hall|conference\s?room|"
+    r"auditorium|theatre|theater|studio)" + _ROOM_DESIGNATOR + r")",
     r"\b(?:in|at)\s+((?:room|hall|lab|laboratory|block|building|auditorium)\s+(?:no\.?\s*)?[A-Za-z0-9\-]+)",
     r"\b((?:room|hall|lab|laboratory|block|auditorium)\s+(?:no\.?\s*)?[A-Za-z0-9\-]+)",
     r"\b(?:in|at)\s+([A-Za-z][A-Za-z0-9&\-]*(?:\s+[A-Za-z0-9&\-]+){0,2}?\s*(?:Lab|Room|Hall|Block|Building)\s*[A-Za-z0-9\-]*)",
@@ -527,13 +588,15 @@ class AIService:
             "target_event_title": target,
             "reminder_minutes_before": minutes,
             "reminder_scope": scope,
-            "notes": "Parsed with the built-in rule-based fallback (no AI provider configured).",
+            "notes": _fallback_note(),
         }
 
     def _fallback_rule_based(self, prompt: str, user_context: dict) -> dict:
         from app.services.nlp_dates import WEEKDAYS
 
-        text = prompt.strip()
+        # Done once, up front: every pattern below reads this string, and
+        # normalising here means none of them has to know about "p.m.".
+        text = _normalise_meridiems(prompt.strip())
         lower = text.lower()
 
         days_found = [d.capitalize() for d in WEEKDAYS if d in lower]
@@ -765,7 +828,7 @@ class AIService:
             "events": [event],
             "reminders": [],
             "tasks": [],
-            "notes": "Parsed with the built-in rule-based fallback (no AI provider configured).",
+            "notes": _fallback_note(),
         }
 
 
