@@ -3,9 +3,9 @@
 document.getElementById("pf-save-btn")?.addEventListener("click", async () => {
   const payload = {
     name: document.getElementById("pf-name").value,
-    department: departmentValue() || null,
+    // College and department are not here: they are ids now, validated as a
+    // pair, and saved through /api/org/profile just below.
     designation: document.getElementById("pf-designation").value || null,
-    college: document.getElementById("pf-college").value || null,
     working_days: document.getElementById("pf-working-days").value,
     timezone: document.getElementById("pf-timezone").value,
     working_hours_start: document.getElementById("pf-hours-start").value,
@@ -18,6 +18,7 @@ document.getElementById("pf-save-btn")?.addEventListener("click", async () => {
   };
   try {
     await apiFetch("/api/auth/me", { method: "PUT", body: payload });
+    await saveOrgFields();
     showToast("Profile updated", "success");
   } catch (err) {
     showToast(err.message, "error");
@@ -98,68 +99,55 @@ document.addEventListener("pwa-installed", refreshInstallStep);
 if (document.getElementById("pf-install-status")) refreshInstallStep();
 
 
-/* ---------------- Department and college options ----------------
-   The department is a list with an escape hatch rather than a plain text box,
-   because the Work directory groups people by the exact words they typed:
-   "Computer" and "Computer Engineering" are two departments as far as a
-   search is concerned, and only one of them finds a colleague. */
-const OTHER = "__other__";
+/* ---------------- College and department ----------------
+   Both are relational now: the form posts ids, and the server checks that the
+   department actually belongs to the college before storing either. The
+   free-text columns are kept in step server-side so the rest of the app --
+   exports, the admin list -- keeps reading what it always did. */
+async function loadOrgFields() {
+  const collegeSel = document.getElementById("pf-college-select");
+  const deptSel = document.getElementById("pf-department-select");
+  if (!collegeSel) return;
 
-function departmentValue() {
-  const select = document.getElementById("pf-department-select");
-  const free = document.getElementById("pf-department");
-  if (!select) return free ? free.value.trim() : "";
-  return select.value === OTHER ? free.value.trim() : select.value;
-}
-
-function showFreeDepartment(show) {
-  document.getElementById("pf-department")?.classList.toggle("hidden", !show);
-  if (show) document.getElementById("pf-department")?.focus();
-}
-
-async function loadProfileOptions() {
-  const select = document.getElementById("pf-department-select");
-  if (!select) return;
-
-  let data;
   try {
-    data = await apiFetch("/api/auth/profile-options");
+    const p = await apiFetch("/api/org/profile");
+    collegeSel.innerHTML = `<option value="">— Not set —</option>` + p.colleges.map((c) =>
+      `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("");
+    if (p.college?.id) collegeSel.value = p.college.id;
+    else if (p.colleges.length === 1) collegeSel.value = p.colleges[0].id;
+
+    await fillProfileDepartments(collegeSel.value, p.department?.id);
   } catch {
-    // The form still works as free text if this call fails; falling back to
-    // an empty dropdown would take the field away entirely.
-    select.classList.add("hidden");
-    showFreeDepartment(true);
+    // A failed lookup must not leave someone staring at "Loading…" with no
+    // way to save the rest of the form.
+    collegeSel.innerHTML = `<option value="">Could not load colleges</option>`;
+    deptSel.innerHTML = `<option value="">Could not load departments</option>`;
+  }
+}
+
+async function fillProfileDepartments(collegeId, selected) {
+  const deptSel = document.getElementById("pf-department-select");
+  if (!deptSel) return;
+  if (!collegeId) {
+    deptSel.innerHTML = `<option value="">Select your department…</option>`;
     return;
   }
-
-  const current = (data.current.department || "").trim();
-  const known = data.departments.some((d) => d.toLowerCase() === current.toLowerCase());
-
-  select.innerHTML = [
-    `<option value="">— Not set —</option>`,
-    // An existing value outside the list is kept and preselected, so opening
-    // the page and saving cannot silently rewrite what someone already had.
-    current && !known ? `<option value="${esc(current)}" selected>${esc(current)}</option>` : "",
-    ...data.departments.map((d) =>
-      `<option value="${esc(d)}"${d.toLowerCase() === current.toLowerCase() ? " selected" : ""}>${esc(d)}</option>`),
-    `<option value="${OTHER}">Other…</option>`,
-  ].join("");
-
-  const list = document.getElementById("pf-college-options");
-  if (list) list.innerHTML = data.colleges.map((c) => `<option value="${esc(c)}"></option>`).join("");
-
-  const hint = document.getElementById("pf-college-hint");
-  if (hint) {
-    hint.textContent = data.college_domain
-      ? (data.colleges.length
-        ? `Suggestions come from colleagues who signed up with an @${data.college_domain} address.`
-        : `Nobody with an @${data.college_domain} address has set a college yet — what you type becomes the suggestion for them.`)
-      : "Colleagues at your college find each other by this name, so use the same wording they would.";
-  }
+  const { departments } = await apiFetch(`/api/org/colleges/${collegeId}/departments`);
+  deptSel.innerHTML = `<option value="">Select your department…</option>` +
+    departments.map((d) => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("");
+  if (selected) deptSel.value = selected;
 }
 
-document.getElementById("pf-department-select")?.addEventListener("change", (e) => {
-  showFreeDepartment(e.target.value === OTHER);
-});
+document.getElementById("pf-college-select")?.addEventListener("change", (e) =>
+  fillProfileDepartments(e.target.value));
 
-loadProfileOptions();
+/* Saved separately from the rest of the profile: this pair is validated as a
+   pair, and half of it is meaningless. */
+async function saveOrgFields() {
+  const college_id = document.getElementById("pf-college-select")?.value;
+  const department_id = document.getElementById("pf-department-select")?.value;
+  if (!college_id || !department_id) return;
+  await apiFetch("/api/org/profile", { method: "PUT", body: { college_id, department_id } });
+}
+
+loadOrgFields();

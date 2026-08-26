@@ -26,10 +26,21 @@ const PREVIEW = 3;
 
 /* Everything the dashboard drew last, so filtering and expanding redraw from
    memory instead of going back to the server on every keystroke. */
-const WK = { data: null, created: [], query: "", expanded: {}, sort: "recent", community: null };
+const WK = { data: null, created: [], query: "", expanded: {}, sort: "recent",
+             community: null, pickable: [], profile: null };
 
 function bar(pct, cls = "") {
   return `<div class="wk-bar ${cls}"><span style="width:${Math.max(0, Math.min(100, pct))}%"></span></div>`;
+}
+
+/* Name over department, everywhere a person appears. Two colleagues can
+   share a name; only one of them is the one being assigned to. */
+function personLines(p) {
+  return `
+    <div class="wk-id">
+      <div class="wk-person-name">${esc(p.name)}</div>
+      ${p.department ? `<div class="wk-id-dept">🏢 ${esc(p.department)}</div>` : ""}
+    </div>`;
 }
 
 function personRow(a) {
@@ -38,7 +49,7 @@ function personRow(a) {
   return `
     <div class="wk-person">
       <span class="wk-avatar">${esc(a.user.initial)}</span>
-      <span class="wk-person-name">${esc(a.user.name)}</span>
+      ${personLines(a.user)}
       ${pending ? `<span class="wk-chip pending">⏳ Not answered yet</span>`
         : declined ? `<span class="wk-chip declined">✕ Declined${a.decline_reason ? " · " + esc(a.decline_reason) : ""}</span>`
         : `<span class="wk-person-bar">${bar(a.progress)}</span><span class="wk-pct">${a.progress}%</span>`}
@@ -293,11 +304,17 @@ document.getElementById("wk-search-clear")?.addEventListener("click", () => {
   input.focus();
 });
 
+const dirQuery = () => document.getElementById("wk-dir-q")?.value.trim() || "";
+const dirDept = () => document.getElementById("wk-dir-filter")?.value || "";
+
 document.addEventListener("input", (e) => {
   if (e.target.id !== "wk-dir-q") return;
   clearTimeout(dirTimer);
-  const q = e.target.value.trim();
-  dirTimer = setTimeout(() => loadDirectory(WK.community, q), 220);
+  dirTimer = setTimeout(() => loadDirectory(WK.community, dirQuery(), dirDept()), 220);
+});
+
+document.addEventListener("change", (e) => {
+  if (e.target.id === "wk-dir-filter") loadDirectory(WK.community, dirQuery(), dirDept());
 });
 
 document.getElementById("wk-created-sort")?.addEventListener("change", (e) => {
@@ -403,10 +420,15 @@ async function openCommunity(id) {
 
     ${canInvite ? `
       <div class="wk-directory hidden" id="wk-dir-row">
-        <div class="wk-search wk-search-inline">
-          <span class="wk-search-icon" aria-hidden="true">\u{1F50D}</span>
-          <input type="search" id="wk-dir-q" placeholder="Search by name, department or role"
-                 autocomplete="off" aria-label="Search colleagues at your college">
+        <div class="wk-filter-row">
+          <div class="wk-search wk-search-inline">
+            <span class="wk-search-icon" aria-hidden="true">\u{1F50D}</span>
+            <input type="search" id="wk-dir-q" placeholder="Search by name, department or role"
+                   autocomplete="off" aria-label="Search colleagues at your college">
+          </div>
+          <select id="wk-dir-filter" aria-label="Filter by department">
+            <option value="">All departments</option>
+          </select>
         </div>
         <div id="wk-dir-results"><div class="wk-empty">Loading colleagues…</div></div>
       </div>` : ""}
@@ -415,14 +437,14 @@ async function openCommunity(id) {
       ${c.members.map((m) => `
         <div class="wk-person">
           <span class="wk-avatar">${esc(m.initial)}</span>
-          <span class="wk-person-name">${esc(m.name)}</span>
+          ${personLines(m)}
           <span class="wk-chip role">${esc(m.role)}</span>
           ${canInvite && m.role !== "owner" ? `<button class="chip-x" data-remove-member="${m.id}" data-community="${c.id}" aria-label="Remove">✕</button>` : ""}
         </div>`).join("")}
       ${c.pending_invites.map((p) => `
         <div class="wk-person">
           <span class="wk-avatar">${esc(p.initial)}</span>
-          <span class="wk-person-name">${esc(p.name)}</span>
+          ${personLines(p)}
           <span class="wk-chip pending">⏳ Invited</span>
         </div>`).join("")}
     </div>
@@ -439,19 +461,32 @@ async function openCommunity(id) {
 
 /* ---------------- The same-college directory ---------------- */
 let dirTimer;
-async function loadDirectory(communityId, q = "") {
+async function loadDirectory(communityId, q = "", departmentId = "") {
   const box = document.getElementById("wk-dir-results");
   if (!box) return;
   try {
-    const url = `/api/work/communities/${communityId}/directory${q ? `?q=${encodeURIComponent(q)}` : ""}`;
-    const d = await apiFetch(url);
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (departmentId) params.set("department_id", departmentId);
+    const query = params.toString();
+    const d = await apiFetch(
+      `/api/work/communities/${communityId}/directory${query ? `?${query}` : ""}`);
+
+    // Built once per community, then left alone: rebuilding it on every
+    // keystroke would reset the filter the person just chose.
+    const filter = document.getElementById("wk-dir-filter");
+    if (filter && !filter.dataset.filled && d.departments?.length) {
+      filter.innerHTML = `<option value="">All departments</option>` +
+        d.departments.map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("");
+      filter.dataset.filled = "1";
+    }
 
     if (d.reason) {
       box.innerHTML = `<div class="wk-empty">${esc(d.reason)}</div>`;
       return;
     }
     if (!d.people.length) {
-      box.innerHTML = `<div class="wk-empty">${q
+      box.innerHTML = `<div class="wk-empty">${q || departmentId
         ? "Nobody at your college matches that."
         : "Nobody else from your college has an account yet."}</div>`;
       return;
@@ -464,9 +499,8 @@ async function loadDirectory(communityId, q = "") {
           <span class="wk-avatar">${esc(p.initial)}</span>
           <div class="wk-dir-main">
             <div class="wk-person-name">${esc(p.name)}</div>
-            ${p.designation || p.department
-              ? `<div class="wk-dir-meta">${[p.designation, p.department].filter(Boolean).map(esc).join(" · ")}</div>`
-              : ""}
+            ${p.department ? `<div class="wk-dir-meta">🏢 ${esc(p.department)}</div>` : ""}
+            ${p.designation ? `<div class="wk-dir-meta wk-dir-role">${esc(p.designation)}</div>` : ""}
           </div>
           ${p.member ? `<span class="wk-chip role">Already in</span>`
             : p.invited ? `<span class="wk-chip pending">⏳ Invited</span>`
@@ -692,13 +726,161 @@ async function openAssign(communityId) {
   const c = await cachedFetch(`/api/work/communities/${communityId}`, { force: true });
   document.getElementById("wk-task-community").value = communityId;
   document.getElementById("wk-task-sub").textContent = `In ${c.name}`;
-  document.getElementById("wk-t-members").innerHTML = c.members.map((m) => `
-    <label class="wk-pick">
-      <input type="checkbox" value="${m.id}"> <span class="wk-avatar">${esc(m.initial)}</span> ${esc(m.name)}
-    </label>`).join("");
+  // Kept so filtering redraws from memory and never loses a tick already made.
+  WK.pickable = c.members;
+
+  // The filter offers the departments actually present in this community,
+  // not every department in the college -- an option that can only ever
+  // return nothing is not a filter, it is a dead end.
+  const filter = document.getElementById("wk-t-filter");
+  if (filter) {
+    const seen = new Map();
+    for (const m of c.members) {
+      if (m.department_id && !seen.has(m.department_id)) seen.set(m.department_id, m.department);
+    }
+    filter.innerHTML = `<option value="">All departments</option>` +
+      [...seen].sort((a, b) => a[1].localeCompare(b[1]))
+        .map(([id, name]) => `<option value="${esc(id)}">${esc(name)}</option>`).join("");
+  }
+  const search = document.getElementById("wk-t-search");
+  if (search) search.value = "";
+  paintPicker();
   wkModal("wk-detail-modal", false);
   wkModal("wk-task-modal", true);
 }
+
+/* The assign picker: who you are assigning to, said in full.
+   A list of first names is not enough to assign work by -- the department is
+   what distinguishes two colleagues called Rahul. */
+function paintPicker() {
+  const box = document.getElementById("wk-t-members");
+  if (!box) return;
+  const picked = new Set(
+    [...box.querySelectorAll("input:checked")].map((i) => i.value));
+
+  const q = (document.getElementById("wk-t-search")?.value || "").trim().toLowerCase();
+  const dept = document.getElementById("wk-t-filter")?.value || "";
+  const people = (WK.pickable || []).filter((m) =>
+    (!dept || m.department_id === dept) &&
+    (!q || m.name.toLowerCase().includes(q) || (m.department || "").toLowerCase().includes(q)));
+
+  box.innerHTML = people.length
+    ? people.map((m) => `
+        <label class="wk-pick">
+          <input type="checkbox" value="${m.id}"${picked.has(m.id) ? " checked" : ""}>
+          <span class="wk-avatar">${esc(m.initial)}</span>
+          ${personLines(m)}
+        </label>`).join("")
+    : `<div class="wk-empty">Nobody in this community matches that.</div>`;
+
+  // Anyone ticked and then filtered out is still being assigned, so they are
+  // carried as hidden inputs rather than silently dropped.
+  const shown = new Set(people.map((m) => m.id));
+  for (const id of picked) {
+    if (!shown.has(id)) {
+      box.insertAdjacentHTML("beforeend",
+        `<input type="checkbox" value="${esc(id)}" checked hidden>`);
+    }
+  }
+}
+
+document.addEventListener("input", (e) => {
+  if (e.target.id === "wk-t-search") paintPicker();
+});
+document.addEventListener("change", (e) => {
+  if (e.target.id === "wk-t-filter") paintPicker();
+});
+
+/* ---------------- The mandatory work profile ---------------- */
+async function ensureWorkProfile() {
+  let p;
+  try {
+    p = await apiFetch("/api/org/profile");
+  } catch {
+    return true;   // never lock someone out because a lookup failed
+  }
+  WK.profile = p;
+  if (p.complete) return true;
+
+  const college = document.getElementById("wk-p-college");
+  const dept = document.getElementById("wk-p-department");
+  const save = document.getElementById("wk-p-save");
+  if (!college) return true;
+
+  // With more than one college, a select left on its first option is a silent
+  // guess -- the browser picks alphabetically, not correctly. A placeholder
+  // makes the choice explicit; a single college is preselected because there
+  // is nothing to choose between.
+  const single = p.colleges.length === 1;
+  college.innerHTML =
+    (single ? "" : `<option value="">Select your college…</option>`) +
+    p.colleges.map((c) =>
+      `<option value="${esc(c.id)}">${esc(c.name)}${c.location ? ` — ${esc(c.location)}` : ""}</option>`).join("");
+  if (p.college?.id) college.value = p.college.id;
+  else if (!single) college.value = "";
+
+  await fillDepartments(college.value);
+  wkModal("wk-profile-modal", true);
+  save.disabled = !dept.value;
+  return false;
+}
+
+async function fillDepartments(collegeId) {
+  const dept = document.getElementById("wk-p-department");
+  if (!dept) return;
+  const hint = document.getElementById("wk-p-hint");
+  if (!collegeId) {
+    dept.innerHTML = `<option value="">Select your college first…</option>`;
+    dept.disabled = true;
+    return;
+  }
+  try {
+    const { departments } = await apiFetch(`/api/org/colleges/${collegeId}/departments`);
+    dept.disabled = !departments.length;
+    if (!departments.length) {
+      // Otherwise this is an empty dropdown next to a required field, with
+      // nothing on screen saying why it cannot be satisfied.
+      dept.innerHTML = `<option value="">No departments in this college yet</option>`;
+      if (hint) hint.textContent =
+        "That college has no departments yet. Ask an administrator to add yours.";
+      return;
+    }
+    if (hint) hint.textContent = "You must select your department to take part in Work.";
+    dept.innerHTML = `<option value="">Select your department…</option>` +
+      departments.map((d) => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("");
+    if (WK.profile?.department?.id) dept.value = WK.profile.department.id;
+  } catch (err) {
+    dept.innerHTML = `<option value="">Could not load departments</option>`;
+    dept.disabled = true;
+  }
+}
+
+document.getElementById("wk-p-college")?.addEventListener("change", async (e) => {
+  await fillDepartments(e.target.value);
+  document.getElementById("wk-p-save").disabled = true;
+});
+
+document.getElementById("wk-p-department")?.addEventListener("change", (e) => {
+  document.getElementById("wk-p-save").disabled = !e.target.value;
+});
+
+document.getElementById("wk-p-save")?.addEventListener("click", async (e) => {
+  const college_id = document.getElementById("wk-p-college").value;
+  const department_id = document.getElementById("wk-p-department").value;
+  if (!department_id) return showToast("Select your department", "error");
+
+  setButtonLoading(e.currentTarget, true);
+  try {
+    await apiFetch("/api/org/profile", { method: "PUT", body: { college_id, department_id } });
+    wkModal("wk-profile-modal", false);
+    showToast("Work profile saved", "success");
+    await loadWork();
+  } catch (err) {
+    showToast(err.message, "error");
+  } finally {
+    setButtonLoading(e.currentTarget, false);
+  }
+});
 
 /* The slider is rebuilt with the sheet, so this is delegated from the document
    rather than bound to an element that will not exist yet. */
@@ -742,4 +924,8 @@ document.getElementById("wk-t-create")?.addEventListener("click", async (e) => {
   finally { setButtonLoading(e.currentTarget, false); }
 });
 
-if (document.querySelector(".work-mode")) loadWork();
+if (document.querySelector(".work-mode")) {
+  // The panel comes first: everything below it needs a department to mean
+  // anything, and the server refuses the same actions regardless.
+  ensureWorkProfile().then((ok) => { if (ok) loadWork(); });
+}

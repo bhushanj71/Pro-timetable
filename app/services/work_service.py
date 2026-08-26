@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
     AssignmentStatus,
+    Department,
     Community,
     CommunityInvitation,
     CommunityMember,
@@ -96,6 +97,12 @@ def create_community(db: Session, user: User, name: str, description: str | None
 # ---------------------------------------------------------------------------
 # Notifications
 # ---------------------------------------------------------------------------
+def _from_dept(user: User) -> str:
+    """" from Computer Engineering", or nothing at all."""
+    dept = user.department_rel.name if user.department_rel else None
+    return f" from {dept}" if dept else ""
+
+
 def notify(db: Session, user_id: str, kind: str, title: str, body: str | None = None,
            community_id: str | None = None, task_id: str | None = None,
            actor: str | None = None, assignment_id: str | None = None) -> None:
@@ -142,7 +149,7 @@ def invite(db: Session, community: Community, inviter: User, invitee: User, mess
     db.add(inv)
     notify(
         db, invitee.id, "community_invite",
-        f"{inviter.name} invited you to {community.name}",
+        f"{inviter.name}{_from_dept(inviter)} invited you to {community.name}",
         message, community_id=community.id,
     )
     return inv
@@ -192,7 +199,11 @@ def create_task(db: Session, community: Community, creator: User, *, title: str,
     for uid in dict.fromkeys(assignee_ids):   # de-duplicated, order preserved
         db.add(TaskAssignment(task_id=task.id, user_id=uid))
         notify(db, uid, "task_assigned",
-               f"{creator.name} assigned you “{task.title}”",
+               # The department goes in the title because the recipient may
+               # know two people by this name and only one of them is their
+               # colleague. Nothing more than that is added -- a notification
+               # is not a profile.
+               f"{creator.name}{_from_dept(creator)} assigned you “{task.title}”",
                f"{community.name}"
                + (f" · due {fields.get('due_date').strftime('%d %b')}" if fields.get("due_date") else "")
                + (" · group task" if len(assignee_ids) > 1 else ""),
@@ -436,37 +447,55 @@ def delete_community(db: Session, community: Community, actor: User) -> dict:
 DIRECTORY_LIMIT = 25
 
 
-def college_directory(db: Session, viewer: User, community: Community, q: str | None) -> dict:
+def college_directory(
+    db: Session,
+    viewer: User,
+    community: Community,
+    q: str | None,
+    department_id: str | None = None,
+) -> dict:
     """People at the viewer's own college, for an owner filling a community.
 
-    Scoped to one college and nothing wider. The check is written as an
-    equality on a normalised, non-empty value rather than as a match against
-    viewer.college directly: if the viewer has not set a college, comparing
-    NULL to NULL would quietly return every account that also left it blank,
-    which is the opposite of the intended scope.
+    Scoped by college id rather than by a typed college name. That is the
+    whole point of the relational move: two colleagues who spelled their
+    college differently used to be invisible to each other, and a viewer who
+    had left it blank used to match every other account that also had.
+
+    A viewer with no college is not a viewer of everyone -- they get nothing
+    and are asked to finish their work profile.
     """
-    college = (viewer.college or "").strip()
-    if not college:
+    from app.services import org_service as og
+
+    if not viewer.college_id:
         return {
             "people": [],
             "college": None,
-            "reason": "Set your college in Settings to find colleagues here.",
+            "departments": [],
+            "reason": "Choose your college and department to find colleagues here.",
         }
 
     rows = db.query(User).filter(
-        func.lower(func.trim(User.college)) == college.lower(),
+        User.college_id == viewer.college_id,
         User.id != viewer.id,
         User.is_active.is_(True),
     )
 
+    # A department filter narrows who is listed. It never narrows who may be
+    # invited: cross-department collaboration is the normal case, and this is
+    # a lens on the list, not a rule about it.
+    if department_id:
+        rows = rows.filter(User.department_id == department_id)
+
     needle = (q or "").strip()
     if needle:
         like = f"%{needle}%"
-        rows = rows.filter(or_(
-            User.name.ilike(like),
-            User.department.ilike(like),
-            User.designation.ilike(like),
-        ))
+        rows = rows.join(Department, User.department_id == Department.id, isouter=True).filter(
+            or_(
+                User.name.ilike(like),
+                User.designation.ilike(like),
+                Department.name.ilike(like),
+            )
+        )
 
     found = rows.order_by(User.name).limit(DIRECTORY_LIMIT + 1).all()
     truncated = len(found) > DIRECTORY_LIMIT
@@ -478,19 +507,20 @@ def college_directory(db: Session, viewer: User, community: Community, q: str | 
         if i.status == InviteStatus.PENDING.value
     }
 
+    college = viewer.college_rel
     return {
-        "college": college,
+        "college": college.name if college else None,
+        "college_id": viewer.college_id,
+        # The filter's own options, so the picker never offers a department
+        # that has nobody in this college.
+        "departments": [
+            {"id": d.id, "name": d.name}
+            for d in og.list_departments(db, viewer.college_id)
+        ],
         "truncated": truncated,
         "people": [
             {
-                "id": u.id,
-                "name": u.name,
-                "initial": (u.name or "?")[:1].upper(),
-                # Enough to tell two colleagues of the same name apart. Not
-                # the email: it is enough to invite by, and a searchable list
-                # of addresses is a directory to harvest, not a convenience.
-                "designation": u.designation,
-                "department": u.department,
+                **og.person_dict(u),
                 "member": u.id in members,
                 "invited": u.id in invited,
             }

@@ -32,7 +32,7 @@ from app.models import (
 )
 from app.schemas import UTCModel
 from app.services.nlp_dates import ensure_aware_utc
-from app.services import work_notify, work_service as ws
+from app.services import org_service as og, work_notify, work_service as ws
 
 router = APIRouter(prefix="/api/work", tags=["work"])
 
@@ -116,12 +116,14 @@ def _sign_deletion(community_id: str, user_id: str, issued: str) -> str:
 
 
 def _person(u: User) -> dict:
-    """The minimum needed to show someone in a member list.
+    """Name and department together, everywhere someone is shown.
 
-    Deliberately not the email: it is enough to invite by, so echoing it back
-    to every member would turn any community into a mailing list.
+    Still deliberately not the email: it is enough to invite by, so echoing it
+    back to every member would turn any community into a mailing list. The
+    department is the opposite case -- it is what tells two colleagues with
+    the same name apart, which is exactly what an assignor needs to see.
     """
-    return {"id": u.id, "name": u.name, "initial": (u.name or "?")[:1].upper()}
+    return og.person_dict(u)
 
 
 def _community(c: Community, me: str) -> dict:
@@ -215,6 +217,7 @@ def list_communities(db: Session = Depends(get_db), user: User = Depends(get_cur
 
 @router.post("/communities", status_code=status.HTTP_201_CREATED)
 def create_community(payload: CommunityCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    og.require_work_profile(user)
     community = ws.create_community(db, user, payload.name, payload.description, payload.icon)
     db.commit()
     db.refresh(community)
@@ -253,6 +256,7 @@ def get_community(community_id: str, db: Session = Depends(get_db), user: User =
 def invite_member(community_id: str, payload: InviteCreate, background: BackgroundTasks,
                   db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Invite someone. Admins and owners only."""
+    og.require_work_profile(user)
     ws.require_member(db, community_id, user, CommunityRole.ADMIN.value)
     community = db.query(Community).options(selectinload(Community.members)).filter(
         Community.id == community_id).first()
@@ -280,6 +284,7 @@ def invite_member(community_id: str, payload: InviteCreate, background: Backgrou
 def community_directory(
     community_id: str,
     q: str | None = Query(default=None, max_length=120),
+    department_id: str | None = Query(default=None, max_length=36),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -298,7 +303,7 @@ def community_directory(
         .filter(Community.id == community_id)
         .first()
     )
-    return ws.college_directory(db, user, community, q)
+    return ws.college_directory(db, user, community, q, department_id)
 
 
 # ---------------------------------------------------------------------------
@@ -452,6 +457,7 @@ def respond_invitation(invitation_id: str, payload: RespondBody, background: Bac
 @router.post("/communities/{community_id}/tasks", status_code=status.HTTP_201_CREATED)
 def create_task(community_id: str, payload: TaskCreate, background: BackgroundTasks,
                 db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    og.require_work_profile(user)
     ws.require_member(db, community_id, user)
     community = db.query(Community).options(selectinload(Community.members)).filter(
         Community.id == community_id).first()

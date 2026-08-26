@@ -152,6 +152,9 @@ _ADDITIVE_COLUMNS = {
         ("notify_work_completion", "BOOLEAN DEFAULT 1 NOT NULL"),
         ("notify_work_deadlines", "BOOLEAN DEFAULT 1 NOT NULL"),
         ("notify_work_community", "BOOLEAN DEFAULT 1 NOT NULL"),
+        ("college_id", "VARCHAR(36)"),
+        ("department_id", "VARCHAR(36)"),
+        ("admin_college_id", "VARCHAR(36)"),
     ],
     "events": [
         ("google_event_id", "VARCHAR(255)"),
@@ -175,6 +178,8 @@ _ADDITIVE_COLUMNS = {
 # Composite indexes matching what the app actually filters on. Kept beside the
 # column migrations so both are applied by the same boot-time pass.
 _COMPOSITE_INDEXES = [
+    ("ix_users_department", "users", "department_id"),
+    ("ix_users_college", "users", "college_id"),
     ("ix_events_user_start", "events", "user_id, start_datetime"),
     ("ix_reminders_due", "reminders", "is_sent, reminder_datetime"),
     ("ix_reminders_user_due", "reminders", "user_id, reminder_datetime"),
@@ -232,9 +237,117 @@ def _apply_additive_migrations():
                 logger.warning("Could not create index %s: %s", name, exc)
 
 
+# The college this deployment is for, and the departments it actually has.
+# Seeded rather than hardcoded at the point of use: everything downstream
+# joins on the ids these rows get, so a second college added by an admin
+# behaves identically to this one.
+DEFAULT_COLLEGE = {"name": "DYPCoE, Akurdi", "location": "Akurdi, Pune"}
+DEFAULT_DEPARTMENTS = [
+    "Computer Engineering",
+    "Information Technology",
+    "Electronics and Telecommunication Engineering",
+    "Mechanical Engineering",
+    "Civil Engineering",
+    "Robotics and Automation",
+    "Instrumentation and Control Engineering",
+    "Artificial Intelligence and Data Science",
+]
+
+
+def seed_organisation():
+    """Create the default college and its departments, once.
+
+    Idempotent by normalised name, so a redeploy does not produce a second
+    "DYPCoE, Akurdi", and an admin who renames or archives one of these
+    departments does not have it silently recreated on the next boot.
+    """
+    from app.models import College, Department, OrgStatus, normalise_org_name
+
+    db = SessionLocal()
+    try:
+        key = normalise_org_name(DEFAULT_COLLEGE["name"])
+        college = db.query(College).filter(College.normalised_name == key).first()
+        if not college:
+            college = College(
+                name=DEFAULT_COLLEGE["name"],
+                normalised_name=key,
+                location=DEFAULT_COLLEGE["location"],
+                status=OrgStatus.ACTIVE.value,
+            )
+            db.add(college)
+            db.flush()
+
+        existing = {d.normalised_name for d in
+                    db.query(Department).filter(Department.college_id == college.id).all()}
+        for name in DEFAULT_DEPARTMENTS:
+            dept_key = normalise_org_name(name)
+            if dept_key in existing:
+                continue
+            db.add(Department(
+                college_id=college.id, name=name,
+                normalised_name=dept_key, status=OrgStatus.ACTIVE.value,
+            ))
+        db.commit()
+    except Exception:
+        db.rollback()
+        # A seed failure must not stop the app booting; the admin panel can
+        # create these by hand and /api/health still answers.
+        logger.exception("Could not seed the default organisation")
+    finally:
+        db.close()
+
+
+def link_existing_users():
+    """Attach accounts that already typed a college or department name.
+
+    Existing users predate these tables and have free text instead. Where that
+    text resolves to a real department, the link is made for them so they are
+    not asked to re-enter what they already told us. Where it does not, the
+    fields stay empty and Work asks -- never a guess, because being filed
+    under the wrong department is worse than being asked.
+    """
+    from app.models import College, Department, User, normalise_org_name
+
+    db = SessionLocal()
+    try:
+        candidates = db.query(User).filter(
+            User.college_id.is_(None) | User.department_id.is_(None)
+        ).all()
+        if not candidates:
+            return
+
+        colleges = {c.normalised_name: c for c in db.query(College).all()}
+        depts: dict[tuple[str, str], Department] = {
+            (d.college_id, d.normalised_name): d for d in db.query(Department).all()
+        }
+
+        linked = 0
+        for user in candidates:
+            college = colleges.get(normalise_org_name(user.college or ""))
+            if not college:
+                continue
+            if not user.college_id:
+                user.college_id = college.id
+            if not user.department_id and user.department:
+                dept = depts.get((college.id, normalise_org_name(user.department)))
+                if dept:
+                    user.department_id = dept.id
+            linked += 1
+        if linked:
+            db.commit()
+            logger.info("Linked %s existing account(s) to a college", linked)
+    except Exception:
+        db.rollback()
+        logger.exception("Could not link existing users to the organisation")
+    finally:
+        db.close()
+
+
 def init_db():
     """Create tables if they don't exist. Safe to call on every cold start."""
     from app import models  # noqa: F401 ensure models are registered
 
     Base.metadata.create_all(bind=engine)
     _apply_additive_migrations()
+    seed_organisation()
+    link_existing_users()

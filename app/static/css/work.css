@@ -744,3 +744,92 @@ button.user-chip .ps-badge { position: absolute; top: -3px; right: -3px; }
   .wk-danger-zone .btn, .wk-dir-person .btn { min-height: 44px; }
   .wk-danger-zone { padding: 14px; }
 }
+
+/* ==========================================================================
+   Organisation: college, department, and people shown by both
+   ========================================================================== */
+.wk-req { color: var(--danger-ink, var(--danger)); font-weight: 800; }
+
+/* The mandatory panel has no backdrop dismissal and no ✕ on purpose: the
+   server refuses the same actions, so letting it be flicked away would only
+   produce errors later instead of a choice now. */
+.wk-profile-card h3 { margin: 0 0 2px; }
+.wk-profile-card select { width: 100%; }
+
+/* Name over department, wherever a person appears. */
+.wk-id { flex: 1 1 auto; min-width: 0; }
+.wk-id .wk-person-name { font-weight: 700; font-size: 0.86rem; line-height: 1.3; }
+.wk-id-dept {
+  font-size: 0.72rem; color: var(--text-muted);
+  line-height: 1.35; overflow-wrap: anywhere; margin-top: 1px;
+}
+.wk-person { align-items: flex-start; }
+.wk-person .wk-avatar { margin-top: 1px; }
+.wk-person .wk-chip, .wk-person .chip-x { flex: 0 0 auto; margin-top: 2px; }
+
+.wk-dir-role { opacity: 0.85; }
+
+/* Search and department filter, side by side. */
+.wk-filter-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.wk-filter-row .wk-search { flex: 1 1 auto; }
+.wk-filter-row > input[type="search"] {
+  flex: 1 1 auto; min-width: 0;
+  padding: 10px 13px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--glass-rim, var(--border));
+  background: var(--glass-bg-faint, var(--surface));
+  color: var(--text); font: inherit; font-size: 0.84rem;
+}
+.wk-filter-row > input[type="search"]:focus {
+  outline: none; border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-ring);
+}
+.wk-filter-row select {
+  flex: 0 0 auto; max-width: 46%;
+  padding: 9px 11px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text-soft);
+  font: inherit; font-size: 0.78rem; font-weight: 700;
+  cursor: pointer;
+}
+.wk-filter-row select:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-ring); }
+
+/* The assign picker now carries two lines per person. */
+.wk-pick { display: flex; align-items: flex-start; gap: 10px; padding: 9px 4px; }
+.wk-pick input[type="checkbox"] { margin-top: 4px; flex: 0 0 auto; }
+.wk-pick[hidden] { display: none; }
+
+/* ==========================================================================
+   Admin: colleges and departments
+   ========================================================================== */
+.ad-college, .ad-dept {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; row-gap: 8px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+}
+.ad-college:last-child, .ad-dept:last-child { border-bottom: none; }
+.ad-college-main, .ad-dept-main { flex: 1 1 210px; min-width: 0; }
+.ad-college-name { font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ad-college-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 3px; }
+.ad-college-actions, .ad-dept-actions { display: flex; gap: 7px; margin-left: auto; flex-wrap: wrap; }
+.ad-dept-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ad-dept-name { font-weight: 700; font-size: 0.86rem; }
+.ad-dept-meta { font-size: 0.73rem; color: var(--text-muted); }
+/* Archived rows stay visible and legible -- they still hold members and
+   history, and hiding them would make the count above unexplainable. */
+.is-archived .ad-college-name, .is-archived .ad-dept-name { opacity: 0.62; }
+
+@media (max-width: 768px) {
+  .wk-filter-row { flex-wrap: wrap; }
+  .wk-filter-row select { max-width: none; width: 100%; min-height: 44px; }
+  .wk-filter-row > input[type="search"] { min-height: 44px; }
+  .wk-profile-card select { min-height: 44px; }
+  #wk-p-college, #wk-p-department { min-height: 44px; }
+  /* Measured at 360px: these came out 40px from the small-button padding.
+     Archive and delete are the consequential ones here. */
+  .ad-college-actions .btn, .ad-dept-actions .chip-x { min-height: 44px; min-width: 44px; }
+  #ad-dept-new, #ad-college-name, #ad-college-loc { min-height: 44px; }
+  .ad-college, .ad-dept { padding: 14px 0; }
+  .wk-pick { padding: 11px 4px; }
+}

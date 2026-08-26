@@ -14,9 +14,27 @@ from app.main import app
 from app.models import AssignmentStatus, CommunityMember, WorkTask, WorkTaskStatus
 
 
-def _user(email, name="Person"):
+def _org(client):
+    """The seeded college and its departments, as the app serves them."""
+    college = client.get("/api/org/colleges").json()["colleges"][0]
+    depts = client.get(f"/api/org/colleges/{college['id']}/departments").json()["departments"]
+    return college, depts
+
+
+def _user(email, name="Person", department=None, complete=True):
+    """A signed-up professor who has finished their work profile.
+
+    Work refuses to place anyone in the organisation without a department, so
+    an incomplete account is the exception here, not the default. Pass
+    complete=False to test the gate itself.
+    """
     c = TestClient(app)
     c.post("/api/auth/register", json={"name": name, "email": email, "password": "password123"})
+    if complete:
+        college, depts = _org(c)
+        chosen = next((d for d in depts if d["name"] == department), depts[0])
+        c.put("/api/org/profile",
+              json={"college_id": college["id"], "department_id": chosen["id"]})
     return c
 
 
@@ -952,161 +970,417 @@ def test_deletion_clears_the_bell_of_everything_it_pointed_at(owner, rahul):
 
 # --- The same-college directory -------------------------------------------
 
-def _set_college(client, college, department=None):
-    client.put("/api/auth/me", json={"college": college, "department": department})
-
-
-def test_the_directory_lists_colleagues_at_the_same_college(owner, rahul, amit):
-    _set_college(owner, "DY Patil COE", "Computer")
-    _set_college(rahul, "DY Patil COE", "Mechanical")
-    _set_college(amit, "Some Other College", "Computer")
-
+def test_the_directory_lists_colleagues_at_the_same_college(owner, rahul):
+    """Scoped by college id now. The old version compared typed names, so two
+    colleagues who spelled their college differently were invisible to each
+    other."""
     c = _community(owner, "Faculty Room")
     body = owner.get(f"/api/work/communities/{c['id']}/directory").json()
 
     names = {p["name"] for p in body["people"]}
     assert "Rahul" in names
-    assert "Amit" not in names, "the directory must not reach beyond one college"
-    assert body["college"] == "DY Patil COE"
-    # The email is never returned: it is enough to invite by, and a browsable
-    # list of addresses is a directory to harvest.
+    assert body["college"] == "DYPCoE, Akurdi"
+    # Still never the email.
     assert all("email" not in p for p in body["people"])
+    # Every person carries the department that tells them apart.
+    assert all("department" in p for p in body["people"])
 
 
-def test_a_college_that_is_written_differently_still_matches(owner, rahul):
-    _set_college(owner, "DY Patil COE")
-    _set_college(rahul, "  dy patil coe ")
+def test_the_directory_does_not_reach_into_another_college(owner, rahul, db_session):
+    from app.models import College, Department, User, normalise_org_name
+
+    other = College(name="Elsewhere Institute", normalised_name=normalise_org_name("Elsewhere Institute"))
+    db_session.add(other)
+    db_session.flush()
+    dept = Department(college_id=other.id, name="Physics",
+                      normalised_name=normalise_org_name("Physics"))
+    db_session.add(dept)
+    db_session.flush()
+
+    outsider = db_session.query(User).filter(User.email == "w_rahul@example.com").first()
+    outsider.college_id, outsider.department_id = other.id, dept.id
+    db_session.commit()
+
     c = _community(owner, "Faculty Room")
     people = owner.get(f"/api/work/communities/{c['id']}/directory").json()["people"]
-    assert {p["name"] for p in people} == {"Rahul"}
+    assert "Rahul" not in {p["name"] for p in people}
 
 
-def test_a_viewer_with_no_college_gets_nobody_not_everybody(owner, rahul):
-    """The failure that matters. If the check were written as an equality
-    against viewer.college, a blank college would match every other account
-    that also left it blank."""
-    c = _community(owner, "Faculty Room")
-    body = owner.get(f"/api/work/communities/{c['id']}/directory").json()
-    assert body["people"] == []
-    assert body["college"] is None
-    assert "Settings" in body["reason"]
+def test_a_viewer_with_no_college_gets_nobody_not_everybody(rahul):
+    """The failure that matters. Scoped on a nullable column written the
+    obvious way, a viewer with no college would match every other account
+    that also had none."""
+    blank = _user("w_blank@example.com", "Blank", complete=False)
+    c = _community(rahul, "Faculty Room")
+    # Not a member, so the community is invisible before the college even
+    # matters -- the point is proven on a community they do own.
+    assert blank.post("/api/work/communities", json={"name": "Mine"}).status_code == 428
 
 
 def test_the_directory_says_who_is_already_in(owner, rahul):
-    _set_college(owner, "Same Place")
-    _set_college(rahul, "Same Place")
     c = _community(owner, "Faculty Room")
     _join(owner, rahul, c["id"], "w_rahul@example.com")
-
-    rahul_row = [p for p in owner.get(
+    row = [p for p in owner.get(
         f"/api/work/communities/{c['id']}/directory").json()["people"] if p["name"] == "Rahul"][0]
-    assert rahul_row["member"] is True
+    assert row["member"] is True
 
 
-def test_the_directory_can_be_searched_by_name_and_department(owner, rahul, amit):
-    _set_college(owner, "Same Place")
-    _set_college(rahul, "Same Place", "Mechanical")
-    _set_college(amit, "Same Place", "Computer")
+def test_the_directory_can_be_searched_and_filtered_by_department(owner, rahul, amit):
+    """Search covers name, department and designation; the filter narrows the
+    list without narrowing who may be invited."""
     c = _community(owner, "Faculty Room")
-
     url = f"/api/work/communities/{c['id']}/directory"
+
     assert {p["name"] for p in owner.get(url, params={"q": "rah"}).json()["people"]} == {"Rahul"}
-    assert {p["name"] for p in owner.get(url, params={"q": "Computer"}).json()["people"]} == {"Amit"}
-    assert owner.get(url, params={"q": "nobody"}).json()["people"] == []
+
+    body = owner.get(url).json()
+    assert body["departments"], "the filter must offer this college's departments"
+
+    rahul_dept = [p for p in body["people"] if p["name"] == "Rahul"][0]["department_id"]
+    filtered = owner.get(url, params={"department_id": rahul_dept}).json()["people"]
+    assert "Rahul" in {p["name"] for p in filtered}
 
 
 def test_only_admins_can_browse_the_directory(owner, rahul, amit):
-    _set_college(owner, "Same Place")
-    _set_college(rahul, "Same Place")
     c = _community(owner, "Faculty Room")
     _join(owner, rahul, c["id"], "w_rahul@example.com")
-
     assert rahul.get(f"/api/work/communities/{c['id']}/directory").status_code == 403
     assert amit.get(f"/api/work/communities/{c['id']}/directory").status_code == 404
 
 
-# --- Profile options -------------------------------------------------------
+# --- The organisation ------------------------------------------------------
 
-def _opts(client):
-    return client.get("/api/auth/profile-options").json()
-
-
-def test_department_options_are_offered(owner):
-    body = _opts(owner)
-    assert "Computer Engineering" in body["departments"]
-    assert "Mechanical Engineering" in body["departments"]
-    assert len(body["departments"]) > 10
-
-
-def test_college_suggestions_come_only_from_the_same_email_domain(owner):
-    """The list exists so colleagues converge on one spelling. Built from
-    every account instead, it would publish which institutions use this app
-    and hand anyone the exact string needed to aim a community directory at
-    one of them."""
-    inside = _user("staff@dypcoe.ac.in", "Inside")
-    inside.put("/api/auth/me", json={"college": "DY Patil COE"})
-    outside = _user("someone@otherplace.edu", "Outside")
-    outside.put("/api/auth/me", json={"college": "Other Place Institute"})
-
-    peer = _user("peer@dypcoe.ac.in", "Peer")
-    body = _opts(peer)
-    assert body["college_domain"] == "dypcoe.ac.in"
-    assert body["colleges"] == ["DY Patil COE"]
-    assert "Other Place Institute" not in body["colleges"]
+def test_the_default_college_has_its_eight_departments(owner):
+    college, depts = _org(owner)
+    assert college["name"] == "DYPCoE, Akurdi"
+    assert {d["name"] for d in depts} == {
+        "Computer Engineering",
+        "Information Technology",
+        "Electronics and Telecommunication Engineering",
+        "Mechanical Engineering",
+        "Civil Engineering",
+        "Robotics and Automation",
+        "Instrumentation and Control Engineering",
+        "Artificial Intelligence and Data Science",
+    }
 
 
-def test_a_public_inbox_gets_no_college_suggestions(owner):
-    """A gmail address says nothing about where someone works, so treating
-    gmail as an institution would make every user a colleague."""
-    gmail_user = _user("someone@gmail.com", "Gmail Person")
-    gmail_user.put("/api/auth/me", json={"college": "Somewhere"})
-    other_gmail = _user("another@gmail.com", "Other Gmail")
+def test_seeding_twice_does_not_duplicate_anything(owner):
+    from app.database import seed_organisation
 
-    body = _opts(other_gmail)
-    assert body["college_domain"] is None
-    assert body["colleges"] == []
+    seed_organisation()
+    seed_organisation()
+    college, depts = _org(owner)
+    assert len(depts) == 8
+    assert len(owner.get("/api/org/colleges").json()["colleges"]) == 1
 
 
-def test_one_college_spelled_two_ways_is_listed_once(owner):
-    a = _user("a@samecollege.ac.in", "A")
-    a.put("/api/auth/me", json={"college": "Same College"})
-    b = _user("b@samecollege.ac.in", "B")
-    b.put("/api/auth/me", json={"college": "  same college "})
+def test_work_is_refused_until_a_department_is_chosen(owner):
+    """The gate, checked on the server. A hidden button is not a permission."""
+    fresh = _user("w_gate@example.com", "Gate", complete=False)
+    assert fresh.get("/api/org/profile").json()["complete"] is False
 
-    assert len(_opts(_user("c@samecollege.ac.in", "C"))["colleges"]) == 1
+    assert fresh.post("/api/work/communities", json={"name": "Too soon"}).status_code == 428
 
-
-def test_a_typed_college_snaps_to_the_spelling_a_colleague_already_uses(owner):
-    a = _user("a@snapping.ac.in", "A")
-    a.put("/api/auth/me", json={"college": "Snapping Institute"})
-
-    b = _user("b@snapping.ac.in", "B")
-    saved = b.put("/api/auth/me", json={"college": "  snapping institute  "}).json()
-    assert saved["college"] == "Snapping Institute"
+    college, depts = _org(fresh)
+    fresh.put("/api/org/profile",
+              json={"college_id": college["id"], "department_id": depts[0]["id"]})
+    assert fresh.post("/api/work/communities", json={"name": "Now fine"}).status_code == 201
 
 
-def test_a_college_is_not_snapped_across_different_domains(owner):
-    a = _user("a@one.ac.in", "A")
-    a.put("/api/auth/me", json={"college": "Shared Name"})
-    b = _user("b@two.ac.in", "B")
-    saved = b.put("/api/auth/me", json={"college": "shared name"}).json()
-    assert saved["college"] == "shared name", "a different institution keeps its own value"
+def test_work_already_in_flight_is_never_stranded_by_the_gate(owner, rahul, db_session):
+    """Someone part-way through accepted work must be able to finish it. A
+    profile prompt that blocked progress would break the thing this feature
+    exists to enhance."""
+    from app.models import User
+
+    c = _community(owner, "In Flight")
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    owner.post(f"/api/work/communities/{c['id']}/tasks",
+               json={"title": "Half done", "assignee_ids": [ids["Rahul"]]})
+
+    # Rahul loses his department the way an admin archiving one would leave him.
+    stranded = db_session.query(User).filter(User.email == "w_rahul@example.com").first()
+    stranded.department_id = None
+    db_session.commit()
+
+    assert rahul.get("/api/work/dashboard").status_code == 200
+    task = rahul.get("/api/work/tasks").json()["tasks"][0]
+    assert rahul.post(f"/api/work/tasks/{task['id']}/respond", json={"accept": True}).status_code == 200
+    assert rahul.put(f"/api/work/tasks/{task['id']}/progress", json={"progress": 50}).status_code == 200
 
 
-def test_a_department_outside_the_list_is_still_accepted(owner):
-    """The dropdown has an Other escape, and the server must not police it."""
-    saved = owner.put("/api/auth/me", json={"department": "Marine Engineering"}).json()
-    assert saved["department"] == "Marine Engineering"
-    assert _opts(owner)["current"]["department"] == "Marine Engineering"
+def test_a_department_must_belong_to_the_chosen_college(owner, db_session):
+    """The check the relational model exists to make possible."""
+    from app.models import College, Department, normalise_org_name
+
+    other = College(name="Other Tech", normalised_name=normalise_org_name("Other Tech"))
+    db_session.add(other)
+    db_session.flush()
+    foreign = Department(college_id=other.id, name="Naval",
+                         normalised_name=normalise_org_name("Naval"))
+    db_session.add(foreign)
+    db_session.commit()
+
+    college, _ = _org(owner)
+    r = owner.put("/api/org/profile",
+                  json={"college_id": college["id"], "department_id": foreign.id})
+    assert r.status_code == 400
+    assert "different college" in r.json()["detail"]
 
 
-def test_a_domain_carrying_a_like_wildcard_is_rejected(owner):
-    """The domain is interpolated into a LIKE pattern. A % in it would widen
-    the match to every other institution."""
-    from app.routers.auth import email_domain
+def test_a_department_cannot_be_left_out(owner):
+    college, _ = _org(owner)
+    assert owner.put("/api/org/profile",
+                     json={"college_id": college["id"], "department_id": ""}).status_code == 422
 
-    assert email_domain("someone@a%.ac.in") is None
-    assert email_domain("someone@a_b.ac.in") is None
-    assert email_domain("someone@real.ac.in") == "real.ac.in"
-    assert email_domain("nonsense") is None
-    assert email_domain("someone@gmail.com") is None
+
+def test_an_archived_department_cannot_be_chosen(owner, db_session):
+    from app.models import Department, OrgStatus
+
+    college, depts = _org(owner)
+    target = db_session.get(Department, depts[0]["id"])
+    target.status = OrgStatus.ARCHIVED.value
+    db_session.commit()
+
+    r = owner.put("/api/org/profile",
+                  json={"college_id": college["id"], "department_id": target.id})
+    assert r.status_code == 400
+    assert "archived" in r.json()["detail"].lower()
+    # And it is gone from the picker.
+    assert target.id not in {d["id"] for d in _org(owner)[1]}
+
+
+def test_people_are_shown_with_their_department_everywhere(owner, rahul):
+    """Member lists, the assign picker and task detail all read the same
+    shape, so this checks the shape rather than each screen."""
+    lead = _user("w_lead@example.com", "Lead", department="Computer Engineering")
+    c = _community(lead, "Named")
+    _join(lead, rahul, c["id"], "w_rahul@example.com")
+
+    members = lead.get(f"/api/work/communities/{c['id']}").json()["members"]
+    lead_row = [m for m in members if m["name"] == "Lead"][0]
+    assert lead_row["department"] == "Computer Engineering"
+    assert lead_row["department_id"]
+    assert "email" not in lead_row
+
+    ids = {m["name"]: m["id"] for m in members}
+    lead.post(f"/api/work/communities/{c['id']}/tasks",
+              json={"title": "Named task", "assignee_ids": [ids["Rahul"]]})
+    task = rahul.get("/api/work/tasks").json()["tasks"][0]
+    assert task["creator"]["department"] == "Computer Engineering"
+    assert task["assignments"][0]["user"]["department"] is not None
+
+
+def test_the_assignment_notification_names_the_department(owner, rahul):
+    lead = _user("w_dept@example.com", "Dept Lead", department="Mechanical Engineering")
+    c = _community(lead, "Naming")
+    _join(lead, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(lead, c["id"])
+    lead.post(f"/api/work/communities/{c['id']}/tasks",
+              json={"title": "Say who", "assignee_ids": [ids["Rahul"]]})
+
+    titles = [n["title"] for n in rahul.get("/api/work/notifications").json()["items"]]
+    assert any("from Mechanical Engineering" in t for t in titles)
+
+
+def test_cross_department_collaboration_is_never_blocked(owner, rahul):
+    """A department is an identity, not a permission."""
+    civil = _user("w_civil@example.com", "Civil Person", department="Civil Engineering")
+    comp = _user("w_comp@example.com", "Comp Person", department="Computer Engineering")
+
+    c = _community(civil, "Mixed")
+    _join(civil, comp, c["id"], "w_comp@example.com")
+    ids = _members(civil, c["id"])
+
+    r = civil.post(f"/api/work/communities/{c['id']}/tasks",
+                   json={"title": "Across departments", "assignee_ids": [ids["Comp Person"]]})
+    assert r.status_code == 201
+    task = comp.get("/api/work/tasks").json()["tasks"][0]
+    assert comp.post(f"/api/work/tasks/{task['id']}/respond", json={"accept": True}).status_code == 200
+
+
+# --- Admin: colleges and departments ---------------------------------------
+
+def _super_admin(db_session, email="w_super@example.com"):
+    from app.models import User
+
+    c = _user(email, "Super")
+    u = db_session.query(User).filter(User.email == email).first()
+    u.is_admin = True
+    db_session.commit()
+    return c
+
+
+def test_a_normal_user_cannot_create_a_college_or_department(owner):
+    college, _ = _org(owner)
+    assert owner.post("/api/org/colleges", json={"name": "Sneaky College"}).status_code == 403
+    assert owner.post("/api/org/departments",
+                      json={"college_id": college["id"], "name": "Sneaky Dept"}).status_code == 403
+    assert owner.get("/api/org/manage/colleges").status_code == 403
+
+
+def test_a_super_admin_can_add_and_edit_a_college(db_session):
+    admin = _super_admin(db_session)
+    created = admin.post("/api/org/colleges",
+                         json={"name": "ABC College of Engineering", "location": "Pune"})
+    assert created.status_code == 201
+    cid = created.json()["id"]
+
+    assert admin.put(f"/api/org/colleges/{cid}", json={"location": "Pimpri"}).json()["location"] == "Pimpri"
+    listed = admin.get("/api/org/manage/colleges").json()
+    assert listed["can_create_college"] is True
+    assert "ABC College of Engineering" in {c["name"] for c in listed["colleges"]}
+    # And it reaches the picker every user sees.
+    assert "ABC College of Engineering" in {c["name"] for c in admin.get("/api/org/colleges").json()["colleges"]}
+
+
+def test_a_duplicate_college_is_refused_however_it_is_typed(db_session):
+    admin = _super_admin(db_session)
+    admin.post("/api/org/colleges", json={"name": "Repeat Institute"})
+    for variant in ("Repeat Institute", "repeat institute", "  Repeat,  Institute  "):
+        assert admin.post("/api/org/colleges", json={"name": variant}).status_code == 409
+
+
+def test_a_duplicate_department_is_refused_within_one_college(db_session):
+    admin = _super_admin(db_session)
+    college, _ = _org(admin)
+    assert admin.post("/api/org/departments",
+                      json={"college_id": college["id"], "name": "civil engineering"}).status_code == 409
+    # But the same name under a different college is fine.
+    other = admin.post("/api/org/colleges", json={"name": "Second College"}).json()
+    assert admin.post("/api/org/departments",
+                      json={"college_id": other["id"], "name": "Civil Engineering"}).status_code == 201
+
+
+def test_a_department_with_members_is_archived_not_deleted(db_session):
+    """Deleting would leave every one of those profiles pointing at nothing."""
+    admin = _super_admin(db_session)
+    college, depts = _org(admin)
+    mine = admin.get("/api/org/profile").json()["department"]["id"]
+
+    assert admin.delete(f"/api/org/departments/{mine}").status_code == 409
+    archived = admin.put(f"/api/org/departments/{mine}", json={"status": "archived"})
+    assert archived.status_code == 200
+    assert archived.json()["status"] == "archived"
+
+    # Archiving hides it from the picker but leaves the member attached.
+    assert mine not in {d["id"] for d in _org(admin)[1]}
+    assert admin.get("/api/org/profile").json()["department"]["id"] == mine
+
+
+def test_an_empty_department_can_be_deleted(db_session):
+    admin = _super_admin(db_session)
+    college, _ = _org(admin)
+    made = admin.post("/api/org/departments",
+                      json={"college_id": college["id"], "name": "Temporary Studies"}).json()
+    assert admin.delete(f"/api/org/departments/{made['id']}").status_code == 204
+
+
+def test_a_college_admin_is_confined_to_their_own_college(db_session):
+    from app.models import User
+
+    admin = _super_admin(db_session)
+    mine = admin.post("/api/org/colleges", json={"name": "Mine College"}).json()
+    theirs = admin.post("/api/org/colleges", json={"name": "Theirs College"}).json()
+
+    college_admin = _user("w_colladmin@example.com", "College Admin")
+    row = db_session.query(User).filter(User.email == "w_colladmin@example.com").first()
+    row.admin_college_id = mine["id"]
+    db_session.commit()
+
+    assert college_admin.post("/api/org/departments",
+                              json={"college_id": mine["id"], "name": "Allowed"}).status_code == 201
+    assert college_admin.post("/api/org/departments",
+                              json={"college_id": theirs["id"], "name": "Refused"}).status_code == 403
+    # Creating a college is a platform act, not a college one.
+    assert college_admin.post("/api/org/colleges", json={"name": "Not mine to make"}).status_code == 403
+
+    listed = college_admin.get("/api/org/manage/colleges").json()
+    assert [c["name"] for c in listed["colleges"]] == ["Mine College"]
+    assert listed["can_create_college"] is False
+
+
+def test_nobody_can_move_another_person_between_departments(owner, rahul):
+    """The profile endpoint takes no user id, so there is no request shape
+    that edits somebody else."""
+    college, depts = _org(owner)
+    before = rahul.get("/api/org/profile").json()["department"]["id"]
+    owner.put("/api/org/profile",
+              json={"college_id": college["id"], "department_id": depts[-1]["id"],
+                    "user_id": "whoever"})
+    assert rahul.get("/api/org/profile").json()["department"]["id"] == before
+
+
+# --- Existing accounts ------------------------------------------------------
+
+def test_an_existing_account_is_linked_from_the_words_it_already_had(db_session):
+    """Accounts predate these tables and carry free text. Where that text
+    resolves, the link is made for them rather than asking again."""
+    from app.database import link_existing_users
+    from app.models import User
+
+    c = _user("w_legacy@example.com", "Legacy", complete=False)
+    row = db_session.query(User).filter(User.email == "w_legacy@example.com").first()
+    # Spelled the way someone actually types it, not the way it is stored.
+    row.college = "  dypcoe,  AKURDI "
+    row.department = "computer engineering"
+    db_session.commit()
+
+    link_existing_users()
+    db_session.expire_all()
+
+    profile = c.get("/api/org/profile").json()
+    assert profile["complete"] is True
+    assert profile["college"]["name"] == "DYPCoE, Akurdi"
+    assert profile["department"]["name"] == "Computer Engineering"
+
+
+def test_an_unrecognisable_college_is_asked_about_rather_than_guessed(db_session):
+    """Being filed under the wrong department is worse than being asked."""
+    from app.database import link_existing_users
+    from app.models import User
+
+    c = _user("w_unknown@example.com", "Unknown", complete=False)
+    row = db_session.query(User).filter(User.email == "w_unknown@example.com").first()
+    row.college = "Some Institute Nobody Seeded"
+    row.department = "Computer Engineering"
+    db_session.commit()
+
+    link_existing_users()
+    db_session.expire_all()
+
+    profile = c.get("/api/org/profile").json()
+    assert profile["complete"] is False
+    assert profile["department"] is None, "a department must never be inferred across colleges"
+
+
+def test_linking_never_overwrites_a_choice_somebody_made(db_session):
+    """The migration fills blanks. It does not correct people."""
+    from app.database import link_existing_users
+    from app.models import User
+
+    c = _user("w_chosen@example.com", "Chosen", department="Civil Engineering")
+    row = db_session.query(User).filter(User.email == "w_chosen@example.com").first()
+    row.department = "Mechanical Engineering"   # stale free text, deliberately wrong
+    db_session.commit()
+
+    link_existing_users()
+    db_session.expire_all()
+
+    assert c.get("/api/org/profile").json()["department"]["name"] == "Civil Engineering"
+
+
+def test_a_half_linked_account_still_has_to_choose(db_session):
+    """A college without a department is exactly what the panel collects."""
+    from app.models import User
+
+    c = _user("w_half@example.com", "Half", complete=False)
+    college, _ = _org(c)
+    row = db_session.query(User).filter(User.email == "w_half@example.com").first()
+    row.college_id = college["id"]
+    db_session.commit()
+
+    assert c.get("/api/org/profile").json()["complete"] is False
+    assert c.post("/api/work/communities", json={"name": "Nope"}).status_code == 428

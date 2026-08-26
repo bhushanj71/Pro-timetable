@@ -149,9 +149,12 @@ class UserProfileUpdate(BaseModel):
     notify_email: Optional[bool] = None
     notify_push: Optional[bool] = None
     timezone: Optional[str] = None
-    department: Optional[str] = None
+    # college and department are deliberately not settable here any more. They
+    # are ids now, and a department is only valid inside its own college --
+    # a check this endpoint cannot make from two loose strings. Writing them
+    # here would let user.college say one thing while college_id said another.
+    # PUT /api/org/profile owns that pair.
     designation: Optional[str] = None
-    college: Optional[str] = None
     working_days: Optional[str] = None
     working_hours_start: Optional[str] = None
     working_hours_end: Optional[str] = None

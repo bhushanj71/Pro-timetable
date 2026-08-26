@@ -25,6 +25,7 @@ from app.routers import (
     export,
     google_auth,
     notifications,
+    org,
     pages,
     reminders,
     tasks,
@@ -161,6 +162,7 @@ app.include_router(analytics.router)
 app.include_router(export.router)
 app.include_router(cron.router)
 app.include_router(admin.router)
+app.include_router(org.router)
 app.include_router(notifications.router)
 app.include_router(google_auth.router)
 app.include_router(work.router)

@@ -61,6 +61,13 @@ def _fresh_rate_limits():
 def _fresh_db():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    # The default college and its departments are part of a working database,
+    # not test scaffolding: Work refuses to place anyone in the organisation
+    # without a department, so a suite that skipped this would be testing an
+    # app no deployment ever runs.
+    from app.database import seed_organisation
+
+    seed_organisation()
     yield
     Base.metadata.drop_all(bind=engine)
 

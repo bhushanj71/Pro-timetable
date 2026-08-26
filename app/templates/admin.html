@@ -22,6 +22,20 @@
 </div>
 
 <div class="card">
+  <!-- Organisation ------------------------------------------------------ -->
+  <div class="card" id="ad-org">
+    <div class="wk-card-head">
+      <span class="wk-card-icon" data-tone="info" aria-hidden="true">🏫</span>
+      <div class="wk-card-titles">
+        <h3>Colleges &amp; departments</h3>
+        <p class="wk-card-sub" id="ad-org-role"></p>
+      </div>
+      <button class="btn btn-sm btn-primary hidden" id="ad-add-college">+ Add College</button>
+    </div>
+
+    <div id="ad-college-list"><div class="wk-empty">Loading…</div></div>
+  </div>
+
   <div class="section-title">
     <h3>User Management</h3>
     <input type="search" id="ad-search" placeholder="Search name or email..." style="max-width:260px;padding:8px 12px;border-radius:8px;border:1px solid var(--border)">
@@ -92,7 +106,55 @@
   </div>
 </div>
 
+
+<!-- Add / rename a college -->
+<div id="ad-college-modal" class="modal-backdrop hidden">
+  <div class="modal-card" style="max-width:420px">
+    <button class="sheet-close" data-close-modal="ad-college-modal" aria-label="Close">✕</button>
+    <h3 id="ad-college-title">🏫 Add New College</h3>
+    <input type="hidden" id="ad-college-id">
+    <div class="form-group">
+      <label for="ad-college-name">College Name <span class="wk-req">*</span></label>
+      <input type="text" id="ad-college-name" maxlength="200" placeholder="ABC College of Engineering">
+    </div>
+    <div class="form-group">
+      <label for="ad-college-loc">Location</label>
+      <input type="text" id="ad-college-loc" maxlength="200" placeholder="Pune">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="ad-college-save">+ Add College</button>
+      <button class="btn" data-close-modal="ad-college-modal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Departments of one college -->
+<div id="ad-dept-modal" class="modal-backdrop hidden">
+  <div class="modal-card" style="max-width:520px">
+    <button class="sheet-close" data-close-modal="ad-dept-modal" aria-label="Close">✕</button>
+    <h3 id="ad-dept-college">🏫</h3>
+    <p class="muted-text" style="margin:4px 0 14px">
+      Archiving hides a department from the pickers and keeps every profile and
+      task that names it working. Deleting is only offered when nobody is in it.
+    </p>
+
+    <div class="form-group">
+      <label for="ad-dept-new">Add Department</label>
+      <div class="reminder-add">
+        <input type="text" id="ad-dept-new" maxlength="200" placeholder="Department name">
+        <button class="btn btn-sm btn-primary" id="ad-dept-add">+ Add</button>
+      </div>
+    </div>
+
+    <div id="ad-dept-list"></div>
+    <div class="modal-actions">
+      <button class="btn" data-close-modal="ad-dept-modal">Close</button>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 {% block scripts %}
 <script src="/static/js/admin.js?v={{ v }}"></script>
+
 {% endblock %}

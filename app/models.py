@@ -84,6 +84,17 @@ class User(Base):
     department: Mapped[str | None] = mapped_column(String(255), nullable=True)
     designation: Mapped[str | None] = mapped_column(String(255), nullable=True)
     college: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # The relational link is what Work reads. The two free-text columns above
+    # are kept in step with it on save, because the personal profile, the
+    # exports and the admin list all still read those, and rewriting every one
+    # of them is a bigger change than this feature needs.
+    college_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("colleges.id"), nullable=True, index=True)
+    department_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("departments.id"), nullable=True, index=True)
+    # Set for a COLLEGE_ADMIN: the one college whose departments they may
+    # manage. A SUPER_ADMIN (is_admin) manages all of them and needs no value.
+    admin_college_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("colleges.id"), nullable=True)
+    college_rel: Mapped["College | None"] = relationship(foreign_keys=[college_id], lazy="joined")
+    department_rel: Mapped["Department | None"] = relationship(foreign_keys=[department_id], lazy="joined")
     working_days: Mapped[str] = mapped_column(String(64), default="Mon,Tue,Wed,Thu,Fri")
     working_hours_start: Mapped[str] = mapped_column(String(8), default="09:00")
     working_hours_end: Mapped[str] = mapped_column(String(8), default="17:00")
@@ -527,3 +538,63 @@ class WorkNotification(Base):
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped["User"] = relationship()
+
+
+# ---------------------------------------------------------------------------
+# Organisation: College -> Department -> User
+# ---------------------------------------------------------------------------
+class OrgStatus(str, enum.Enum):
+    """Archived rows stay joinable so old members and tasks still resolve."""
+
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+
+
+def normalise_org_name(name: str) -> str:
+    """The key duplicate detection compares on.
+
+    "DYPCoE, Akurdi" and "dypcoe akurdi" are one college typed twice, so
+    case, padding, punctuation and repeated spaces are all removed before
+    comparing. The original spelling is what gets displayed; this is only
+    ever a key.
+    """
+    import re
+
+    cleaned = re.sub(r"[^a-z0-9]+", " ", (name or "").lower())
+    return " ".join(cleaned.split())
+
+
+class College(Base):
+    __tablename__ = "colleges"
+    __table_args__ = (UniqueConstraint("normalised_name", name="uq_college_normalised"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(200))
+    # Stored beside the name rather than computed per query: a UNIQUE index is
+    # what actually prevents two admins creating the same college at once, and
+    # an index cannot be built on a Python function.
+    normalised_name: Mapped[str] = mapped_column(String(200), index=True)
+    location: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default=OrgStatus.ACTIVE.value)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    departments: Mapped[list["Department"]] = relationship(back_populates="college")
+
+
+class Department(Base):
+    __tablename__ = "departments"
+    __table_args__ = (
+        UniqueConstraint("college_id", "normalised_name", name="uq_department_per_college"),
+        Index("ix_department_college", "college_id", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    college_id: Mapped[str] = mapped_column(String(36), ForeignKey("colleges.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    normalised_name: Mapped[str] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(16), default=OrgStatus.ACTIVE.value)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    college: Mapped["College"] = relationship(back_populates="departments")
