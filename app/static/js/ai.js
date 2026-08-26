@@ -3,7 +3,14 @@
 
 let lastExtraction = null;
 
-function renderExtractionPreview(response) {
+/* `spoken` suppresses the parser's own note about itself.
+
+   That note exists for whoever configures the deployment -- "the AI provider
+   is configured but not responding" is an instruction to go and look at a
+   key. Someone who just spoke a sentence with their hands full cannot act on
+   it and did not ask. The signal is not lost: /api/health reports the
+   provider, and a typed command still shows it. */
+function renderExtractionPreview(response, { spoken = false } = {}) {
   const box = document.getElementById("ai-result");
   if (!box) return;
 
@@ -150,7 +157,7 @@ function renderExtractionPreview(response) {
       <div class="ai-result-card">
         <div><strong>I understood the following:</strong></div>
         ${lines}
-        ${ex.notes ? `<div class="event-line" style="opacity:.75">${ex.notes}</div>` : ""}
+        ${ex.notes && !spoken ? `<div class="event-line" style="opacity:.75">${esc(ex.notes)}</div>` : ""}
         <div class="modal-actions">
           <button class="btn ${response.action === "delete" ? "btn-danger" : "btn-primary"}" id="ai-confirm-btn">
             ${response.action === "delete" ? "Yes, delete" : "Apply change"}
@@ -200,7 +207,7 @@ function renderExtractionPreview(response) {
       <div><strong>I understood the following:</strong></div>
       ${lines || "<div class='event-line'>Nothing actionable found.</div>"}
       ${conflictHtml}
-      ${extraction.notes ? `<div class="event-line" style="opacity:.8">${extraction.notes}</div>` : ""}
+      ${extraction.notes && !spoken ? `<div class="event-line" style="opacity:.8">${esc(extraction.notes)}</div>` : ""}
       ${
         requires_confirmation && lines
           ? `<div class="ai-confirm-actions">
@@ -344,7 +351,7 @@ async function submitAIPrompt(promptText, { spoken = false } = {}) {
     });
     lastExtraction = response.extraction;
     progress.stop();
-    renderExtractionPreview(response);
+    renderExtractionPreview(response, { spoken });
 
     if (spoken) {
       if (autoRunnable(response)) {
