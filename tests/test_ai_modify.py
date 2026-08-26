@@ -149,13 +149,17 @@ def test_cancelling_a_whole_day_is_never_applied_without_being_shown(auth_client
     assert resp["auto_apply"] is False, "a whole day of classes is the largest blast radius here"
 
 
-def test_adding_to_your_own_schedule_still_completes_hands_free(auth_client):
-    """The point of speaking is that a simple addition finishes. It is
-    additive, visible the moment it lands, and one delete to undo."""
+def test_even_adding_an_event_is_shown_before_it_happens(auth_client):
+    """This used to be allowed through, on the reasoning that an addition is
+    recoverable. It is not good enough: recognition and parsing both mishear,
+    so the event that lands is often not the one that was said, and
+    "recoverable" means finding a wrong class in the timetable days later and
+    working out where it came from. Being asked costs a tap."""
     resp = auth_client.post("/api/ai/process-prompt",
                             json={"prompt": "I have an ANN lecture tomorrow at 10 AM"}).json()
     assert resp["intent"] in ("CREATE_EVENT", "CREATE_RECURRING_EVENT")
-    assert resp["auto_apply"] is True
+    assert resp["requires_confirmation"] is True
+    assert resp["auto_apply"] is False
 
 
 def test_a_question_is_not_treated_as_something_to_apply(auth_client):
@@ -173,7 +177,7 @@ def test_an_unmatched_target_is_not_auto_applied(auth_client):
     assert resp["auto_apply"] is False
 
 
-def test_auto_apply_is_an_allowlist_not_a_list_of_exclusions(auth_client):
+def test_nothing_at_all_is_applied_from_speech_unseen(auth_client):
     """The shape of the rule is the fix.
 
     Written as exclusions, every intent added later inherits "just do it" --
@@ -182,10 +186,10 @@ def test_auto_apply_is_an_allowlist_not_a_list_of_exclusions(auth_client):
     """
     from app.routers.ai import AUTO_APPLY_INTENTS, _may_auto_apply
 
-    assert AUTO_APPLY_INTENTS == {"CREATE_EVENT", "CREATE_RECURRING_EVENT", "CREATE_REMINDER"}
+    assert AUTO_APPLY_INTENTS == frozenset(), "nothing spoken is applied unseen"
 
-    # Anything that changes an existing record, or reaches another person.
     for intent in (
+        "CREATE_EVENT", "CREATE_RECURRING_EVENT", "CREATE_REMINDER",
         "UPDATE_EVENT", "DELETE_EVENT", "CANCEL_DAY",
         "UPDATE_REMINDER", "DELETE_REMINDER",
         "COMPLETE_TASK", "SET_TASK_PROGRESS", "RESPOND_TASK",
@@ -194,11 +198,6 @@ def test_auto_apply_is_an_allowlist_not_a_list_of_exclusions(auth_client):
         "SOME_INTENT_ADDED_NEXT_YEAR",
     ):
         assert _may_auto_apply(intent, True) is False, f"{intent} must be shown before it happens"
-
-    for intent in AUTO_APPLY_INTENTS:
-        assert _may_auto_apply(intent, True) is True
-        # Even an allowed intent is not auto-applied when nothing is pending.
-        assert _may_auto_apply(intent, False) is False
 
 
 def test_confirming_an_update_still_works(auth_client):

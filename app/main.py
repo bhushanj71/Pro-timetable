@@ -238,4 +238,27 @@ def health():
         # Only while broken: reveals which host is actually being dialed
         # (password redacted) so the misconfiguration can be pinpointed.
         payload["connecting_to"] = describe_connection()
+
+    # A configured-but-unreachable AI provider degrades silently: every prompt
+    # falls back to the rule-based parser, which reads a sentence far less
+    # well, and nothing anywhere says why the answers got worse.
+    from app.services.ai_service import LAST_PROVIDER_ERROR, get_ai_service
+
+    ai = get_ai_service()
+    payload["ai"] = {
+        "provider": ai.provider,
+        "configured": bool(ai.is_configured),
+        "status": (
+            "not_configured" if not ai.is_configured
+            else "failing" if LAST_PROVIDER_ERROR["error"] else "ok"
+        ),
+    }
+    if LAST_PROVIDER_ERROR["error"]:
+        payload["ai"]["last_error"] = LAST_PROVIDER_ERROR["error"]
+        payload["ai"]["last_error_at"] = LAST_PROVIDER_ERROR["at"]
+        payload["ai"]["effect"] = (
+            "Prompts are being parsed by the built-in fallback, which is much "
+            "weaker at reading a sentence. Check AI_PROVIDER, AI_API_KEY and the "
+            "provider's endpoint."
+        )
     return payload

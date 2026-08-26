@@ -98,24 +98,19 @@ def _schedule_event_to_datetimes(evt: ScheduleEvent, tz_name: str) -> tuple[date
 # ---------------------------------------------------------------------------
 # What a spoken command is allowed to do on its own
 # ---------------------------------------------------------------------------
-# Hands-free is worth having, so adding something new to your own schedule
-# completes without a tap: it is additive, it is visible the moment it lands,
-# and undoing it is one delete.
+# Nothing. A spoken command is always shown before it is acted on.
 #
-# Everything else is shown first. Speech recognition mishears, and the two
-# things it must never do on a mishearing are rewrite something that already
-# exists and reach another person. An update is not a smaller delete -- it
-# overwrites a real class with whatever was misheard, and there is no copy of
-# what was there before.
+# The previous version let additions through on the reasoning that they are
+# recoverable -- one delete to undo. That reasoning was wrong in practice for
+# two reasons. Recognition and parsing both mishear, so the event that lands
+# is often not the one that was said; and "recoverable" still means the
+# professor discovers a wrong class in their timetable later and has to work
+# out what happened. Being asked costs one tap. Being wrong costs a lesson.
 #
-# An allowlist, deliberately, not a list of exclusions. The previous version
-# named only delete and cancel_day, so UPDATE_EVENT was applied the instant it
-# was spoken, and every intent added afterwards inherited the same silence.
-AUTO_APPLY_INTENTS = frozenset({
-    "CREATE_EVENT",
-    "CREATE_RECURRING_EVENT",
-    "CREATE_REMINDER",
-})
+# The set is kept rather than deleted because the mechanism is what enforces
+# the rule: every intent is checked against it, so nothing can be auto-applied
+# by omission the way UPDATE_EVENT once was.
+AUTO_APPLY_INTENTS = frozenset()
 
 
 def _may_auto_apply(intent: str, requires_confirmation: bool) -> bool:

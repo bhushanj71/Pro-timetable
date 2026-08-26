@@ -13,7 +13,7 @@ the user before persisting anything.
 import json
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 from pydantic import ValidationError
@@ -119,6 +119,190 @@ Rules:
 """
 
 
+# ---------------------------------------------------------------------------
+# Reading ordinary sentences
+#
+# These exist because the fallback parser was mangling perfectly plain
+# phrasing: "from 2 to 4 pm" came out as 4pm-5pm, "on 30 August" was dropped
+# entirely, "on Thursday" created a weekly series, and titles kept their
+# articles and trailing dates ("A Project Review 30 August").
+# ---------------------------------------------------------------------------
+_MONTHS = {
+    "january": 1, "jan": 1, "february": 2, "feb": 2, "march": 3, "mar": 3,
+    "april": 4, "apr": 4, "may": 5, "june": 6, "jun": 6, "july": 7, "jul": 7,
+    "august": 8, "aug": 8, "september": 9, "sep": 9, "sept": 9,
+    "october": 10, "oct": 10, "november": 11, "nov": 11, "december": 12, "dec": 12,
+}
+
+# "every", "each", "weekly" -- said explicitly. A weekday on its own is not a
+# repeat: "I have a seminar on Thursday" is one seminar.
+_RECURRING_WORDS = ("every", "each", "weekly", "fortnightly", "recurring", "all semester")
+
+
+def _says_recurring(lower: str) -> bool:
+    return any(w in lower for w in _RECURRING_WORDS)
+
+
+def _extract_times(lower: str) -> list[str]:
+    """Times in a sentence, as 24-hour strings, in the order they appear.
+
+    Handles the case the old pattern could not: a range where only the second
+    end carries the meridiem. "from 2 to 4 pm" is two-till-four in the
+    afternoon, not four o'clock -- the old version matched only "4 pm", read
+    it as the start, and invented an end an hour later.
+    """
+    out: list[str] = []
+
+    # A range first, so its two ends are read together and the bare number can
+    # borrow the meridiem stated at the other end.
+    rng = re.search(
+        r"\b(?:from\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:-|–|to|till|until)\s*"
+        r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b",
+        lower,
+    )
+    if rng:
+        h1, m1, ap1, h2, m2, ap2 = rng.groups()
+        # Whichever end said am/pm speaks for both, unless both did.
+        ap1 = ap1 or ap2
+        ap2 = ap2 or ap1
+        start = _to24(h1, m1, ap1)
+        end = _to24(h2, m2, ap2)
+        if start and end:
+            # "9 to 5" with no meridiem at all: a range that ends before it
+            # starts is being read on the wrong half of the clock.
+            if end <= start and not ap2:
+                end = _to24(h2, m2, "pm")
+            return [start, end]
+
+    for m in re.finditer(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b", lower):
+        t = _to24(m.group(1), m.group(2), m.group(3))
+        if t:
+            out.append(t)
+    if out:
+        return out
+
+    # Bare 24-hour times, e.g. "15:00".
+    for m in re.finditer(r"\b([01]?\d|2[0-3]):([0-5]\d)\b", lower):
+        out.append(f"{int(m.group(1)):02d}:{m.group(2)}")
+    return out
+
+
+def _to24(hour: str, minute: str | None, meridiem: str | None) -> str | None:
+    try:
+        h = int(hour)
+    except (TypeError, ValueError):
+        return None
+    if not 0 <= h <= 23:
+        return None
+    mnt = int(minute) if minute else 0
+    if meridiem == "pm" and h < 12:
+        h += 12
+    elif meridiem == "am" and h == 12:
+        h = 0
+    elif meridiem is None and h <= 7:
+        # No meridiem and a small hour: nobody schedules a 2am lecture, and
+        # reading "at 2" as 02:00 puts the class in the middle of the night.
+        h += 12
+    return f"{h:02d}:{mnt:02d}"
+
+
+def _extract_date(lower: str) -> str | None:
+    """An explicit calendar date, as YYYY-MM-DD, or None.
+
+    Only what was actually written. A missing year is the current one, rolled
+    forward if that date has already passed -- "on 3 January" said in December
+    means the January coming, not the one ten months gone.
+    """
+    iso = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", lower)
+    if iso:
+        return iso.group(0)
+
+    day = month = None
+    m = re.search(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?([a-z]+)\b", lower)
+    if m and m.group(2) in _MONTHS:
+        day, month = int(m.group(1)), _MONTHS[m.group(2)]
+    else:
+        m = re.search(r"\b([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?\b", lower)
+        if m and m.group(1) in _MONTHS:
+            month, day = _MONTHS[m.group(1)], int(m.group(2))
+
+    if not (day and month):
+        m = re.search(r"\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b", lower)
+        if m:
+            day, month = int(m.group(1)), int(m.group(2))
+            if m.group(3):
+                year = int(m.group(3))
+                year += 2000 if year < 100 else 0
+                try:
+                    return date(year, month, day).isoformat()
+                except ValueError:
+                    return None
+
+    if not (day and month):
+        return None
+    today = date.today()
+    for year in (today.year, today.year + 1):
+        try:
+            candidate = date(year, month, day)
+        except ValueError:
+            return None
+        if candidate >= today:
+            return candidate.isoformat()
+    return None
+
+
+# Words that are scaffolding, never part of what the thing is called.
+_TITLE_NOISE = (
+    r"i have|i've got|i got|i teach|i need to|there is|there's|"
+    r"remind me|schedule|create|add|book|set up|put in|"
+    r"every|each|weekly|next|this|coming|the|a|an|my|for|"
+    r"on|at|from|to|till|until|in|starting|"
+    r"tomorrow|today|tonight|morning|afternoon|evening|and|"
+    r"minutes?|mins?|hours?|before|o'clock"
+)
+
+
+def _clean_title(text: str) -> str:
+    """What the event is called, with the sentence around it removed.
+
+    Capitalisation is left exactly as spoken. Title-casing used to run over
+    it, and a professor's course codes do not survive that -- ANN became Ann,
+    DBMS became Dbms.
+    """
+    from app.services.nlp_dates import WEEKDAYS
+
+    out = text
+    out = re.sub(r"remind me\s*\d*\s*minutes?\s*before", " ", out, flags=re.IGNORECASE)
+    # Location trails the title and is captured separately.
+    out = re.sub(r"\b(?:in|at)\s+(?:room|lab|hall|block)\s*[\w-]*", " ", out, flags=re.IGNORECASE)
+    # Dates, before the bare-number sweep takes their digits.
+    out = re.sub(
+        r"\b\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(?:" + "|".join(_MONTHS) + r")\b",
+        " ", out, flags=re.IGNORECASE,
+    )
+    out = re.sub(r"\b(?:" + "|".join(_MONTHS) + r")\s+\d{1,2}(?:st|nd|rd|th)?\b", " ", out, flags=re.IGNORECASE)
+    out = re.sub(r"\b\d{4}-\d{2}-\d{2}\b", " ", out)
+    out = re.sub(r"\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b", " ", out)
+    # Times, including a bare hour left over from a range.
+    out = re.sub(r"\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b", " ", out, flags=re.IGNORECASE)
+    out = re.sub(r"\b[01]?\d:[0-5]\d\b", " ", out)
+    for day in WEEKDAYS:
+        out = re.sub(rf"\b{day}s?\b", " ", out, flags=re.IGNORECASE)
+    out = re.sub(r"\b(?:" + _TITLE_NOISE + r")\b", " ", out, flags=re.IGNORECASE)
+    # Whatever bare numbers the range left behind ("from 2 to 4" -> "2").
+    out = re.sub(r"\b\d{1,2}\b", " ", out)
+    out = re.sub(r"\s+", " ", out).strip(" .,:;-?!")
+
+    return out[:120] or "New Event"
+
+
+# The last thing the provider said when it refused, so /api/health can report
+# it. A configured-but-broken provider is invisible otherwise: every prompt
+# quietly falls back to the rule-based parser, which is far worse at this, and
+# nothing on the screen says why the answers got poor.
+LAST_PROVIDER_ERROR: dict = {"at": None, "error": None}
+
+
 class AIServiceError(Exception):
     pass
 
@@ -198,7 +382,13 @@ class AIService:
         if self.is_configured:
             try:
                 raw = self._call_llm(prompt, user_context)
-                return AIExtractionResult.model_validate(raw)
+                result = AIExtractionResult.model_validate(raw)
+                # Cleared here, not in an else-clause: the try returns, so an
+                # else would never run and a provider that recovered would go
+                # on being reported as broken.
+                LAST_PROVIDER_ERROR["at"] = None
+                LAST_PROVIDER_ERROR["error"] = None
+                return result
             except (httpx.HTTPError, ValidationError, json.JSONDecodeError, AIServiceError) as exc:
                 # Log why we degraded — a silent fallback makes a misconfigured
                 # model or key look like the AI simply parsing badly.
@@ -207,6 +397,8 @@ class AIService:
                     type(exc).__name__,
                     exc,
                 )
+                LAST_PROVIDER_ERROR["at"] = datetime.now(timezone.utc).isoformat()
+                LAST_PROVIDER_ERROR["error"] = f"{type(exc).__name__}: {exc}"[:300]
 
         raw = self._fallback_rule_based(prompt, user_context)
         return AIExtractionResult.model_validate(raw)
@@ -345,7 +537,8 @@ class AIService:
         lower = text.lower()
 
         days_found = [d.capitalize() for d in WEEKDAYS if d in lower]
-        times = re.findall(r"(\d{1,2}(?::\d{2})?\s?(?:am|pm))", lower)
+        times = _extract_times(lower)
+        explicit_date = _extract_date(lower)
 
         # A prompt describing an event (lecture/meeting/etc, a weekday, "every", or
         # a time range) takes priority over a bare "remind" mention, since phrases
@@ -412,7 +605,11 @@ class AIService:
         elif any(w in lower for w in move_words):
             intent = "UPDATE_EVENT"
         elif has_event_signal:
-            intent = "CREATE_RECURRING_EVENT" if (days_found or "every" in lower) else "CREATE_EVENT"
+            # Naming a weekday does not make something weekly. "I have a
+            # seminar on Thursday" is one seminar; only "every Thursday" (or
+            # "weekly", or "each") repeats. The old rule turned every
+            # day-of-week mention into a recurring series.
+            intent = "CREATE_RECURRING_EVENT" if _says_recurring(lower) else "CREATE_EVENT"
         elif "remind" in lower:
             intent = "CREATE_REMINDER"
         elif "when am i free" in lower or "find" in lower and "free" in lower or "free time" in lower:
@@ -428,38 +625,23 @@ class AIService:
         elif "task" in lower and "complete" in lower:
             intent = "COMPLETE_TASK"
 
-        def to_24h(t: str) -> str:
-            t = t.replace(" ", "")
-            try:
-                dt = datetime.strptime(t, "%I:%M%p") if ":" in t else datetime.strptime(t, "%I%p")
-                return dt.strftime("%H:%M")
-            except ValueError:
-                return "09:00"
-
-        start_time = to_24h(times[0]) if times else "09:00"
-        if len(times) > 1:
-            end_time = to_24h(times[1])
+        # _extract_times already hands back 24-hour strings; the old converter
+        # re-parsed them as "10 am" and, failing, fell through to its 09:00
+        # default -- which is how every time became nine o'clock.
+        start_time = times[0] if times else "09:00"
+        if len(times) > 1 and times[1] != start_time:
+            end_time = times[1]
         else:
             end_dt = datetime.strptime(start_time, "%H:%M") + timedelta(hours=1)
             end_time = end_dt.strftime("%H:%M")
 
         day_field = days_found[0] if len(days_found) == 1 else None
-        recurrence = "weekly" if (days_found or "every" in lower) else None
+        # "on 30 August" / "on 30/8" was being dropped entirely, so the event
+        # landed on today with no indication anything had been lost.
+        date_field = explicit_date or ("tomorrow" if "tomorrow" in lower else ("today" if "today" in lower else None))
+        recurrence = "weekly" if _says_recurring(lower) else None
 
-        # Title: strip filler words, day names, time tokens and reminder phrasing for a rough guess
-        title_guess = text
-        title_guess = re.sub(r"remind me\s*\d*\s*minutes?\s*before", "", title_guess, flags=re.IGNORECASE)
-        title_guess = re.sub(
-            r"\b(i have|i teach|remind me|schedule|create|add|every|on|at|from|to|tomorrow|today|and|minutes?|before)\b",
-            "",
-            title_guess,
-            flags=re.IGNORECASE,
-        )
-        for day in WEEKDAYS:
-            title_guess = re.sub(rf"\b{day}s?\b", "", title_guess, flags=re.IGNORECASE)
-        title_guess = re.sub(r"\d{1,2}(:\d{2})?\s?(am|pm)\b", "", title_guess, flags=re.IGNORECASE)
-        title_guess = re.sub(r"\s+", " ", title_guess).strip(" .,:")
-        title_guess = title_guess[:120] or "New Event"
+        title_guess = _clean_title(text)
 
         if intent in ("DELETE_EVENT", "UPDATE_EVENT"):
             # Strip command verbs and scheduling noise to leave the name of the
@@ -563,11 +745,11 @@ class AIService:
         event_type = _extract_event_type(lower)
 
         event = {
-            "title": title_guess.title(),
+            "title": title_guess,
             "event_type": event_type,
-            "subject": title_guess.title() if "lecture" in lower else None,
+            "subject": title_guess if "lecture" in lower else None,
             "day": day_field,
-            "date": "tomorrow" if ("tomorrow" in lower and not days_found) else None,
+            "date": date_field if (date_field and not days_found) else (explicit_date or None),
             "start_time": start_time,
             "end_time": end_time,
             "recurrence": recurrence,
