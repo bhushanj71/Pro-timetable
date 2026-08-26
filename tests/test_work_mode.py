@@ -1023,3 +1023,90 @@ def test_only_admins_can_browse_the_directory(owner, rahul, amit):
 
     assert rahul.get(f"/api/work/communities/{c['id']}/directory").status_code == 403
     assert amit.get(f"/api/work/communities/{c['id']}/directory").status_code == 404
+
+
+# --- Profile options -------------------------------------------------------
+
+def _opts(client):
+    return client.get("/api/auth/profile-options").json()
+
+
+def test_department_options_are_offered(owner):
+    body = _opts(owner)
+    assert "Computer Engineering" in body["departments"]
+    assert "Mechanical Engineering" in body["departments"]
+    assert len(body["departments"]) > 10
+
+
+def test_college_suggestions_come_only_from_the_same_email_domain(owner):
+    """The list exists so colleagues converge on one spelling. Built from
+    every account instead, it would publish which institutions use this app
+    and hand anyone the exact string needed to aim a community directory at
+    one of them."""
+    inside = _user("staff@dypcoe.ac.in", "Inside")
+    inside.put("/api/auth/me", json={"college": "DY Patil COE"})
+    outside = _user("someone@otherplace.edu", "Outside")
+    outside.put("/api/auth/me", json={"college": "Other Place Institute"})
+
+    peer = _user("peer@dypcoe.ac.in", "Peer")
+    body = _opts(peer)
+    assert body["college_domain"] == "dypcoe.ac.in"
+    assert body["colleges"] == ["DY Patil COE"]
+    assert "Other Place Institute" not in body["colleges"]
+
+
+def test_a_public_inbox_gets_no_college_suggestions(owner):
+    """A gmail address says nothing about where someone works, so treating
+    gmail as an institution would make every user a colleague."""
+    gmail_user = _user("someone@gmail.com", "Gmail Person")
+    gmail_user.put("/api/auth/me", json={"college": "Somewhere"})
+    other_gmail = _user("another@gmail.com", "Other Gmail")
+
+    body = _opts(other_gmail)
+    assert body["college_domain"] is None
+    assert body["colleges"] == []
+
+
+def test_one_college_spelled_two_ways_is_listed_once(owner):
+    a = _user("a@samecollege.ac.in", "A")
+    a.put("/api/auth/me", json={"college": "Same College"})
+    b = _user("b@samecollege.ac.in", "B")
+    b.put("/api/auth/me", json={"college": "  same college "})
+
+    assert len(_opts(_user("c@samecollege.ac.in", "C"))["colleges"]) == 1
+
+
+def test_a_typed_college_snaps_to_the_spelling_a_colleague_already_uses(owner):
+    a = _user("a@snapping.ac.in", "A")
+    a.put("/api/auth/me", json={"college": "Snapping Institute"})
+
+    b = _user("b@snapping.ac.in", "B")
+    saved = b.put("/api/auth/me", json={"college": "  snapping institute  "}).json()
+    assert saved["college"] == "Snapping Institute"
+
+
+def test_a_college_is_not_snapped_across_different_domains(owner):
+    a = _user("a@one.ac.in", "A")
+    a.put("/api/auth/me", json={"college": "Shared Name"})
+    b = _user("b@two.ac.in", "B")
+    saved = b.put("/api/auth/me", json={"college": "shared name"}).json()
+    assert saved["college"] == "shared name", "a different institution keeps its own value"
+
+
+def test_a_department_outside_the_list_is_still_accepted(owner):
+    """The dropdown has an Other escape, and the server must not police it."""
+    saved = owner.put("/api/auth/me", json={"department": "Marine Engineering"}).json()
+    assert saved["department"] == "Marine Engineering"
+    assert _opts(owner)["current"]["department"] == "Marine Engineering"
+
+
+def test_a_domain_carrying_a_like_wildcard_is_rejected(owner):
+    """The domain is interpolated into a LIKE pattern. A % in it would widen
+    the match to every other institution."""
+    from app.routers.auth import email_domain
+
+    assert email_domain("someone@a%.ac.in") is None
+    assert email_domain("someone@a_b.ac.in") is None
+    assert email_domain("someone@real.ac.in") == "real.ac.in"
+    assert email_domain("nonsense") is None
+    assert email_domain("someone@gmail.com") is None

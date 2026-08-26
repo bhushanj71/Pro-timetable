@@ -288,3 +288,13 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   .assistant-title, .assistant-sub { display: none; }
   .assistant-btn { padding: 10px 12px; }
 }
+
+/* --------------------------------------------------------------------------
+   Profile: the two fields that became dropdowns
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  /* Measured at 360px: the department select came out 41px. A select opens a
+     menu, so it is a tap target in a way the text fields beside it are not.
+     (The rest of this form's inputs sit at 39px -- pre-existing, left alone.) */
+  #pf-department-select { min-height: 44px; }
+}

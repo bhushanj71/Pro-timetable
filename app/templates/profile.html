@@ -10,10 +10,41 @@
     <div class="form-group"><label>Email</label><input type="text" value="{{ user.email }}" disabled></div>
   </div>
   <div class="form-row">
-    <div class="form-group"><label>Department</label><input type="text" id="pf-department" value="{{ user.department or '' }}"></div>
-    <div class="form-group"><label>Designation</label><input type="text" id="pf-designation" value="{{ user.designation or '' }}"></div>
+    <div class="form-group">
+      <label for="pf-department-select">Department</label>
+      <select id="pf-department-select"><option value="">Loading…</option></select>
+      <!-- Revealed only when "Other" is chosen. A fixed list would otherwise
+           lock out anyone whose department is not on it. -->
+      <input type="text" id="pf-department" class="hidden" placeholder="Type your department"
+             maxlength="255" value="{{ user.department or '' }}">
+    </div>
+    <div class="form-group">
+      <label for="pf-designation">Designation</label>
+      <input type="text" id="pf-designation" list="pf-designation-options"
+             value="{{ user.designation or '' }}" autocomplete="off">
+      <datalist id="pf-designation-options">
+        <option value="Professor"></option>
+        <option value="Associate Professor"></option>
+        <option value="Assistant Professor"></option>
+        <option value="Head of Department"></option>
+        <option value="Dean"></option>
+        <option value="Principal"></option>
+        <option value="Visiting Faculty"></option>
+        <option value="Lab Assistant"></option>
+        <option value="Research Scholar"></option>
+      </datalist>
+    </div>
   </div>
-  <div class="form-group"><label>College</label><input type="text" id="pf-college" value="{{ user.college or '' }}"></div>
+
+  <div class="form-group">
+    <label for="pf-college">College</label>
+    <!-- A list, not a select: colleges are unbounded, and the first person
+         from an institution to sign up has nothing to pick from. -->
+    <input type="text" id="pf-college" list="pf-college-options" autocomplete="off"
+           maxlength="255" value="{{ user.college or '' }}">
+    <datalist id="pf-college-options"></datalist>
+    <small class="form-hint" id="pf-college-hint"></small>
+  </div>
   <div class="form-row">
     <div class="form-group"><label>Working Days</label><input type="text" id="pf-working-days" value="{{ user.working_days }}"></div>
     <div class="form-group"><label>Timezone</label><input type="text" id="pf-timezone" value="{{ user.timezone }}"></div>
