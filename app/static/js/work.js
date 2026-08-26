@@ -26,7 +26,7 @@ const PREVIEW = 3;
 
 /* Everything the dashboard drew last, so filtering and expanding redraw from
    memory instead of going back to the server on every keystroke. */
-const WK = { data: null, created: [], query: "", expanded: {}, sort: "recent" };
+const WK = { data: null, created: [], query: "", expanded: {}, sort: "recent", community: null };
 
 function bar(pct, cls = "") {
   return `<div class="wk-bar ${cls}"><span style="width:${Math.max(0, Math.min(100, pct))}%"></span></div>`;
@@ -293,6 +293,13 @@ document.getElementById("wk-search-clear")?.addEventListener("click", () => {
   input.focus();
 });
 
+document.addEventListener("input", (e) => {
+  if (e.target.id !== "wk-dir-q") return;
+  clearTimeout(dirTimer);
+  const q = e.target.value.trim();
+  dirTimer = setTimeout(() => loadDirectory(WK.community, q), 220);
+});
+
 document.getElementById("wk-created-sort")?.addEventListener("change", (e) => {
   WK.sort = e.target.value;
   paintCreated();
@@ -371,6 +378,8 @@ async function openCommunity(id) {
 
   const c = await cachedFetch(`/api/work/communities/${id}`, { force: true });
   const canInvite = c.my_role === "owner" || c.my_role === "admin";
+  const isOwner = c.my_role === "owner";
+  WK.community = id;
 
   body.innerHTML = `
     <h3 style="margin:0 0 4px">${esc(c.icon)} ${esc(c.name)}</h3>
@@ -378,7 +387,8 @@ async function openCommunity(id) {
 
     <div class="btn-row" style="margin-bottom:14px">
       <button class="btn btn-sm btn-primary" data-assign-in="${c.id}">+ Assign a task</button>
-      ${canInvite ? `<button class="btn btn-sm" data-invite-to="${c.id}">+ Invite someone</button>` : ""}
+      ${canInvite ? `<button class="btn btn-sm" data-invite-to="${c.id}">+ Invite by email</button>` : ""}
+      ${canInvite ? `<button class="btn btn-sm" data-directory-for="${c.id}">\u{1F3EB} Add from my college</button>` : ""}
     </div>
 
     ${canInvite ? `
@@ -389,6 +399,16 @@ async function openCommunity(id) {
           <button class="btn btn-sm btn-primary" id="wk-invite-send" data-community="${c.id}">Send</button>
         </div>
         <small class="form-hint">They receive an invitation and choose whether to join.</small>
+      </div>` : ""}
+
+    ${canInvite ? `
+      <div class="wk-directory hidden" id="wk-dir-row">
+        <div class="wk-search wk-search-inline">
+          <span class="wk-search-icon" aria-hidden="true">\u{1F50D}</span>
+          <input type="search" id="wk-dir-q" placeholder="Search by name, department or role"
+                 autocomplete="off" aria-label="Search colleagues at your college">
+        </div>
+        <div id="wk-dir-results"><div class="wk-empty">Loading colleagues…</div></div>
       </div>` : ""}
 
     <div class="wk-people">
@@ -405,8 +425,128 @@ async function openCommunity(id) {
           <span class="wk-person-name">${esc(p.name)}</span>
           <span class="wk-chip pending">⏳ Invited</span>
         </div>`).join("")}
-    </div>`;
+    </div>
+
+    ${isOwner ? `
+      <div class="wk-danger-zone">
+        <div class="wk-danger-text">
+          <strong>Delete this community</strong>
+          <span>Removes every task, assignment and progress history in it, for everyone.</span>
+        </div>
+        <button class="btn btn-sm btn-danger" data-delete-community="${c.id}">Delete</button>
+      </div>` : ""}`;
 }
+
+/* ---------------- The same-college directory ---------------- */
+let dirTimer;
+async function loadDirectory(communityId, q = "") {
+  const box = document.getElementById("wk-dir-results");
+  if (!box) return;
+  try {
+    const url = `/api/work/communities/${communityId}/directory${q ? `?q=${encodeURIComponent(q)}` : ""}`;
+    const d = await apiFetch(url);
+
+    if (d.reason) {
+      box.innerHTML = `<div class="wk-empty">${esc(d.reason)}</div>`;
+      return;
+    }
+    if (!d.people.length) {
+      box.innerHTML = `<div class="wk-empty">${q
+        ? "Nobody at your college matches that."
+        : "Nobody else from your college has an account yet."}</div>`;
+      return;
+    }
+
+    box.innerHTML = `
+      <div class="wk-dir-scope">Showing people at <strong>${esc(d.college)}</strong></div>
+      ${d.people.map((p) => `
+        <div class="wk-person wk-dir-person">
+          <span class="wk-avatar">${esc(p.initial)}</span>
+          <div class="wk-dir-main">
+            <div class="wk-person-name">${esc(p.name)}</div>
+            ${p.designation || p.department
+              ? `<div class="wk-dir-meta">${[p.designation, p.department].filter(Boolean).map(esc).join(" · ")}</div>`
+              : ""}
+          </div>
+          ${p.member ? `<span class="wk-chip role">Already in</span>`
+            : p.invited ? `<span class="wk-chip pending">⏳ Invited</span>`
+            : `<button class="btn btn-sm btn-primary" data-dir-invite="${p.id}" data-community="${communityId}">Invite</button>`}
+        </div>`).join("")}
+      ${d.truncated ? `<div class="wk-empty">More than ${d.people.length} people match. Narrow the search to find someone.</div>` : ""}`;
+  } catch (err) {
+    box.innerHTML = `<div class="wk-empty">${esc(err.message)}</div>`;
+  }
+}
+
+/* ---------------- Deleting a community ---------------- */
+/* Held between the two steps. The ticket is proof that the impact preview was
+   actually fetched, and the server refuses the delete without it. */
+const WK_DELETE = { ticket: null, id: null, phrase: "" };
+
+async function openDeleteCommunity(communityId) {
+  try {
+    const d = await apiFetch(`/api/work/communities/${communityId}/deletion-preview`);
+    WK_DELETE.ticket = d.ticket;
+    WK_DELETE.id = communityId;
+    WK_DELETE.phrase = d.confirm_phrase;
+
+    document.getElementById("wk-del-name").textContent = `${d.icon} ${d.name}`;
+    document.getElementById("wk-del-phrase").textContent = d.name;
+
+    const i = d.impact;
+    const rows = [
+      [i.members, "member", "members"],
+      [i.tasks, "task", "tasks"],
+      [i.assignments, "assignment", "assignments"],
+      [i.progress_updates, "progress update", "progress updates"],
+    ].filter(([n]) => n > 0);
+
+    document.getElementById("wk-del-impact").innerHTML = rows.length
+      ? rows.map(([n, one, many]) => `<li><strong>${n}</strong> ${n === 1 ? one : many}</li>`).join("")
+      : `<li>Nothing else is in it yet.</li>`;
+
+    // The number that should actually stop someone: work other people
+    // accepted and are partway through.
+    const warn = document.getElementById("wk-del-warn");
+    warn.classList.toggle("hidden", !i.unfinished_accepted);
+    if (i.unfinished_accepted) {
+      warn.textContent = `${i.unfinished_accepted} ${i.unfinished_accepted === 1
+        ? "task someone accepted is unfinished" : "tasks people accepted are unfinished"}. ` +
+        `Their progress goes too.`;
+    }
+
+    const input = document.getElementById("wk-del-confirm");
+    input.value = "";
+    document.getElementById("wk-del-go").disabled = true;
+    wkModal("wk-delete-modal", true);
+    input.focus();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+document.getElementById("wk-del-confirm")?.addEventListener("input", (e) => {
+  const ok = e.target.value.trim().toLowerCase() === (WK_DELETE.phrase || "").trim().toLowerCase();
+  document.getElementById("wk-del-go").disabled = !ok;
+});
+
+document.getElementById("wk-del-go")?.addEventListener("click", async (e) => {
+  setButtonLoading(e.currentTarget, true);
+  try {
+    await apiFetch(`/api/work/communities/${WK_DELETE.id}`, {
+      method: "DELETE",
+      body: { confirm: document.getElementById("wk-del-confirm").value, ticket: WK_DELETE.ticket },
+    });
+    wkModal("wk-delete-modal", false);
+    wkModal("wk-detail-modal", false);
+    showToast("Community deleted", "success");
+    await loadWork();
+  } catch (err) {
+    showToast(err.message, "error");
+  } finally {
+    setButtonLoading(e.currentTarget, false);
+  }
+});
 
 /* ---------------- Actions ---------------- */
 document.addEventListener("click", async (e) => {
@@ -448,8 +588,39 @@ document.addEventListener("click", async (e) => {
 
   if (t.closest("[data-invite-to]")) {
     document.getElementById("wk-invite-row")?.classList.remove("hidden");
+    document.getElementById("wk-dir-row")?.classList.add("hidden");
     return;
   }
+
+  const dirFor = t.closest("[data-directory-for]");
+  if (dirFor) {
+    document.getElementById("wk-invite-row")?.classList.add("hidden");
+    const row = document.getElementById("wk-dir-row");
+    row?.classList.remove("hidden");
+    loadDirectory(dirFor.dataset.directoryFor);
+    document.getElementById("wk-dir-q")?.focus();
+    return;
+  }
+
+  const dirInvite = t.closest("[data-dir-invite]");
+  if (dirInvite) {
+    setButtonLoading(dirInvite, true);
+    try {
+      const r = await apiFetch(`/api/work/communities/${dirInvite.dataset.community}/invite`,
+        { method: "POST", body: { user_id: dirInvite.dataset.dirInvite } });
+      showToast(`Invitation sent to ${r.invited.name}`, "success");
+      // Only this row changes, so the list is left where it is rather than
+      // rebuilt underneath someone inviting several people in a row.
+      dirInvite.outerHTML = `<span class="wk-chip pending">⏳ Invited</span>`;
+    } catch (err) {
+      showToast(err.message, "error");
+      setButtonLoading(dirInvite, false);
+    }
+    return;
+  }
+
+  const delC = t.closest("[data-delete-community]");
+  if (delC) return openDeleteCommunity(delC.dataset.deleteCommunity);
 
   if (t.id === "wk-invite-send") {
     const email = document.getElementById("wk-invite-email").value.trim();

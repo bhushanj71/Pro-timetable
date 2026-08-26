@@ -835,3 +835,191 @@ def test_a_declined_task_never_appears_as_active_in_the_trend(owner, rahul):
     assert trends["active"][-1] == 0
     assert trends["pending"][-1] == 0
     assert trends["completed"][-1] == 0
+
+
+# --- Deleting a community --------------------------------------------------
+
+def _preview(client, community_id):
+    return client.get(f"/api/work/communities/{community_id}/deletion-preview")
+
+
+def _delete(client, community_id, confirm, ticket):
+    return client.request(
+        "DELETE", f"/api/work/communities/{community_id}",
+        json={"confirm": confirm, "ticket": ticket},
+    )
+
+
+def test_deleting_a_community_needs_both_steps(owner, rahul):
+    """A ticket alone is not enough, and a typed name alone is not enough."""
+    c = _community(owner, "Physics Wing")
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+
+    step1 = _preview(owner, c["id"])
+    assert step1.status_code == 200
+    ticket = step1.json()["ticket"]
+
+    # Right ticket, wrong name.
+    assert _delete(owner, c["id"], "Physics", ticket).status_code == 400
+    # Right name, no ticket.
+    assert _delete(owner, c["id"], "Physics Wing", "").status_code == 400
+    # Right name, forged ticket.
+    assert _delete(owner, c["id"], "Physics Wing", "9999999999.deadbeef").status_code == 400
+
+    # Still there after three refusals.
+    assert owner.get(f"/api/work/communities/{c['id']}").status_code == 200
+
+    assert _delete(owner, c["id"], "  physics wing  ", ticket).status_code == 200
+    assert owner.get(f"/api/work/communities/{c['id']}").status_code == 404
+
+
+def test_the_preview_states_what_will_be_destroyed(owner, rahul):
+    """The count of half-finished accepted work is the number that should
+    stop someone, so it is reported separately."""
+    c = _community(owner, "Lab Group")
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    owner.post(f"/api/work/communities/{c['id']}/tasks",
+               json={"title": "Half done", "assignee_ids": [ids["Rahul"]]})
+    task = rahul.get("/api/work/tasks").json()["tasks"][0]
+    rahul.post(f"/api/work/tasks/{task['id']}/respond", json={"accept": True})
+    rahul.put(f"/api/work/tasks/{task['id']}/progress", json={"progress": 40})
+
+    impact = _preview(owner, c["id"]).json()["impact"]
+    assert impact["members"] == 2
+    assert impact["tasks"] == 1
+    assert impact["assignments"] == 1
+    assert impact["unfinished_accepted"] == 1
+    assert impact["progress_updates"] >= 1
+
+
+def test_only_the_owner_can_delete_a_community(owner, rahul, amit, db_session):
+    """An admin can invite and assign. Destroying everyone else's work is not
+    an administrative act."""
+    c = _community(owner, "Shared Space")
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    # Promoted directly: there is no role endpoint yet, and going through a
+    # 404 would leave Rahul a plain member and quietly test the wrong thing.
+    member = db_session.query(CommunityMember).filter(
+        CommunityMember.community_id == c["id"],
+        CommunityMember.user_id == _members(owner, c["id"])["Rahul"],
+    ).first()
+    member.role = "admin"
+    db_session.commit()
+    assert member.role == "admin"
+
+    assert _preview(rahul, c["id"]).status_code in (403, 404)
+    assert _delete(rahul, c["id"], "Shared Space", "x").status_code in (400, 403, 404)
+    assert _preview(amit, c["id"]).status_code == 404
+    assert owner.get(f"/api/work/communities/{c['id']}").status_code == 200
+
+
+def test_a_ticket_cannot_be_spent_on_a_different_community(owner):
+    """Two open dialogs must not be interchangeable."""
+    a = _community(owner, "Alpha")
+    b = _community(owner, "Beta")
+    ticket_for_a = _preview(owner, a["id"]).json()["ticket"]
+
+    assert _delete(owner, b["id"], "Beta", ticket_for_a).status_code == 400
+    assert owner.get(f"/api/work/communities/{b['id']}").status_code == 200
+
+
+def test_deletion_clears_the_bell_of_everything_it_pointed_at(owner, rahul):
+    """WorkNotification stores community_id and task_id as plain strings with
+    no foreign key, so nothing cleans them up on its own. Left behind, they
+    render as normal notifications that deep-link to a task that is gone."""
+    c = _community(owner, "Ghost Town")
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+    ids = _members(owner, c["id"])
+    owner.post(f"/api/work/communities/{c['id']}/tasks",
+               json={"title": "Doomed", "assignee_ids": [ids["Rahul"]]})
+
+    before = rahul.get("/api/work/notifications").json()["items"]
+    assert any(n["kind"] == "task_assigned" for n in before)
+
+    ticket = _preview(owner, c["id"]).json()["ticket"]
+    assert _delete(owner, c["id"], "Ghost Town", ticket).status_code == 200
+
+    after = rahul.get("/api/work/notifications").json()["items"]
+    assert not any(n["community_id"] == c["id"] for n in after), "orphaned notification survived"
+    assert not any(n["kind"] == "task_assigned" for n in after)
+    # And the members are told, without a link to the community that is gone.
+    goodbye = [n for n in after if n["kind"] == "community_deleted"]
+    assert len(goodbye) == 1
+    assert "Ghost Town" in goodbye[0]["title"]
+    assert goodbye[0]["community_id"] is None
+
+
+# --- The same-college directory -------------------------------------------
+
+def _set_college(client, college, department=None):
+    client.put("/api/auth/me", json={"college": college, "department": department})
+
+
+def test_the_directory_lists_colleagues_at_the_same_college(owner, rahul, amit):
+    _set_college(owner, "DY Patil COE", "Computer")
+    _set_college(rahul, "DY Patil COE", "Mechanical")
+    _set_college(amit, "Some Other College", "Computer")
+
+    c = _community(owner, "Faculty Room")
+    body = owner.get(f"/api/work/communities/{c['id']}/directory").json()
+
+    names = {p["name"] for p in body["people"]}
+    assert "Rahul" in names
+    assert "Amit" not in names, "the directory must not reach beyond one college"
+    assert body["college"] == "DY Patil COE"
+    # The email is never returned: it is enough to invite by, and a browsable
+    # list of addresses is a directory to harvest.
+    assert all("email" not in p for p in body["people"])
+
+
+def test_a_college_that_is_written_differently_still_matches(owner, rahul):
+    _set_college(owner, "DY Patil COE")
+    _set_college(rahul, "  dy patil coe ")
+    c = _community(owner, "Faculty Room")
+    people = owner.get(f"/api/work/communities/{c['id']}/directory").json()["people"]
+    assert {p["name"] for p in people} == {"Rahul"}
+
+
+def test_a_viewer_with_no_college_gets_nobody_not_everybody(owner, rahul):
+    """The failure that matters. If the check were written as an equality
+    against viewer.college, a blank college would match every other account
+    that also left it blank."""
+    c = _community(owner, "Faculty Room")
+    body = owner.get(f"/api/work/communities/{c['id']}/directory").json()
+    assert body["people"] == []
+    assert body["college"] is None
+    assert "Settings" in body["reason"]
+
+
+def test_the_directory_says_who_is_already_in(owner, rahul):
+    _set_college(owner, "Same Place")
+    _set_college(rahul, "Same Place")
+    c = _community(owner, "Faculty Room")
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+
+    rahul_row = [p for p in owner.get(
+        f"/api/work/communities/{c['id']}/directory").json()["people"] if p["name"] == "Rahul"][0]
+    assert rahul_row["member"] is True
+
+
+def test_the_directory_can_be_searched_by_name_and_department(owner, rahul, amit):
+    _set_college(owner, "Same Place")
+    _set_college(rahul, "Same Place", "Mechanical")
+    _set_college(amit, "Same Place", "Computer")
+    c = _community(owner, "Faculty Room")
+
+    url = f"/api/work/communities/{c['id']}/directory"
+    assert {p["name"] for p in owner.get(url, params={"q": "rah"}).json()["people"]} == {"Rahul"}
+    assert {p["name"] for p in owner.get(url, params={"q": "Computer"}).json()["people"]} == {"Amit"}
+    assert owner.get(url, params={"q": "nobody"}).json()["people"] == []
+
+
+def test_only_admins_can_browse_the_directory(owner, rahul, amit):
+    _set_college(owner, "Same Place")
+    _set_college(rahul, "Same Place")
+    c = _community(owner, "Faculty Room")
+    _join(owner, rahul, c["id"], "w_rahul@example.com")
+
+    assert rahul.get(f"/api/work/communities/{c['id']}/directory").status_code == 403
+    assert amit.get(f"/api/work/communities/{c['id']}/directory").status_code == 404

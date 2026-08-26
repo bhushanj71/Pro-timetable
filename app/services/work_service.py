@@ -12,6 +12,7 @@ only counts once they accept.
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
+from sqlalchemy import false, func, or_
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
@@ -352,4 +353,147 @@ def task_progress(task: WorkTask) -> dict:
         # Stated in the payload so the UI explains the rule rather than
         # leaving the professor to guess why the number looks high.
         "basis": "Averaged across members who accepted; pending and declined are excluded.",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Deleting a community
+# ---------------------------------------------------------------------------
+def deletion_impact(db: Session, community: Community) -> dict:
+    """What disappears if this community is deleted.
+
+    Shown before the confirmation, not after: "are you sure?" is not informed
+    consent when the person cannot see that they are also destroying nine
+    tasks and four people's progress history.
+    """
+    task_ids = [t.id for t in community.tasks]
+    assignments = (
+        db.query(TaskAssignment).filter(TaskAssignment.task_id.in_(task_ids)).all()
+        if task_ids else []
+    )
+    return {
+        "members": len(community.members),
+        "tasks": len(task_ids),
+        "assignments": len(assignments),
+        "progress_updates": (
+            db.query(TaskProgressUpdate)
+            .filter(TaskProgressUpdate.assignment_id.in_([a.id for a in assignments]))
+            .count()
+            if assignments else 0
+        ),
+        # Work that people accepted and are partway through is the loss that
+        # actually hurts, so it is counted separately rather than folded in.
+        "unfinished_accepted": sum(
+            1 for a in assignments
+            if a.status in (AssignmentStatus.ACCEPTED.value, AssignmentStatus.IN_PROGRESS.value)
+        ),
+    }
+
+
+def delete_community(db: Session, community: Community, actor: User) -> dict:
+    """Delete a community, everything under it, and every trace in the bell.
+
+    The relational side cascades through the ORM. The notification feed does
+    not: WorkNotification stores community_id and task_id as plain strings
+    with no foreign key, so without this the bell keeps rows pointing at a
+    community that no longer exists -- which render as normal notifications
+    and deep-link to a 404.
+    """
+    impact = deletion_impact(db, community)
+    name = community.name
+    task_ids = [t.id for t in community.tasks]
+    # Read the recipients before the cascade removes the membership rows.
+    member_ids = [m.user_id for m in community.members if m.user_id != actor.id]
+
+    orphans = db.query(WorkNotification).filter(
+        or_(
+            WorkNotification.community_id == community.id,
+            WorkNotification.task_id.in_(task_ids) if task_ids else false(),
+        )
+    )
+    impact["notifications"] = orphans.count()
+    orphans.delete(synchronize_session=False)
+
+    db.delete(community)
+    db.flush()
+
+    for user_id in member_ids:
+        # community_id is deliberately omitted: pointing this notification at
+        # the row we just deleted would recreate the orphan it exists to
+        # clean up. The name is in the title instead.
+        notify(
+            db, user_id, "community_deleted",
+            f"“{name}” was deleted",
+            f"{actor.name} deleted the community. Its tasks and progress are gone.",
+        )
+
+    return impact
+
+
+# ---------------------------------------------------------------------------
+# Finding colleagues
+# ---------------------------------------------------------------------------
+DIRECTORY_LIMIT = 25
+
+
+def college_directory(db: Session, viewer: User, community: Community, q: str | None) -> dict:
+    """People at the viewer's own college, for an owner filling a community.
+
+    Scoped to one college and nothing wider. The check is written as an
+    equality on a normalised, non-empty value rather than as a match against
+    viewer.college directly: if the viewer has not set a college, comparing
+    NULL to NULL would quietly return every account that also left it blank,
+    which is the opposite of the intended scope.
+    """
+    college = (viewer.college or "").strip()
+    if not college:
+        return {
+            "people": [],
+            "college": None,
+            "reason": "Set your college in Settings to find colleagues here.",
+        }
+
+    rows = db.query(User).filter(
+        func.lower(func.trim(User.college)) == college.lower(),
+        User.id != viewer.id,
+        User.is_active.is_(True),
+    )
+
+    needle = (q or "").strip()
+    if needle:
+        like = f"%{needle}%"
+        rows = rows.filter(or_(
+            User.name.ilike(like),
+            User.department.ilike(like),
+            User.designation.ilike(like),
+        ))
+
+    found = rows.order_by(User.name).limit(DIRECTORY_LIMIT + 1).all()
+    truncated = len(found) > DIRECTORY_LIMIT
+    found = found[:DIRECTORY_LIMIT]
+
+    members = {m.user_id for m in community.members}
+    invited = {
+        i.invitee_id for i in community.invitations
+        if i.status == InviteStatus.PENDING.value
+    }
+
+    return {
+        "college": college,
+        "truncated": truncated,
+        "people": [
+            {
+                "id": u.id,
+                "name": u.name,
+                "initial": (u.name or "?")[:1].upper(),
+                # Enough to tell two colleagues of the same name apart. Not
+                # the email: it is enough to invite by, and a searchable list
+                # of addresses is a directory to harvest, not a convenience.
+                "designation": u.designation,
+                "department": u.department,
+                "member": u.id in members,
+                "invited": u.id in invited,
+            }
+            for u in found
+        ],
     }

@@ -147,6 +147,36 @@
   </div>
 </div>
 
+<!-- Delete a community: step two.
+     Step one is the preview request that fills this in and issues the ticket
+     the delete is refused without, so this dialog cannot be skipped. -->
+<div id="wk-delete-modal" class="modal-backdrop hidden">
+  <div class="modal-card wk-danger-card" style="max-width:460px">
+    <button class="sheet-close" data-close-modal="wk-delete-modal" aria-label="Close">✕</button>
+    <h3>Delete <span id="wk-del-name"></span>?</h3>
+    <p class="muted-text" style="margin:4px 0 14px">
+      This cannot be undone, and it deletes the work as well as the community.
+    </p>
+
+    <ul class="wk-impact" id="wk-del-impact"></ul>
+    <p class="wk-impact-warn hidden" id="wk-del-warn"></p>
+
+    <div class="form-group">
+      <label for="wk-del-confirm">Type <strong id="wk-del-phrase"></strong> to confirm</label>
+      <input type="text" id="wk-del-confirm" autocomplete="off" spellcheck="false"
+             aria-describedby="wk-del-hint">
+      <small class="form-hint" id="wk-del-hint">
+        Typing the name is what stops this being a reflexive click.
+      </small>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="wk-del-go" disabled>Delete permanently</button>
+      <button class="btn" data-close-modal="wk-delete-modal">Keep it</button>
+    </div>
+  </div>
+</div>
+
 <!-- Assign a task -->
 <div id="wk-task-modal" class="modal-backdrop hidden">
   <div class="modal-card" style="max-width:520px">

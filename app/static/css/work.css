@@ -655,3 +655,92 @@ button.user-chip .ps-badge { position: absolute; top: -3px; right: -3px; }
   .sheet-close { width: 40px; height: 40px; top: 10px; right: 10px; }
   #wk-my-progress { height: 34px; }
 }
+
+
+/* ==========================================================================
+   The same-college directory
+   ========================================================================== */
+.wk-directory { margin-bottom: 14px; }
+.wk-search-inline { min-width: 0; margin-bottom: 10px; }
+.wk-dir-scope {
+  font-size: 0.72rem; color: var(--text-muted);
+  padding: 2px 0 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px;
+}
+#wk-dir-results { max-height: 260px; overflow-y: auto; }
+
+.wk-dir-person { padding: 7px 0; gap: 11px; }
+.wk-dir-main { flex: 1 1 auto; min-width: 0; }
+/* Designation and department, not the email. Two colleagues with the same
+   name still need telling apart, but a browsable list of addresses is a
+   directory to harvest rather than a convenience. */
+.wk-dir-meta {
+  font-size: 0.72rem; color: var(--text-muted);
+  margin-top: 1px; overflow-wrap: anywhere;
+}
+.wk-dir-person .btn { flex: 0 0 auto; margin-left: auto; }
+.wk-dir-person .wk-chip { margin-left: auto; }
+
+/* ==========================================================================
+   Deleting a community
+   ========================================================================== */
+.wk-danger-zone {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 18px; padding: 13px 14px;
+  border: 1px solid var(--danger-soft);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--danger) 5%, transparent);
+}
+.wk-danger-text { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.wk-danger-text strong { font-size: 0.85rem; }
+.wk-danger-text span { font-size: 0.73rem; color: var(--text-muted); }
+.wk-danger-zone .btn { flex: 0 0 auto; }
+
+.wk-danger-card h3 { padding-right: 40px; }
+.wk-impact {
+  list-style: none; margin: 0 0 12px; padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  display: grid; gap: 5px;
+}
+.wk-impact li { font-size: 0.82rem; color: var(--text-soft); }
+.wk-impact strong { color: var(--text); font-weight: 800; }
+
+/* The one number that should actually stop someone: work other people
+   accepted and have not finished. It is called out rather than listed. */
+/* --danger measured 3.28:1 here, and this is 12.5px text -- the one sentence
+   in the flow that exists to stop someone destroying a colleague's work has
+   to be readable, so it uses a darkened tone that clears 4.5:1. */
+.wk-impact-warn {
+  margin: 0 0 14px; padding: 10px 13px;
+  border-radius: 11px;
+  background: var(--danger-soft);
+  color: var(--danger-ink, var(--danger));
+  font-size: 0.78rem; font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--danger) 22%, transparent);
+}
+:root { --danger-ink: #aa504b; --danger-solid: #b95752; }
+/* On a dark ground the light tone is already the readable one. */
+:root[data-theme="dark"] { --danger-ink: var(--danger); --danger-solid: var(--danger); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --danger-ink: var(--danger); --danger-solid: var(--danger); }
+}
+
+#wk-del-confirm { width: 100%; }
+#wk-del-go:disabled { opacity: 0.45; cursor: not-allowed; }
+/* White on --danger measured 3.28:1. The button that performs the deletion
+   is not the place to lose a word of its own label. */
+#wk-del-go:not(:disabled) {
+  background: var(--danger-solid); color: #fff; border-color: var(--danger-solid);
+}
+#wk-del-go:not(:disabled):hover { background: var(--danger); border-color: var(--danger); }
+
+@media (max-width: 768px) {
+  #wk-dir-results { max-height: 46vh; }
+  .wk-dir-person { padding: 9px 0; }
+  /* Measured at 360px: both came out 40px from the small-button padding.
+     Inviting and deleting are the two actions here, so neither should be
+     the one that needs a second tap. */
+  .wk-danger-zone .btn, .wk-dir-person .btn { min-height: 44px; }
+  .wk-danger-zone { padding: 14px; }
+}

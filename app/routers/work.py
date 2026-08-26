@@ -4,6 +4,9 @@ Work-mode API: communities, invitations, tasks, assignments, notifications.
 Every endpoint authorises through work_service, which returns 404 rather than
 403 for a non-member so community names are not discoverable by probing.
 """
+import hashlib
+import hmac
+import time
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -11,6 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, selectinload
 
+from app.config import get_settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import (
@@ -80,6 +84,37 @@ class ProfileBody(BaseModel):
 # ---------------------------------------------------------------------------
 # Serialisation
 # ---------------------------------------------------------------------------
+# How long a deletion confirmation stays valid. Long enough to read the
+# impact and type a name, short enough that a dialog left open in a tab
+# cannot be used against a community that has changed since.
+DELETION_TICKET_TTL = 300
+
+
+def issue_deletion_ticket(community_id: str, user_id: str) -> str:
+    """A signed, expiring note that this owner has seen the impact preview."""
+    issued = str(int(time.time()))
+    return f"{issued}.{_sign_deletion(community_id, user_id, issued)}"
+
+
+def verify_deletion_ticket(ticket: str, community_id: str, user_id: str) -> bool:
+    issued, _, sig = (ticket or "").partition(".")
+    if not issued.isdigit() or not sig:
+        return False
+    if time.time() - int(issued) > DELETION_TICKET_TTL:
+        return False
+    # Constant-time: this is a signature check, and the community is gone if
+    # it passes.
+    return hmac.compare_digest(sig, _sign_deletion(community_id, user_id, issued))
+
+
+def _sign_deletion(community_id: str, user_id: str, issued: str) -> str:
+    """Bound to the community AND the owner, so a ticket for one community
+    cannot be spent on another, or by a different account."""
+    msg = f"delete-community:{community_id}:{user_id}:{issued}".encode()
+    key = get_settings().SECRET_KEY.encode()
+    return hmac.new(key, msg, hashlib.sha256).hexdigest()[:32]
+
+
 def _person(u: User) -> dict:
     """The minimum needed to show someone in a member list.
 
@@ -239,6 +274,107 @@ def invite_member(community_id: str, payload: InviteCreate, background: Backgrou
     db.commit()
     background.add_task(work_notify.deliver_in_background)
     return {"ok": True, "invitation_id": inv.id, "invited": _person(invitee)}
+
+
+@router.get("/communities/{community_id}/directory")
+def community_directory(
+    community_id: str,
+    q: str | None = Query(default=None, max_length=120),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Colleagues at the caller's own college, to fill a community from.
+
+    Deliberately narrower than a general people search. The existing
+    /people/search needs a near-exact email precisely so that nobody can
+    enumerate the user base; browsing by name is only opened up here because
+    the result set is bounded by a college the caller already belongs to, and
+    only for someone who can invite into this community anyway.
+    """
+    ws.require_member(db, community_id, user, CommunityRole.ADMIN.value)
+    community = (
+        db.query(Community)
+        .options(selectinload(Community.members), selectinload(Community.invitations))
+        .filter(Community.id == community_id)
+        .first()
+    )
+    return ws.college_directory(db, user, community, q)
+
+
+# ---------------------------------------------------------------------------
+# Deleting a community: two steps, because one is not enough for this
+# ---------------------------------------------------------------------------
+@router.get("/communities/{community_id}/deletion-preview")
+def deletion_preview(community_id: str, db: Session = Depends(get_db),
+                     user: User = Depends(get_current_user)):
+    """Step one: say exactly what will be destroyed, and issue a ticket.
+
+    The ticket is what makes this two steps rather than one form with two
+    fields. A delete is refused without one, so the client cannot skip
+    showing this and go straight to the destructive call, and it expires so a
+    confirmation cannot be replayed against a community that has since grown.
+    """
+    ws.require_member(db, community_id, user, CommunityRole.OWNER.value)
+    community = (
+        db.query(Community)
+        .options(selectinload(Community.members), selectinload(Community.tasks))
+        .filter(Community.id == community_id)
+        .first()
+    )
+    return {
+        "name": community.name,
+        "icon": community.icon,
+        "impact": ws.deletion_impact(db, community),
+        "ticket": issue_deletion_ticket(community.id, user.id),
+        "expires_in": DELETION_TICKET_TTL,
+        # Echoed so the client can compare what the owner types against the
+        # server's idea of the name, not its own possibly stale copy.
+        "confirm_phrase": community.name,
+    }
+
+
+class CommunityDelete(BaseModel):
+    confirm: str = Field(max_length=120)
+    ticket: str = Field(max_length=200)
+
+
+@router.delete("/communities/{community_id}", status_code=status.HTTP_200_OK)
+def delete_community(community_id: str, payload: CommunityDelete, background: BackgroundTasks,
+                     db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Step two: the typed name and the ticket from step one.
+
+    Owner only -- an admin can invite and assign, but destroying everyone
+    else's work is not an administrative act.
+    """
+    ws.require_member(db, community_id, user, CommunityRole.OWNER.value)
+    community = (
+        db.query(Community)
+        .options(
+            selectinload(Community.members),
+            selectinload(Community.tasks),
+            selectinload(Community.invitations),
+        )
+        .filter(Community.id == community_id)
+        .first()
+    )
+
+    if not verify_deletion_ticket(payload.ticket, community_id, user.id):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "That confirmation has expired. Open the delete dialog again to see what will be removed.",
+        )
+    # Case and surrounding space are forgiven; the letters are not. Typing the
+    # name is the point -- it is what stops a reflexive click on a dialog.
+    if payload.confirm.strip().casefold() != community.name.strip().casefold():
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Type the community name exactly to confirm: {community.name}",
+        )
+
+    impact = ws.delete_community(db, community, user)
+    db.commit()
+    background.add_task(work_notify.deliver_in_background)
+    return {"ok": True, "deleted": impact}
 
 
 @router.delete("/communities/{community_id}/members/{member_user_id}", status_code=status.HTTP_204_NO_CONTENT)

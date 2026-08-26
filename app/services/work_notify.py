@@ -48,6 +48,7 @@ class Kind:
     INVITE_ACCEPTED = "invite_accepted"
     INVITE_DECLINED = "invite_declined"
     REMOVED = "removed_from_community"
+    COMMUNITY_DELETED = "community_deleted"
 
 
 # Which preference switch governs each kind. Anything absent is unswitchable.
@@ -66,8 +67,9 @@ _PREFERENCE = {
     Kind.COMMUNITY_INVITE: "notify_work_community",
     Kind.INVITE_ACCEPTED: "notify_work_community",
     Kind.INVITE_DECLINED: "notify_work_community",
-    # TASK_ASSIGNED and REMOVED are deliberately unlisted: being given work,
-    # or losing access to a community, is not optional information.
+    # TASK_ASSIGNED, REMOVED and COMMUNITY_DELETED are deliberately unlisted:
+    # being given work, or losing a community and everything in it, is not
+    # optional information.
 }
 
 
@@ -236,6 +238,7 @@ PUSH_ICON = {
     Kind.TASK_DUE: "⏰", Kind.TASK_OVERDUE: "\U0001F6A8",
     Kind.ASSIGNMENT_REMINDER: "\U0001F4E5", Kind.TASK_COMMENT: "\U0001F4AC",
     Kind.COMMUNITY_INVITE: "\U0001F465",
+    Kind.COMMUNITY_DELETED: "\U0001F5D1",
 }
 
 
