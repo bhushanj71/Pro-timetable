@@ -497,24 +497,22 @@
    Phone
    -------------------------------------------------------------------------- */
 @media (max-width: 768px) {
-  .topbar { flex-wrap: wrap; row-gap: 8px; align-items: center; }
-  /* .user-block lives inside .topbar-actions, so its full-width rule is
-     measured against that box -- which has to wrap for the block to get
-     a row of its own. Without this the switcher stayed pill-sized at
-     250px on a 360px screen. */
-  .topbar-actions { flex-wrap: wrap; row-gap: 8px; width: 100%; justify-content: flex-end; }
+  /* One row, not two.
+     These rules used to stretch .topbar-actions to the full width so a
+     permanent profile switcher could have a row of its own. That switcher
+     moved into the account menu, but the rules stayed -- and measured at
+     393px they were still pushing the icons onto a second line, leaving the
+     hamburger alone on the first and the bar 117px tall before any content.
+     Nothing here needs to wrap now: menu, theme, bell and avatar fit in one
+     row with room to spare. */
+  .topbar { flex-wrap: nowrap; align-items: center; }
+  .topbar-actions { flex-wrap: nowrap; width: auto; justify-content: flex-end; }
 
-  /* The name and role are the least useful thing on a 360px bar -- the
-     professor knows who they are. The avatar keeps the identity anchor and
-     the row it frees goes to the switcher, which is a control. */
-
-  /* The switcher lives inside .user-block now, so stretching it has to happen
-     in that container -- a flex rule aimed at .topbar reaches the block, not
-     the switcher inside it, and the control stayed pill-sized.
-
-     Avatar and switcher share a full-width second row: the switcher is the
-     most-used control in the bar and both halves should be a comfortable
-     thumb target. */
+  /* The caret reads as a stray character once the name beside it is hidden,
+     and the avatar is plainly tappable without it. The work count moves onto
+     the avatar, where it belongs to something. */
+  button.user-chip .user-caret { display: none; }
+  button.user-chip .ps-badge { top: -4px; right: -4px; }
 }
 
 @media (max-width: 380px) {

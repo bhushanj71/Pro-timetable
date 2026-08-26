@@ -132,15 +132,21 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   .ai-examples::-webkit-scrollbar { display: none; }
   .ai-example-chip { flex: 0 0 auto; scroll-snap-align: start; }
 
-  /* Stat tiles: compact swipeable rail instead of four tall cards */
+  /* Stat tiles: 2x2, not a swipeable rail.
+     The rail fitted 2.6 of four 148px cards into a 393px window, so the third
+     was sliced down the middle at the screen edge and the fourth was off it
+     entirely with nothing saying so -- which reads as broken layout rather
+     than as something to swipe. The grid costs about 90px of height and shows
+     all four, cut nothing, and needs no gesture to discover. */
   #stat-grid {
-    display: flex; gap: 10px; overflow-x: auto;
-    scroll-snap-type: x proximity; scrollbar-width: none;
-    margin-inline: -15px; padding-inline: 15px; padding-bottom: 4px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    overflow-x: visible;
+    margin-inline: 0; padding-inline: 0;
   }
-  #stat-grid::-webkit-scrollbar { display: none; }
   #stat-grid .stat-card {
-    flex: 0 0 148px; scroll-snap-align: start; padding: 14px;
+    min-width: 0; padding: 13px;
   }
   #stat-grid .stat-value { font-size: 1.45rem; }
   #stat-grid .stat-ico { width: 36px; height: 36px; font-size: 1rem; border-radius: 11px; }
@@ -297,4 +303,101 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
      menu, so it is a tap target in a way the text fields beside it are not.
      (The rest of this form's inputs sit at 39px -- pre-existing, left alone.) */
   #pf-department-select { min-height: 44px; }
+}
+
+
+/* ==========================================================================
+   Phone layout, measured at 393px
+   ========================================================================== */
+@media (max-width: 768px) {
+  /* "Free Hours" was breaking to "Fr / He" inside a squeezed card. */
+  .stat-label, .stat-card .stat-sub { overflow-wrap: normal; hyphens: none; }
+
+  /* --- The AI row ------------------------------------------------------
+     Input, mic and Ask AI on one line left the input 137px wide, so the
+     placeholder read "Ask me to man". The question is the point of the row;
+     it gets the full width and the two controls sit under it. */
+  .ai-input-row {
+    flex-wrap: wrap;
+    row-gap: 9px;
+    padding: 10px;
+    border-radius: var(--radius);
+  }
+  .ai-input-row input {
+    flex: 1 1 100%;
+    min-width: 0;
+    /* Its own row now, so it can be a real target rather than a 27px slot
+       between two buttons. */
+    padding: 13px 8px;
+  }
+  .ai-input-row .ai-mic { flex: 0 0 auto; }
+  .ai-input-row .btn-ask { flex: 1 1 auto; justify-content: center; }
+
+  /* --- Horizontal scrollers -------------------------------------------
+     The example chips genuinely scroll (1285px of them). A hard cut at the
+     screen edge reads as broken layout, so the last one fades instead --
+     which is the only thing on screen saying "keep going". */
+  .ai-examples {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent 100%);
+    mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent 100%);
+    scroll-snap-type: x proximity;
+    scroll-padding-left: 15px;
+  }
+  .ai-example-chip { scroll-snap-align: start; }
+
+  /* --- Card headers ----------------------------------------------------
+     "Today's Schedule" and "View Timetable" were each wrapping to two lines
+     while sharing one row. The title takes the row; the link sits under it,
+     still a 40px target. */
+  .card-head { flex-wrap: wrap; row-gap: 4px; align-items: baseline; }
+  .card-title { flex: 1 1 100%; min-width: 0; }
+  .card-head .link-more { margin-left: auto; }
+}
+
+@media (max-width: 380px) {
+  #stat-grid { gap: 8px; }
+  #stat-grid .stat-card { padding: 11px; }
+}
+
+/* ==========================================================================
+   Touch targets, from a DOM sweep at 393px
+   Every interactive element on every page was measured; these are the ones
+   that came back under 44px. The worst was a filter select at 18px.
+   ========================================================================== */
+@media (max-width: 768px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"]),
+  select,
+  textarea {
+    min-height: 44px;
+  }
+  /* Its own rule: this one measured 18px, collapsed by a flex parent that
+     gave it no height of its own. */
+  select { height: auto; }
+
+  .assistant-btn,
+  .link-more,
+  .ai-example-chip {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  /* The chips row is a scroller, so taller chips must not also grow its
+     scroll height. */
+  .ai-examples { align-items: stretch; }
+}
+
+@media (max-width: 768px) {
+  /* A 13px checkbox is a 13px target, and its label was only 20px tall -- so
+     neither half of the control was tappable. Padding rather than min-height:
+     these labels already carry their own flex layouts (the assign picker puts
+     two lines beside the box), and forcing a height would fight them. */
+  label:has(> input[type="checkbox"]),
+  label:has(> input[type="radio"]) {
+    padding-block: 12px;
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 20px; height: 20px;
+    flex: 0 0 auto;
+  }
 }
