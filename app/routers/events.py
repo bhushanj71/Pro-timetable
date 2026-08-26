@@ -309,7 +309,13 @@ def update_event(
 
     targets = [event]
     if apply_to_series and event.recurrence_group_id:
-        targets = db.query(Event).filter(Event.recurrence_group_id == event.recurrence_group_id).all()
+        # Scoped to the caller. The lookup above proves this occurrence is
+        # theirs; it says nothing about the other rows carrying the same group
+        # id, and without this filter a series edit reached across accounts.
+        targets = db.query(Event).filter(
+            Event.recurrence_group_id == event.recurrence_group_id,
+            Event.user_id == user.id,
+        ).all()
 
     # For series updates, shift time-of-day but keep each occurrence's original date
     time_shift = None
@@ -368,7 +374,10 @@ def delete_event(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
 
     doomed = (
-        db.query(Event).filter(Event.recurrence_group_id == event.recurrence_group_id).all()
+        db.query(Event).filter(
+            Event.recurrence_group_id == event.recurrence_group_id,
+            Event.user_id == user.id,
+        ).all()
         if apply_to_series and event.recurrence_group_id
         else [event]
     )

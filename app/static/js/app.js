@@ -115,6 +115,116 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 }
 
+/* ---------------- Modal keyboard behaviour ----------------
+
+   Sixteen dialogs in this app and not one of them was a dialog as far as a
+   keyboard or a screen reader was concerned: no role, no aria-modal, no
+   Escape, and focus left sitting on whatever was behind the overlay. Tab
+   walked the page underneath while the dialog covered it.
+
+   Done once here, by watching for any .modal-backdrop losing its hidden
+   class, rather than in each of the sixteen templates -- so a dialog added
+   later gets the same behaviour without anyone remembering to wire it. */
+const FOCUSABLE = [
+  "a[href]", "button:not([disabled])", "input:not([disabled]):not([type=hidden])",
+  "select:not([disabled])", "textarea:not([disabled])", "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
+const modalReturnFocus = new WeakMap();
+
+function focusablesIn(card) {
+  return [...card.querySelectorAll(FOCUSABLE)].filter((el) => {
+    const cs = getComputedStyle(el);
+    return cs.display !== "none" && cs.visibility !== "hidden" && el.offsetParent !== null;
+  });
+}
+
+function openModalA11y(backdrop) {
+  const card = backdrop.querySelector(".modal-card");
+  if (!card) return;
+
+  card.setAttribute("role", "dialog");
+  card.setAttribute("aria-modal", "true");
+  if (!card.getAttribute("aria-label") && !card.getAttribute("aria-labelledby")) {
+    const heading = card.querySelector("h1,h2,h3,h4");
+    if (heading) {
+      if (!heading.id) heading.id = `modal-title-${Math.random().toString(36).slice(2, 8)}`;
+      card.setAttribute("aria-labelledby", heading.id);
+    }
+  }
+
+  modalReturnFocus.set(backdrop, document.activeElement);
+  // The first control, not the card: someone arriving here is going to act,
+  // and landing on the container costs them a keypress every time.
+  const first = focusablesIn(card)[0];
+  (first || card).focus({ preventScroll: true });
+  if (!first) card.setAttribute("tabindex", "-1");
+}
+
+function closeModalA11y(backdrop) {
+  const previous = modalReturnFocus.get(backdrop);
+  modalReturnFocus.delete(backdrop);
+  // Back where they were. Without this, focus falls to the top of the
+  // document and a keyboard user has to walk the whole page again.
+  if (previous && document.contains(previous) && previous.offsetParent !== null) {
+    previous.focus({ preventScroll: true });
+  }
+}
+
+const openBackdrops = () =>
+  [...document.querySelectorAll(".modal-backdrop")].filter((m) => !m.classList.contains("hidden"));
+
+document.addEventListener("keydown", (e) => {
+  const open = openBackdrops();
+  if (!open.length) return;
+  const backdrop = open[open.length - 1];   // the topmost one
+  const card = backdrop.querySelector(".modal-card");
+  if (!card) return;
+
+  // Escape is handled by the overlay closer further down, which already owned
+  // it before this layer existed. Two handlers closing the same dialog is one
+  // too many places to remember.
+  if (e.key !== "Tab") return;
+  const items = focusablesIn(card);
+  if (!items.length) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+
+  // Wrap at both ends, so Tab cannot walk out into the page behind.
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  } else if (!card.contains(document.activeElement)) {
+    e.preventDefault();
+    first.focus();
+  }
+});
+
+/* Modals are shown by toggling one class, from a dozen different scripts.
+   Watching the attribute is what makes this work for all of them without
+   every caller having to announce itself. */
+(function watchModals() {
+  const observer = new MutationObserver((records) => {
+    for (const r of records) {
+      const el = r.target;
+      if (!el.classList?.contains("modal-backdrop")) continue;
+      const hidden = el.classList.contains("hidden");
+      const wasHidden = r.oldValue?.includes("hidden");
+      if (wasHidden && !hidden) openModalA11y(el);
+      else if (!wasHidden && hidden) closeModalA11y(el);
+    }
+  });
+  observer.observe(document.body, {
+    attributes: true, attributeFilter: ["class"],
+    attributeOldValue: true, subtree: true,
+  });
+  // Anything already open at load, e.g. onboarding.
+  openBackdrops().forEach(openModalA11y);
+})();
+
 /* ---------------- Route veil ----------------
    Signing in and signing out both end in a full page load. Between the click
    and the new document there is nothing on screen saying the click landed,
@@ -628,7 +738,12 @@ document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   document.getElementById("notif-panel")?.classList.add("hidden");
   document.getElementById("theme-menu")?.classList.add("hidden");
-  document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((m) => m.classList.add("hidden"));
+  // Not the ones the server also enforces. Escape used to close the
+  // work-profile panel too, which only moved the refusal to the next action:
+  // a 428 later instead of a choice now.
+  document
+    .querySelectorAll('.modal-backdrop:not(.hidden):not([data-mandatory="true"])')
+    .forEach((m) => m.classList.add("hidden"));
   if (window.innerWidth <= 768) toggleSidebar(false);
 });
 
