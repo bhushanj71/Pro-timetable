@@ -924,6 +924,8 @@ document.getElementById("wk-t-create")?.addEventListener("click", async (e) => {
   finally { setButtonLoading(e.currentTarget, false); }
 });
 
+registerRefresh(loadWork);
+
 if (document.querySelector(".work-mode")) {
   // The panel comes first: everything below it needs a department to mean
   // anything, and the server refuses the same actions regardless.

@@ -322,6 +322,8 @@ function refreshDashboard() {
 }
 
 window.addEventListener("schedule-updated", refreshDashboard);
+// Refreshed in place rather than reloaded: this page is entirely data.
+registerRefresh(refreshDashboard);
 refreshDashboard();
 
 

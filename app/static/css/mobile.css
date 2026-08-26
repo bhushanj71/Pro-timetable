@@ -43,6 +43,9 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   .btn, .btn-ask, .icon-btn, .tab-btn, .nav-link, .mini-nav button {
     min-height: 44px;
   }
+  /* Height alone left the round topbar icons at 42x44. They are circles, so
+     the narrow axis is the one a thumb actually has to hit. */
+  .icon-btn { min-width: 44px; }
   /* 44px is the platform minimum for a reliable tap. */
   .btn-sm { min-height: 44px; padding: 10px 14px; font-size: 0.82rem; }
   .task-check { width: 26px; height: 26px; }
@@ -106,7 +109,10 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
      Topbar: tighter, search collapses to an icon
      ------------------------------------------------------------------ */
   .topbar { padding: 10px 15px; gap: 8px; }
-  .user-chip { padding: 3px; }
+  /* 32px wide against a 44px minimum: this is the control that opens the
+     account menu and the Personal/Work switch, so it is the last one that
+     should need a second tap. */
+  .user-chip { padding: 3px; min-width: 44px; justify-content: center; }
   .user-avatar { width: 32px; height: 32px; }
 
   /* ------------------------------------------------------------------

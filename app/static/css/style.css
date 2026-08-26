@@ -1591,3 +1591,16 @@ pre {
   }
   @keyframes veilPulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 }
+
+/* Refresh ------------------------------------------------------------------ */
+#refresh-btn { font-size: 1.05rem; line-height: 1; }
+#refresh-btn.is-spinning {
+  animation: refreshSpin 620ms linear infinite;
+  color: var(--primary);
+}
+@keyframes refreshSpin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Still says "working", without the rotation. */
+  #refresh-btn.is-spinning { animation: none; opacity: 0.55; }
+}

@@ -205,6 +205,58 @@ async function pollNotifications() {
   }
 }
 
+/* ---------------- Refresh ----------------
+   Pages that can rebuild themselves from data register a function here and
+   get refreshed in place: no white flash, and the scroll position survives.
+   Everything else falls back to a real reload, which is what the button says
+   it does and is always correct. */
+const pageRefreshers = new Set();
+
+function registerRefresh(fn) {
+  if (typeof fn === "function") pageRefreshers.add(fn);
+}
+
+async function refreshNow() {
+  const btn = document.getElementById("refresh-btn");
+  if (btn?.classList.contains("is-spinning")) return;   // one at a time
+  btn?.classList.add("is-spinning");
+  btn?.setAttribute("aria-busy", "true");
+
+  // Whatever happens next must not be served from the cache this button
+  // exists to get past.
+  if (typeof clearCache === "function") clearCache();
+
+  if (!pageRefreshers.size) {
+    window.location.reload();
+    return;                                  // the spinner leaves with the page
+  }
+
+  try {
+    // allSettled, not all: one failing panel should not stop the others from
+    // updating, and the button has to come back either way.
+    await Promise.allSettled([...pageRefreshers].map((fn) => fn()));
+    if (document.getElementById("notif-bell")) {
+      await (window.__notificationCentre
+        ? window.renderNotificationCentre?.()
+        : pollNotifications());
+    }
+    showToast("Up to date", "success");
+  } catch (_) {
+    showToast("Could not refresh", "error");
+  } finally {
+    // A spin that stops mid-turn reads as a glitch, so it is left to finish
+    // the rotation it is in.
+    const stop = () => {
+      btn?.classList.remove("is-spinning");
+      btn?.removeAttribute("aria-busy");
+    };
+    btn ? btn.addEventListener("animationiteration", stop, { once: true }) : stop();
+    setTimeout(stop, 1200);   // backstop: no animation, or none running
+  }
+}
+
+document.getElementById("refresh-btn")?.addEventListener("click", refreshNow);
+
 /* ---------------- Swipe the notification sheet away ----------------
    On a phone the panel is a bottom sheet, and a bottom sheet that can only be
    closed by reaching back up to the bell it came from is the wrong shape. A
