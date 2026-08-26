@@ -263,9 +263,14 @@ def process_prompt(payload: AIPromptRequest, db: Session = Depends(get_db), user
                 }
             )
 
+    # The summary says what was understood about the schedule. extraction.notes
+    # says something about the parser -- which engine read the sentence, and
+    # whether the provider answered. Those were being joined together, so the
+    # spoken read-back opened with "the AI provider is configured but not
+    # responding, so this reading is rougher than usual" before it got to the
+    # lecture. The note is still carried on the response and still rendered
+    # for typed commands; it just is not part of the sentence.
     summary_parts = []
-    if extraction.notes:
-        summary_parts.append(extraction.notes)
     for evt in extraction.events:
         start_dt, end_dt, _ = _schedule_event_to_datetimes(evt, user.timezone)
         local_start = start_dt.astimezone(get_tz(user.timezone))

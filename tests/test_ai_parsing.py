@@ -261,3 +261,28 @@ def test_the_fallback_note_distinguishes_missing_from_broken(parse):
         assert "no AI provider configured" not in note
     finally:
         ai_service.LAST_PROVIDER_ERROR.update(original)
+
+
+# --- What gets read back out loud ------------------------------------------
+
+def test_the_summary_describes_the_schedule_not_the_parser(auth_client):
+    """The spoken read-back is response.summary, and the parser's note about
+    itself was being prepended to it -- so a voice command opened with "the AI
+    provider is configured but not responding, so this reading is rougher than
+    usual" before it ever mentioned the lecture.
+
+    The note is still on the response, and still shown for typed commands. It
+    is simply not part of the sentence.
+    """
+    resp = auth_client.post(
+        "/api/ai/process-prompt",
+        json={"prompt": "I have DSV lecture at 12:15 p.m. in the classroom"},
+    ).json()
+
+    summary = resp["summary"]
+    assert "DSV lecture" in summary
+    for parser_talk in ("fallback", "AI provider", "not responding", "rougher than usual"):
+        assert parser_talk not in summary, f"{parser_talk!r} is about the parser, not the schedule"
+
+    # Still available to whoever wants it -- just not in what is spoken.
+    assert "notes" in resp["extraction"]
