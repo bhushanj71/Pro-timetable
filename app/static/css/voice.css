@@ -264,3 +264,24 @@
   /* Still shows the shape and the pending state, without the movement. */
   .sk { animation: none; background: var(--bg-tint); }
 }
+
+/* --------------------------------------------------------------------------
+   A spoken change waiting to be confirmed
+   The professor's hands are busy -- that is why they spoke. The pending
+   button has to be findable at a glance, not the same weight as everything
+   else on the card.
+   -------------------------------------------------------------------------- */
+#ai-confirm-btn.is-pending {
+  animation: confirmPulse 1.6s var(--ease) infinite;
+  box-shadow: 0 0 0 4px var(--primary-ring);
+}
+@keyframes confirmPulse {
+  0%, 100% { box-shadow: 0 0 0 3px var(--primary-ring); }
+  50%      { box-shadow: 0 0 0 7px var(--primary-ring); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #ai-confirm-btn.is-pending {
+    animation: none;
+    box-shadow: 0 0 0 4px var(--primary-ring);
+  }
+}

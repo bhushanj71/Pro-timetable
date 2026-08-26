@@ -119,3 +119,95 @@ def test_cancel_all_removes_the_whole_series(auth_client, db_session):
     auth_client.post("/api/ai/confirm", json={"extraction": resp["extraction"]})
 
     assert db_session.query(Event).filter(Event.title == "Lab Session").count() == 0
+
+
+# --- What a spoken command may do on its own -------------------------------
+# The bug these exist for: auto-apply was a list of exclusions naming only
+# delete and cancel_day, so "move my ANN lecture to 4" rewrote a real class
+# the instant it was misheard, with no copy of what had been there.
+
+def test_an_update_is_never_applied_without_being_shown(auth_client):
+    _make_event(auth_client, "ANN Lecture")
+    resp = auth_client.post("/api/ai/process-prompt",
+                            json={"prompt": "Move my ANN Lecture to 4 PM"}).json()
+    assert resp["intent"] == "UPDATE_EVENT"
+    assert resp["requires_confirmation"] is True
+    assert resp["auto_apply"] is False, "an update overwrites a real class; it must be shown first"
+
+
+def test_a_delete_is_never_applied_without_being_shown(auth_client):
+    _make_event(auth_client, "Faculty Meeting")
+    resp = auth_client.post("/api/ai/process-prompt",
+                            json={"prompt": "Cancel my Faculty Meeting"}).json()
+    assert resp["auto_apply"] is False
+
+
+def test_cancelling_a_whole_day_is_never_applied_without_being_shown(auth_client):
+    _make_event(auth_client, "Morning Lab", days_ahead=1)
+    resp = auth_client.post("/api/ai/process-prompt",
+                            json={"prompt": "Tomorrow is a holiday"}).json()
+    assert resp["auto_apply"] is False, "a whole day of classes is the largest blast radius here"
+
+
+def test_adding_to_your_own_schedule_still_completes_hands_free(auth_client):
+    """The point of speaking is that a simple addition finishes. It is
+    additive, visible the moment it lands, and one delete to undo."""
+    resp = auth_client.post("/api/ai/process-prompt",
+                            json={"prompt": "I have an ANN lecture tomorrow at 10 AM"}).json()
+    assert resp["intent"] in ("CREATE_EVENT", "CREATE_RECURRING_EVENT")
+    assert resp["auto_apply"] is True
+
+
+def test_a_question_is_not_treated_as_something_to_apply(auth_client):
+    resp = auth_client.post("/api/ai/process-prompt",
+                            json={"prompt": "What is on my schedule tomorrow?"}).json()
+    assert resp["requires_confirmation"] is False
+    assert resp["auto_apply"] is False, "nothing is pending, so there is nothing to auto-apply"
+
+
+def test_an_unmatched_target_is_not_auto_applied(auth_client):
+    """Nothing was found, so there is nothing to do -- and certainly nothing
+    to do silently."""
+    resp = auth_client.post("/api/ai/process-prompt",
+                            json={"prompt": "Move my Nonexistent Seminar to 4 PM"}).json()
+    assert resp["auto_apply"] is False
+
+
+def test_auto_apply_is_an_allowlist_not_a_list_of_exclusions(auth_client):
+    """The shape of the rule is the fix.
+
+    Written as exclusions, every intent added later inherits "just do it" --
+    which is exactly how UPDATE_EVENT came to be applied unseen. Written as an
+    allowlist, a new intent is silent-by-default in the safe direction.
+    """
+    from app.routers.ai import AUTO_APPLY_INTENTS, _may_auto_apply
+
+    assert AUTO_APPLY_INTENTS == {"CREATE_EVENT", "CREATE_RECURRING_EVENT", "CREATE_REMINDER"}
+
+    # Anything that changes an existing record, or reaches another person.
+    for intent in (
+        "UPDATE_EVENT", "DELETE_EVENT", "CANCEL_DAY",
+        "UPDATE_REMINDER", "DELETE_REMINDER",
+        "COMPLETE_TASK", "SET_TASK_PROGRESS", "RESPOND_TASK",
+        "ASSIGN_TASK", "INVITE_MEMBER", "CREATE_COMMUNITY",
+        "GENERATE_TIMETABLE",
+        "SOME_INTENT_ADDED_NEXT_YEAR",
+    ):
+        assert _may_auto_apply(intent, True) is False, f"{intent} must be shown before it happens"
+
+    for intent in AUTO_APPLY_INTENTS:
+        assert _may_auto_apply(intent, True) is True
+        # Even an allowed intent is not auto-applied when nothing is pending.
+        assert _may_auto_apply(intent, False) is False
+
+
+def test_confirming_an_update_still_works(auth_client):
+    """The gate is about being asked, not about blocking the action."""
+    _make_event(auth_client, "Seminar Slot")
+    resp = auth_client.post("/api/ai/process-prompt",
+                            json={"prompt": "Move my Seminar Slot to 4 PM"}).json()
+    assert resp["auto_apply"] is False
+
+    applied = auth_client.post("/api/ai/confirm", json={"extraction": resp["extraction"]}).json()
+    assert applied.get("ok") is not False
+    assert applied.get("updated", 0) >= 1

@@ -95,6 +95,36 @@ def _schedule_event_to_datetimes(evt: ScheduleEvent, tz_name: str) -> tuple[date
 
 
 
+# ---------------------------------------------------------------------------
+# What a spoken command is allowed to do on its own
+# ---------------------------------------------------------------------------
+# Hands-free is worth having, so adding something new to your own schedule
+# completes without a tap: it is additive, it is visible the moment it lands,
+# and undoing it is one delete.
+#
+# Everything else is shown first. Speech recognition mishears, and the two
+# things it must never do on a mishearing are rewrite something that already
+# exists and reach another person. An update is not a smaller delete -- it
+# overwrites a real class with whatever was misheard, and there is no copy of
+# what was there before.
+#
+# An allowlist, deliberately, not a list of exclusions. The previous version
+# named only delete and cancel_day, so UPDATE_EVENT was applied the instant it
+# was spoken, and every intent added afterwards inherited the same silence.
+AUTO_APPLY_INTENTS = frozenset({
+    "CREATE_EVENT",
+    "CREATE_RECURRING_EVENT",
+    "CREATE_REMINDER",
+})
+
+
+def _may_auto_apply(intent: str, requires_confirmation: bool) -> bool:
+    """True only for additions to the speaker's own schedule."""
+    if not requires_confirmation:
+        return False          # nothing pending: it was answered or it failed
+    return intent in AUTO_APPLY_INTENTS
+
+
 def _find_target_events(db: Session, user: User, extraction: AIExtractionResult) -> list[Event]:
     """Resolve which existing events an update/delete refers to.
 
@@ -303,6 +333,7 @@ def process_prompt(payload: AIPromptRequest, db: Session = Depends(get_db), user
         summary=summary,
         conflicts=conflicts_out,
         requires_confirmation=requires_confirmation,
+        auto_apply=_may_auto_apply(extraction.intent, requires_confirmation),
         matches=matches,
         action=action,
     )

@@ -470,6 +470,10 @@ class AIPromptResponse(BaseModel):
     # exactly what is about to change before confirming.
     matches: list[dict] = Field(default_factory=list)
     action: str = "create"  # create | update | delete
+    # Whether a spoken command may be applied without the professor seeing it
+    # first. Decided here rather than in the browser so one rule governs every
+    # client, and so a new intent cannot quietly inherit "just do it".
+    auto_apply: bool = False
 
 
 class AIConfirmRequest(BaseModel):

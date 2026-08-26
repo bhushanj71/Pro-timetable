@@ -316,13 +316,14 @@ function speak(text) {
    Creating and updating are recoverable -- the event is right there to edit
    or remove. Deleting is not, and a misheard word is exactly how you lose a
    lecture you meant to keep, so deletions always stop to ask. */
+/* Whether a spoken command runs on its own.
+
+   The server decides, and this only reads the answer -- one rule, in one
+   place, instead of a copy in the browser that drifts. The default when the
+   field is missing is false: an older server that does not send it gets the
+   safe behaviour, not the silent one. */
 function autoRunnable(response) {
-  if (response.requires_confirmation === false) return false;   // already done
-  // Cancelling a day clears every class on it. "Tomorrow is a holiday" is an
-  // easy thing to mishear out of ordinary conversation near an open mic, and
-  // the blast radius is a whole day, so it is shown before it happens.
-  const alwaysAsk = ["delete", "cancel_day"];
-  return !alwaysAsk.includes(response.action) && response.intent !== "DELETE_EVENT";
+  return response.auto_apply === true;
 }
 
 async function submitAIPrompt(promptText, { spoken = false } = {}) {
@@ -350,8 +351,18 @@ async function submitAIPrompt(promptText, { spoken = false } = {}) {
         // Hands-free means the command completes, not that it queues up a
         // button for the mouse the professor is not holding.
         await runConfirmedAction(response);
-      } else {
+      } else if (response.requires_confirmation === false) {
+        // A question, or something that could not be matched: nothing is
+        // pending, so there is nothing to confirm.
         speak(response.summary || "");
+      } else {
+        // Something that would change or send. Read it back and wait to be
+        // told to go ahead -- being asked is the point, so the prompt has to
+        // be spoken too, not left as a button on a screen nobody is looking
+        // at while their hands are full.
+        focusPendingConfirm();
+        speak(`${response.summary || ""}. Say confirm to go ahead, or cancel.`);
+        listenForConfirmation(response);
       }
     }
   } catch (err) {
@@ -362,6 +373,79 @@ async function submitAIPrompt(promptText, { spoken = false } = {}) {
     setButtonLoading(submitBtn, false);
     if (input) input.disabled = false;
   }
+}
+
+/* Puts the confirm button where a keyboard and a screen reader land next, so
+   the pending change is reachable without hunting for it. */
+function focusPendingConfirm() {
+  const btn = document.getElementById("ai-confirm-btn");
+  if (!btn) return;
+  btn.classList.add("is-pending");
+  btn.focus({ preventScroll: false });
+}
+
+/* A second, short listen for yes or no.
+
+   Only ever started for something already described out loud, and it accepts
+   nothing but agreement or refusal -- it cannot be talked into a different
+   command, so a mishearing here can only fail closed. */
+const CONFIRM_WORDS = ["confirm", "yes", "yeah", "yep", "go ahead", "do it", "ok", "okay", "correct"];
+const CANCEL_WORDS = ["cancel", "no", "nope", "stop", "don't", "dont", "never mind", "nevermind"];
+
+function listenForConfirmation(response) {
+  const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Rec) return;                       // the button is still there
+
+  let rec;
+  try { rec = new Rec(); } catch (_) { return; }
+  rec.lang = document.documentElement.lang || "en-IN";
+  rec.interimResults = false;
+  rec.maxAlternatives = 3;
+
+  let settled = false;
+  // Only stops listening. The pending highlight is deliberately left alone:
+  // if the microphone is unavailable or the listen times out, voice
+  // confirmation is exactly what is missing, so the on-screen prompt has to
+  // stay until someone acts on it. Confirming or cancelling replaces the
+  // whole card, taking the button with it.
+  const finish = (fn) => {
+    if (settled) return;
+    settled = true;
+    try { rec.stop(); } catch (_) {}
+    fn?.();
+  };
+
+  rec.onresult = (e) => {
+    // Every alternative is checked, because "confirm" is often returned
+    // second behind something the engine liked better acoustically.
+    const heard = [...e.results[0]].map((alt) => alt.transcript.trim().toLowerCase());
+    const said = (list) => heard.some((h) => list.some((w) => h === w || h.startsWith(w + " ")));
+
+    if (said(CANCEL_WORDS)) {
+      finish(() => {
+        speak("Cancelled. Nothing changed.");
+        showToast("Cancelled — nothing changed", "success");
+        const box = document.getElementById("ai-result");
+        if (box) box.innerHTML = `<div class="ai-result-card">✕ Cancelled. Nothing was changed.</div>`;
+      });
+      return;
+    }
+    if (said(CONFIRM_WORDS)) {
+      finish(() => runConfirmedAction(response));
+      return;
+    }
+    // Anything else is not an answer to the question that was asked.
+    finish(() => speak("I didn't catch a yes or no. The change is waiting on screen."));
+  };
+
+  rec.onerror = () => finish();
+  rec.onend = () => finish();
+
+  // Not left open: an idle microphone waiting on a pending change is both a
+  // privacy problem and a way to catch a stray "yeah" from the room.
+  setTimeout(() => finish(), 9000);
+
+  try { rec.start(); } catch (_) { finish(); }
 }
 
 /** Execute the pending extraction and say what happened. */
