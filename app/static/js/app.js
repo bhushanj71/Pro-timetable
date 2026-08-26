@@ -205,9 +205,140 @@ async function pollNotifications() {
   }
 }
 
+/* ---------------- Swipe the notification sheet away ----------------
+   On a phone the panel is a bottom sheet, and a bottom sheet that can only be
+   closed by reaching back up to the bell it came from is the wrong shape. A
+   downward drag dismisses it.
+
+   The one rule that makes this usable: the drag only takes over when the list
+   is already scrolled to the top. Anywhere else, a downward swipe is someone
+   scrolling their notifications, and stealing it would make the list
+   impossible to read. */
+const SHEET_DISMISS_FRACTION = 0.28;   // of the sheet's own height
+const SHEET_FLICK_VELOCITY = 0.5;      // px per ms, measured over the last move
+// A flick still has to travel. Without this floor, velocity taken over a very
+// short gesture is enormous -- a 40px nudge read as a flick and threw the
+// sheet away when it should have snapped back.
+const SHEET_FLICK_MIN_DISTANCE = 56;
+
+function isSheetMode() {
+  return window.matchMedia("(max-width: 768px)").matches;
+}
+
+function resetSheet(panel) {
+  panel.classList.remove("is-dragging", "is-dismissing", "is-settling");
+  panel.style.transform = "";
+}
+
+function closeNotifPanel(panel, { animate = false } = {}) {
+  if (!animate) {
+    panel.classList.add("hidden");
+    resetSheet(panel);
+    return;
+  }
+  panel.classList.remove("is-dragging");
+  panel.classList.add("is-dismissing");
+  // transitionend is not guaranteed (a display change mid-flight swallows it),
+  // so the timeout is the one that actually closes it and the event only gets
+  // there first.
+  const finish = () => {
+    panel.classList.add("hidden");
+    resetSheet(panel);
+  };
+  panel.addEventListener("transitionend", finish, { once: true });
+  setTimeout(finish, 260);
+}
+
+(function enableSheetSwipe() {
+  const panel = document.getElementById("notif-panel");
+  if (!panel) return;
+
+  let startY = 0, delta = 0;
+  // Velocity comes from the last pair of samples, not from the whole gesture:
+  // someone who drags slowly and then flicks has flicked, and someone who
+  // drags fast and then holds still has not.
+  let lastY = 0, lastAt = 0, velocity = 0;
+  let tracking = false, dragging = false;
+
+  panel.addEventListener("touchstart", (e) => {
+    if (!isSheetMode() || e.touches.length !== 1) return;
+    // A sheet already on its way out is not draggable.
+    if (panel.classList.contains("is-dismissing")) return;
+    startY = lastY = e.touches[0].clientY;
+    lastAt = Date.now();
+    velocity = 0;
+    delta = 0;
+    dragging = false;
+    // Captured once, at the start: checking scrollTop mid-gesture would let a
+    // drag begin the instant the list happened to reach the top.
+    tracking = panel.scrollTop <= 0;
+    panel.classList.remove("is-settling");
+  }, { passive: true });
+
+  panel.addEventListener("touchmove", (e) => {
+    if (!tracking || !isSheetMode()) return;
+    const y = e.touches[0].clientY;
+    const now = Date.now();
+    const dt = now - lastAt;
+    if (dt > 0) velocity = (y - lastY) / dt;
+    lastY = y;
+    lastAt = now;
+    delta = y - startY;
+
+    if (delta <= 0) {
+      // Upward: hand it back to the scroller and do not take it again until
+      // the next touch.
+      if (dragging) {
+        dragging = false;
+        panel.classList.remove("is-dragging");
+        panel.style.transform = "";
+      }
+      tracking = false;
+      return;
+    }
+    // A few pixels of slop, so a tap with a shaky thumb is still a tap.
+    if (!dragging && delta < 8) return;
+
+    if (!dragging) {
+      dragging = true;
+      panel.classList.add("is-dragging");
+    }
+    // Stops the page behind the sheet scrolling with the finger.
+    e.preventDefault();
+    panel.style.transform = `translateY(${delta}px)`;
+  }, { passive: false });
+
+  const release = () => {
+    if (!dragging) { tracking = false; return; }
+    dragging = false;
+    tracking = false;
+    panel.classList.remove("is-dragging");
+
+    const far = delta > panel.offsetHeight * SHEET_DISMISS_FRACTION;
+    // A finger lifted after pausing has velocity ~0, so a long slow drag is
+    // carried by `far` and a short fast one by `flicked`.
+    const flicked = velocity > SHEET_FLICK_VELOCITY && delta > SHEET_FLICK_MIN_DISTANCE;
+
+    if (far || flicked) {
+      closeNotifPanel(panel, { animate: true });
+    } else {
+      // Snap back, then take the class off so the next open animates normally.
+      panel.classList.add("is-settling");
+      panel.style.transform = "";
+      setTimeout(() => panel.classList.remove("is-settling"), 240);
+    }
+  };
+
+  panel.addEventListener("touchend", release);
+  panel.addEventListener("touchcancel", release);
+})();
+
 document.getElementById("notif-bell")?.addEventListener("click", async () => {
   const panel = document.getElementById("notif-panel");
   const opening = panel?.classList.contains("hidden");
+  // A sheet that was swiped away still carries that gesture's transform;
+  // reopening without clearing it would place the panel off-screen.
+  if (panel) resetSheet(panel);
   panel?.classList.toggle("hidden");
 
   // The notification centre fills the panel and marks both feeds read.
@@ -242,7 +373,7 @@ document.addEventListener("click", (e) => {
   const panel = document.getElementById("notif-panel");
   const bell = document.getElementById("notif-bell");
   if (panel && !panel.classList.contains("hidden") && !panel.contains(e.target) && !bell?.contains(e.target)) {
-    panel.classList.add("hidden");
+    closeNotifPanel(panel);
   }
 });
 

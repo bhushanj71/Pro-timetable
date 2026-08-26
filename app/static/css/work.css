@@ -443,7 +443,58 @@
     padding-bottom: calc(var(--bottom-nav-h, 60px) + 12px + env(safe-area-inset-bottom, 0px));
     animation: sheetUp 260ms var(--ease-out) both;
     transform-origin: bottom center;
+    /* The gesture moves this element, so nothing above it may capture the
+       pan: the browser would otherwise start its own scroll or overscroll
+       and fight the drag. */
+    overscroll-behavior: contain;
+    touch-action: pan-y;
   }
+
+  /* The grab handle. A pseudo-element rather than a node, because the panel's
+     contents are replaced wholesale on every refresh and a real element would
+     have to be re-inserted each time. Sticky so it stays put while the list
+     scrolls under it. */
+  .popover::before {
+    content: "";
+    position: sticky; top: 0; z-index: 2;
+    display: block; width: 42px; height: 4px;
+    margin: -3px auto 9px;
+    border-radius: var(--radius-pill);
+    background: var(--border-strong);
+  }
+
+  /* While a finger is on it: no transition, so the sheet tracks the thumb
+     exactly rather than easing behind it. */
+  .popover.is-dragging {
+    animation: none;
+    transition: none;
+    will-change: transform;
+  }
+
+  /* Let go past the threshold. */
+  .popover.is-dismissing {
+    animation: none;
+    transition: transform 200ms var(--ease), opacity 200ms var(--ease);
+    transform: translateY(100%);
+    opacity: 0.6;
+  }
+
+  /* Snapping back after a drag that did not go far enough. */
+  .popover.is-settling {
+    animation: none;
+    transition: transform 220ms var(--ease-out);
+    transform: none;
+  }
+}
+
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+  /* The drag still tracks the finger -- that is direct manipulation, not
+     decoration -- but the release is instant rather than a slide. */
+  .popover.is-dismissing { transition: none; }
+  .popover.is-settling { transition: none; }
+}
+
+@media (max-width: 768px) {
   .wn-item { padding: 13px; }
   /* Comfortable one-handed targets. Measured at 37px with padding alone,
      which is under the ~44px a thumb reliably hits. */
