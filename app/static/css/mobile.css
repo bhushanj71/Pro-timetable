@@ -412,3 +412,49 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
     flex: 0 0 auto;
   }
 }
+
+/* ==========================================================================
+   Running inside the native shell
+   Only applies when native.js has set .is-native, so the browser build is
+   untouched by any of it.
+   ========================================================================== */
+.is-native .topbar {
+  /* iOS draws the status bar over the top of the web view. Without this the
+     bar's contents sit under the clock and the notch. */
+  padding-top: calc(10px + env(safe-area-inset-top, 0px));
+}
+.is-native .bottom-nav {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4px);
+}
+.is-native .content {
+  padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+}
+/* The notification sheet hangs off the top bar, which just got taller. */
+.is-native .popover {
+  top: calc(var(--topbar-h, 65px) + env(safe-area-inset-top, 0px));
+}
+
+/* A field focused behind the keyboard cannot be read while it is typed in. */
+.keyboard-open .bottom-nav { display: none; }
+.keyboard-open .content { padding-bottom: calc(var(--keyboard-h, 0px) + 16px); }
+
+/* Offline, said once, out of the way of the thing being read. */
+.native-offline {
+  position: fixed; left: 0; right: 0;
+  top: calc(env(safe-area-inset-top, 0px));
+  z-index: 300;
+  padding: 7px 14px;
+  background: var(--warning, #d9a05b);
+  color: #1b1410;
+  font-size: 0.78rem; font-weight: 700; text-align: center;
+  animation: veilIn 200ms var(--ease-out) both;
+}
+
+/* A native app should not feel like a page that can be dragged off its
+   moorings, and text selection on a tap-and-hold reads as a bug. */
+.is-native body { overscroll-behavior-y: none; }
+.is-native .nav-link, .is-native .bn-item, .is-native .icon-btn, .is-native .btn {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}

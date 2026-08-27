@@ -288,6 +288,10 @@
   <script src="/static/js/onboarding.js?v={{ v }}"></script>
   <script src="/static/js/push-banner.js?v={{ v }}"></script>
   <script src="/static/js/work-notifications.js?v={{ v }}"></script>
+  <!-- Does nothing in a browser. Inside the Capacitor shell it supplies the
+       things a web page cannot: safe areas, the hardware back button, deep
+       links, offline state and the native splash. -->
+  <script src="/static/js/native.js?v={{ v }}"></script>
   {% endif %}
   {% block scripts %}{% endblock %}
 </body>

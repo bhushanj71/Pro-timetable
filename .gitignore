@@ -20,3 +20,20 @@ android/app-release-*.apk
 android/.bubblewrap/
 android/app/
 android/build/
+
+# --- Mobile (Capacitor) ---
+node_modules/
+# Generated native projects. Both are reproducible with `npx cap add`, and
+# checking them in means every plugin change arrives as a merge conflict.
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/keystore.properties
+ios/App/Pods/
+ios/App/build/
+ios/App/App/public/
+DerivedData/
+*.ipa
+*.aab
+*.apk
