@@ -18,8 +18,11 @@
   <link rel="stylesheet" href="/static/css/glass.css?v={{ v }}">
   <link rel="stylesheet" href="/static/css/voice.css?v={{ v }}">
   <link rel="stylesheet" href="/static/css/work.css?v={{ v }}">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
-  <link rel="icon" type="image/png" href="/static/favicon.png?v={{ v }}">
+  <!-- The SVG first for browsers that take one, the PNG behind it for those
+       that do not. The emoji placeholder that used to sit here won whenever
+       the real icon was slow, so a tab could show either. -->
+  <link rel="icon" type="image/svg+xml" href="/static/logo.svg?v={{ v }}">
+  <link rel="icon" type="image/png" sizes="64x64" href="/static/favicon.png?v={{ v }}">
   {% block head %}{% endblock %}
   <script>
     // Applied before paint to avoid a flash of the wrong theme.
@@ -43,7 +46,7 @@
     <!-- ==================== Sidebar ==================== -->
     <nav class="sidebar" id="sidebar">
       <a href="/dashboard" class="brand-block">
-        <img src="/static/logo-160.png?v={{ v }}" alt="ProfSchedule AI" class="brand-logo"
+        <img src="/static/logo.svg?v={{ v }}" alt="ProfSchedule AI" class="brand-logo"
              onerror="this.classList.add('is-missing')">
         <div>
           <div class="brand-name">ProfSchedule <span>AI</span></div>
