@@ -9,3 +9,14 @@ node_modules/
 .pytest_cache/
 *.egg-info/
 .DS_Store
+
+# Android signing. A keystore is the identity of the app on Play: anyone
+# holding it and its password can publish an update to the listing. It must
+# never be committed, and losing it means never updating the listing again.
+android/*.keystore
+android/*.jks
+android/app-release-*.aab
+android/app-release-*.apk
+android/.bubblewrap/
+android/app/
+android/build/

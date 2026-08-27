@@ -198,6 +198,41 @@ def service_worker():
     )
 
 
+@app.get("/.well-known/assetlinks.json", include_in_schema=False)
+def android_asset_links():
+    """Proves to Chrome that the Play listing and this site are the same thing.
+
+    Without it a Trusted Web Activity still runs, but with the site's URL
+    showing in a bar across the top -- which is how a reviewer, and every
+    user, can tell it is a web page in a jacket.
+
+    Served from configuration rather than a checked-in file because the
+    fingerprint is per-deployment: Play re-signs uploads with its own key, so
+    the value differs between a local build and the store.
+    """
+    from fastapi.responses import JSONResponse
+
+    package = settings.ANDROID_PACKAGE_NAME.strip()
+    prints = [f.strip().upper() for f in settings.ANDROID_SHA256_FINGERPRINTS.split(",") if f.strip()]
+
+    if not package or not prints:
+        # 404 rather than an empty list: an empty statement of ownership is a
+        # claim that nothing owns this domain, and Chrome caches it.
+        return JSONResponse(
+            {"detail": "No Android app is configured for this deployment."},
+            status_code=404,
+        )
+
+    return JSONResponse([{
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {
+            "namespace": "android_app",
+            "package_name": package,
+            "sha256_cert_fingerprints": prints,
+        },
+    }])
+
+
 @app.get("/manifest.json", include_in_schema=False)
 def web_manifest():
     from fastapi.responses import FileResponse

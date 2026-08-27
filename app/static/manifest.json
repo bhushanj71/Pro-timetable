@@ -1,14 +1,38 @@
 {
+  "id": "/?source=pwa",
   "name": "ProfSchedule AI",
   "short_name": "ProfSchedule",
-  "description": "AI-powered timetable and reminders for college professors",
-  "start_url": "/dashboard",
+  "description": "AI-powered timetable, reminders and shared work for college professors",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "start_url": "/dashboard?source=pwa",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#fdf9f7",
   "theme_color": "#e0785d",
   "orientation": "portrait-primary",
+  "categories": ["education", "productivity"],
+  "prefer_related_applications": false,
   "icons": [
-    { "src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/static/logo-160.png", "sizes": "160x160", "type": "image/png", "purpose": "any" },
+    { "src": "/static/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/static/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Today's timetable",
+      "short_name": "Timetable",
+      "url": "/timetable?source=pwa",
+      "icons": [{ "src": "/static/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Work",
+      "short_name": "Work",
+      "url": "/work?source=pwa",
+      "icons": [{ "src": "/static/icon-192.png", "sizes": "192x192" }]
+    }
   ]
 }

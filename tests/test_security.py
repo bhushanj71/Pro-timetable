@@ -142,3 +142,60 @@ def test_csp_does_not_allow_wide_open_scripts(client):
     assert "script-src 'self' 'unsafe-inline'" in csp
     assert "'unsafe-eval'" not in csp
     assert "script-src *" not in csp
+
+
+# --- Android / Trusted Web Activity -----------------------------------------
+
+def test_asset_links_is_absent_until_an_android_app_is_configured(client):
+    """404, not an empty list. An empty ownership statement is a claim that
+    nobody owns the domain, and Chrome caches that answer."""
+    r = client.get("/.well-known/assetlinks.json")
+    assert r.status_code == 404
+    assert "detail" in r.json()
+
+
+def test_asset_links_names_every_signing_certificate(client, monkeypatch):
+    """Play re-signs what you upload, so the certificate users actually get is
+    Play's and not the upload key. Both have to be listed or verification
+    fails for everyone who installed from the store."""
+    from app import main as app_main
+
+    monkeypatch.setattr(app_main.settings, "ANDROID_PACKAGE_NAME", "in.ac.example.app")
+    monkeypatch.setattr(
+        app_main.settings, "ANDROID_SHA256_FINGERPRINTS",
+        " aa:bb:cc , dd:ee:ff ",
+    )
+
+    body = client.get("/.well-known/assetlinks.json").json()
+    assert len(body) == 1
+    target = body[0]["target"]
+    assert body[0]["relation"] == ["delegate_permission/common.handle_all_urls"]
+    assert target["namespace"] == "android_app"
+    assert target["package_name"] == "in.ac.example.app"
+    # Trimmed and upper-cased: Chrome compares these literally.
+    assert target["sha256_cert_fingerprints"] == ["AA:BB:CC", "DD:EE:FF"]
+
+
+def test_the_manifest_meets_the_installability_bar(client):
+    """A Trusted Web Activity wraps an installable PWA. If the manifest does
+    not satisfy the install criteria there is nothing to wrap."""
+    m = client.get("/manifest.json").json()
+
+    for key in ("name", "short_name", "start_url", "display", "icons"):
+        assert key in m, f"{key} is required for installability"
+    assert m["display"] in ("standalone", "fullscreen", "minimal-ui")
+    assert m["scope"] == "/", "a narrower scope drops the app out of the shell mid-navigation"
+
+    sizes = {i["sizes"] for i in m["icons"]}
+    assert {"192x192", "512x512"} <= sizes
+
+    # Separate purposes: one asset serving both means the maskable inset is
+    # applied to the plain icon too, which wastes a tenth of every launcher tile.
+    assert any(i.get("purpose") == "maskable" for i in m["icons"])
+    assert any(i.get("purpose") == "any" for i in m["icons"])
+
+
+def test_every_manifest_icon_is_actually_served(client):
+    """A manifest naming an icon that 404s fails the install prompt silently."""
+    for icon in client.get("/manifest.json").json()["icons"]:
+        assert client.get(icon["src"]).status_code == 200, icon["src"]

@@ -13,6 +13,16 @@ class Settings(BaseSettings):
 
     # Core
     APP_NAME: str = "ProfSchedule AI"
+
+    # --- Android (Trusted Web Activity) ---
+    # The package name of the Play listing, and the SHA-256 fingerprints of the
+    # certificates that sign it. Both are needed for /.well-known/assetlinks.json,
+    # which is how Chrome decides the Android app may open this site without a
+    # URL bar. Get the fingerprints from the Play Console (App integrity ->
+    # App signing) -- there are usually two: the upload key and Play's own.
+    # Comma-separated, colon-separated hex, e.g. "AA:BB:...:FF,11:22:...:99".
+    ANDROID_PACKAGE_NAME: str = ""
+    ANDROID_SHA256_FINGERPRINTS: str = ""
     ENV: str = "development"
     SECRET_KEY: str = "dev-secret-change-me"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days

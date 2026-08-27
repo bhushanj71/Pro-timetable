@@ -247,6 +247,19 @@ document.getElementById("push-disable-btn")?.addEventListener("click", async (e)
 });
 
 // Register early so an already-permitted device keeps working after a reload.
-if (pushSupported() && Notification.permission === "granted") registerServiceWorker();
+/* Registered on every load, not only once push has been granted.
+
+   Installability depends on it: a browser will not offer "install", and a
+   Trusted Web Activity has nothing to wrap, unless a service worker with a
+   fetch handler is already registered. Gating it behind a notification
+   permission meant that for everyone who had not enabled push -- almost
+   everyone -- the app was not installable and had no offline fallback
+   either.
+
+   Registering is not asking for anything. The push permission prompt is a
+   separate act and still only happens when the professor asks for it. */
+if ("serviceWorker" in navigator) {
+  registerServiceWorker();
+}
 if (document.getElementById("push-status")) refreshPushStatus();
 if (document.getElementById("device-list")) refreshDeviceList();

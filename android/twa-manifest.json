@@ -1,0 +1,50 @@
+{
+  "packageId": "in.ac.dypcoeakurdi.profschedule",
+  "host": "REPLACE-WITH-YOUR-DOMAIN",
+  "name": "ProfSchedule AI",
+  "launcherName": "ProfSchedule",
+  "display": "standalone",
+  "themeColor": "#e0785d",
+  "themeColorDark": "#171311",
+  "navigationColor": "#e0785d",
+  "navigationColorDark": "#171311",
+  "navigationDividerColor": "#f2e7e1",
+  "navigationDividerColorDark": "#2a2320",
+  "backgroundColor": "#fdf9f7",
+  "enableNotifications": true,
+  "startUrl": "/dashboard?source=twa",
+  "iconUrl": "https://REPLACE-WITH-YOUR-DOMAIN/static/icon-512.png",
+  "maskableIconUrl": "https://REPLACE-WITH-YOUR-DOMAIN/static/icon-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "profschedule"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [
+    {
+      "name": "Today's timetable",
+      "shortName": "Timetable",
+      "url": "/timetable?source=twa",
+      "chosenIconUrl": "https://REPLACE-WITH-YOUR-DOMAIN/static/icon-192.png"
+    },
+    {
+      "name": "Work",
+      "shortName": "Work",
+      "url": "/work?source=twa",
+      "chosenIconUrl": "https://REPLACE-WITH-YOUR-DOMAIN/static/icon-192.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://REPLACE-WITH-YOUR-DOMAIN/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": { "enabled": false },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://REPLACE-WITH-YOUR-DOMAIN/",
+  "minSdkVersion": 21,
+  "orientation": "portrait"
+}
