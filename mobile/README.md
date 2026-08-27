@@ -183,6 +183,30 @@ their hands. Fixed and re-verified in a second run. This is exactly the failure
 mode the Android side already hit, and the reason the job boots the app rather
 than stopping at a green build.
 
+### Running it without a Mac at all
+
+`dist/appetize/App-simulator.zip` uploads straight to a hosted simulator such
+as Appetize. Two things about it are deliberate, and both were bugs first:
+
+**The zip is made on the runner, by `ditto`.** `actions/upload-artifact` does
+not preserve POSIX permissions. The first artifact arrived with the App binary
+at `rw-r--r--` -- no executable bit, so nothing could launch it. Zipping on
+macOS makes the bundle a single opaque file, and GitHub then carries bytes
+instead of rebuilding a directory tree.
+
+**It is built for x86_64 and arm64 both.** The runners are Apple Silicon and
+Debug builds only the active architecture, so the artifact was thin arm64. It
+ran on the runner's own simulator -- which is why the boot test passed and told
+us nothing -- and hosted fleets are mixed. `lipo` now asserts both slices.
+
+Neither showed up in any check we had. Green build, booted simulator, rendered
+screenshot. None of that exercises the artifact as something another machine
+has to unpack and run.
+
+A hosted simulator wants `CFBundleSupportedPlatforms: iPhoneSimulator`. An
+`.ipa` is a device build and will be rejected; this is not that, and cannot be
+turned into one.
+
 For the `archive` job, add these repository secrets:
 
 ```
