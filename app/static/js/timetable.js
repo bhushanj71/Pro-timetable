@@ -428,9 +428,14 @@ document.getElementById("tt-today")?.addEventListener("click", () => {
   renderTimetable();
 });
 
-document.getElementById("export-csv-btn")?.addEventListener("click", () => (window.location.href = "/api/export/csv"));
-document.getElementById("export-ics-btn")?.addEventListener("click", () => (window.location.href = "/api/export/ics"));
-document.getElementById("export-pdf-btn")?.addEventListener("click", () => (window.location.href = "/api/export/pdf"));
+/* One export, in the form the college issues. The CSV, ICS and PDF routes
+   still exist -- the calendar subscription feed is built on the ICS one -- but
+   three formats in a menu is three decisions to make before the one document
+   anybody actually has to hand in. */
+document.getElementById("export-doc-btn")?.addEventListener("click", () => {
+  showToast("Building your timetable document…", "success");
+  window.location.href = "/api/export/doc";
+});
 
 /** Seed the generator form from the professor's saved timings so they don't
  *  have to retype what they already gave at signup. */

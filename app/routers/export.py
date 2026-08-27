@@ -1,6 +1,11 @@
 """
-Export the timetable/schedule as PDF, CSV, or ICS; import events from a
-CSV or ICS file.
+Export the timetable as a Word document in the college's own form; import
+events from a CSV or ICS file.
+
+The CSV, ICS and PDF exports are still here and still work -- other things
+link to them, and the calendar feed depends on the ICS shape -- but the
+timetable page now offers only the Word document, which is the one a
+professor actually has to hand in.
 """
 import csv
 import io
@@ -128,6 +133,25 @@ def export_pdf(db: Session = Depends(get_db), user: User = Depends(get_current_u
         buf,
         media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=timetable.pdf"},
+    )
+
+
+@router.get("/doc")
+def export_doc(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """The week in the college's own timetable form, as a Word document.
+
+    The layout lives in doc_export because it is a document, not a route: a
+    fixed ten-column grid with the two breaks merged down the page, which is
+    the form the office issues and expects back.
+    """
+    from app.services.doc_export import build_timetable_doc
+
+    buf = build_timetable_doc(user, _week_events(db, user))
+    safe = "".join(c for c in user.name if c.isalnum() or c in " -_").strip() or "timetable"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{safe} - Timetable.docx"'},
     )
 
 
