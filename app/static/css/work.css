@@ -909,3 +909,51 @@ button.user-chip .ps-badge { position: absolute; top: -3px; right: -3px; }
   .ad-college, .ad-dept { padding: 14px 0; }
   .wk-pick { padding: 11px 4px; }
 }
+
+/* ==========================================================================
+   Managing a task: roster and details
+   ========================================================================== */
+/* The per-person controls sit at the end of the row and stay out of the way
+   until there is room; on a narrow sheet they wrap under rather than
+   squeezing the name. */
+.wk-person-actions { display: flex; gap: 4px; flex: 0 0 auto; margin-left: auto; }
+.wk-person-actions .chip-x { opacity: 0.55; }
+.wk-person-actions .chip-x:hover { opacity: 1; }
+.wk-person-actions [data-unassign]:hover { background: var(--danger-soft); color: var(--danger-ink, var(--danger)); }
+
+/* Folded away by default. Editing a task is the rarer thing to want when
+   opening it -- reading who is where is the common one. */
+.wk-manage { margin-top: 16px; }
+.wk-manage-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 11px 13px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: none; color: var(--text-soft);
+  font: inherit; font-size: 0.82rem; font-weight: 700;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.wk-manage-toggle:hover { background: var(--primary-softer); color: var(--primary); }
+.wk-manage-toggle:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-ring); }
+.wk-manage-toggle .wk-chev { transition: transform var(--t) var(--ease); }
+.wk-manage-toggle.is-open .wk-chev { transform: rotate(90deg); }
+
+.wk-manage-panel {
+  margin-top: 10px; padding: 14px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface-alt);
+  animation: scaleIn var(--t) var(--ease-out) both;
+  transform-origin: top center;
+}
+.wk-manage-sep { height: 1px; background: var(--border); margin: 14px 0; }
+.wk-manage-panel .form-hint { display: block; margin-top: 6px; }
+#wk-add-member { flex: 1; min-width: 0; }
+
+@media (max-width: 768px) {
+  .wk-person-actions { margin-left: 0; }
+  .wk-person-actions .chip-x { min-width: 44px; min-height: 44px; }
+  .wk-manage-toggle { min-height: 44px; }
+  /* The panel's own controls already reach 44px from the generic rule --
+     they measure 42 only while the entry animation is mid-scale. */
+  .sheet-close { width: 44px; height: 44px; }
+}

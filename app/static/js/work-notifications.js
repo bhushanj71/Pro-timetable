@@ -27,6 +27,7 @@ const WK_ICON = {
   task_overdue: "🚨", assignment_reminder: "📥", task_comment: "💬",
   community_invite: "👥", invite_accepted: "🤝", invite_declined: "🙅",
   removed_from_community: "🚪", community_deleted: "🗑️", task_updated: "📝",
+  task_unassigned: "📤",
 };
 
 function relTime(iso) {

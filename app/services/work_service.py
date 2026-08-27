@@ -527,3 +527,203 @@ def college_directory(
             for u in found
         ],
     }
+
+
+# ---------------------------------------------------------------------------
+# Managing a task after it exists
+# ---------------------------------------------------------------------------
+def require_task_manager(db: Session, task: WorkTask, user: User) -> None:
+    """Who may change a task's roster or its details.
+
+    The person who assigned it, or an admin of the community. Not the people
+    it was assigned to: they answer for their own row and nothing else, or
+    anyone could quietly write themselves out of work someone is expecting.
+    """
+    member = require_member(db, task.community_id, user)
+    if task.created_by != user.id and member.role == CommunityRole.MEMBER.value:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Only the person who assigned this task, or a community admin, can change it.",
+        )
+
+
+def add_assignees(db: Session, task: WorkTask, actor: User, user_ids: list[str]) -> list[TaskAssignment]:
+    """Put more people on an existing task.
+
+    Each one starts pending, exactly as they would have at creation: adding
+    somebody to a task is still asking them, not telling them.
+    """
+    require_task_manager(db, task, actor)
+
+    members = {m.user_id for m in task.community.members}
+    already = {a.user_id for a in task.assignments}
+    added: list[TaskAssignment] = []
+
+    for uid in dict.fromkeys(user_ids):        # de-duplicated, order kept
+        if uid not in members:
+            # Same refusal as at creation: a task cannot reach outside the
+            # community it belongs to.
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "That person isn't in this community.",
+            )
+        if uid in already:
+            continue                            # idempotent, not an error
+        assignment = TaskAssignment(task_id=task.id, user_id=uid)
+        db.add(assignment)
+        added.append(assignment)
+        notify(
+            db, uid, "task_assigned",
+            f"{actor.name}{_from_dept(actor)} assigned you “{task.title}”",
+            f"{task.community.name}"
+            + (f" · due {task.due_date.strftime('%d %b')}" if task.due_date else ""),
+            community_id=task.community_id, task_id=task.id, actor=actor.id,
+        )
+
+    if added:
+        db.flush()
+        _refresh_task_status(db, task)
+    return added
+
+
+def removal_cost(assignment: TaskAssignment) -> dict:
+    """What disappears with this person's row.
+
+    Read before removing rather than after: an assignment carries a status,
+    a percentage and a history of updates, and none of it survives.
+    """
+    return {
+        "name": assignment.user.name,
+        "status": assignment.status,
+        "progress": assignment.progress,
+        "updates": len(assignment.updates),
+        "accepted": assignment.status in (
+            AssignmentStatus.ACCEPTED.value,
+            AssignmentStatus.IN_PROGRESS.value,
+            AssignmentStatus.COMPLETED.value,
+        ),
+    }
+
+
+def remove_assignee(db: Session, task: WorkTask, actor: User, target_id: str) -> dict:
+    """Take somebody off a task, and tell them."""
+    require_task_manager(db, task, actor)
+
+    assignment = next((a for a in task.assignments if a.user_id == target_id), None)
+    if not assignment:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "That person isn't on this task.")
+
+    cost = removal_cost(assignment)
+    db.delete(assignment)
+    db.flush()
+    db.refresh(task)
+
+    # Told plainly. Work quietly vanishing from someone's list, with time
+    # already spent on it, is worse than being told it was taken away.
+    notify(
+        db, target_id, "task_unassigned",
+        f"You were taken off “{task.title}”",
+        f"{actor.name} removed you from this task in {task.community.name}."
+        + (f" Your {cost['progress']}% is no longer recorded." if cost["progress"] else ""),
+        community_id=task.community_id, actor=actor.id,
+    )
+    _refresh_task_status(db, task)
+    return cost
+
+
+def reassign(db: Session, task: WorkTask, actor: User, from_id: str, to_id: str) -> dict:
+    """Move one person's place on a task to somebody else.
+
+    One step rather than a remove and an add, because the two halves have to
+    agree: a failure between them would leave the task short a person with
+    nobody told. The new person starts pending and at zero -- progress belongs
+    to whoever did the work, and inheriting a number nobody earned would make
+    the overall figure a fiction.
+    """
+    require_task_manager(db, task, actor)
+    if from_id == to_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That is the same person.")
+
+    members = {m.user_id for m in task.community.members}
+    if to_id not in members:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That person isn't in this community.")
+    if any(a.user_id == to_id for a in task.assignments):
+        raise HTTPException(status.HTTP_409_CONFLICT, "They are already on this task.")
+
+    outgoing = next((a for a in task.assignments if a.user_id == from_id), None)
+    if not outgoing:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "That person isn't on this task.")
+
+    cost = removal_cost(outgoing)
+    db.delete(outgoing)
+    db.add(TaskAssignment(task_id=task.id, user_id=to_id))
+    db.flush()
+    db.refresh(task)
+
+    incoming = db.get(User, to_id)
+    notify(
+        db, from_id, "task_unassigned",
+        f"“{task.title}” was passed to someone else",
+        f"{actor.name} reassigned this task to {incoming.name}."
+        + (f" Your {cost['progress']}% is no longer recorded." if cost["progress"] else ""),
+        community_id=task.community_id, task_id=task.id, actor=actor.id,
+    )
+    notify(
+        db, to_id, "task_assigned",
+        f"{actor.name}{_from_dept(actor)} assigned you “{task.title}”",
+        f"{task.community.name} · reassigned from {cost['name']}",
+        community_id=task.community_id, task_id=task.id, actor=actor.id,
+    )
+    _refresh_task_status(db, task)
+    return {"from": cost, "to": incoming.name}
+
+
+# Which fields may be edited after assignment, and how each reads in the
+# notification. Only these: a task whose community or creator could change
+# under the people doing it is a different task.
+_EDITABLE = {
+    "title": "renamed",
+    "description": "description changed",
+    "priority": "priority changed",
+    "due_date": "due date changed",
+    "estimated_minutes": "estimate changed",
+}
+
+
+def update_task(db: Session, task: WorkTask, actor: User, fields: dict) -> list[str]:
+    """Edit a task and tell the people carrying it what moved.
+
+    Returns the human-readable list of what actually changed -- comparing
+    before and after rather than trusting the payload, so a form that posts
+    every field does not announce five changes when one was made.
+    """
+    require_task_manager(db, task, actor)
+
+    changed: list[str] = []
+    for field, phrase in _EDITABLE.items():
+        if field not in fields:
+            continue
+        new = fields[field]
+        if isinstance(new, str):
+            new = new.strip() or None
+        if new == getattr(task, field):
+            continue
+        setattr(task, field, new)
+        changed.append(phrase)
+
+    if not changed:
+        return []
+
+    db.flush()
+    detail = ", ".join(changed)
+    for a in task.assignments:
+        if a.status == AssignmentStatus.DECLINED.value:
+            continue          # they said no; this is no longer their business
+        notify(
+            db, a.user_id, "task_updated",
+            f"“{task.title}” was updated",
+            f"{actor.name} changed it: {detail}."
+            + (f" Now due {task.due_date.strftime('%d %b')}." if task.due_date and "due date changed" in changed else ""),
+            community_id=task.community_id, task_id=task.id, actor=actor.id,
+        )
+    return changed

@@ -514,8 +514,15 @@ def list_tasks(
 @router.get("/tasks/{task_id}")
 def get_task(task_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     task = _load_task(db, task_id)
-    ws.require_member(db, task.community_id, user)
-    return _task(task, detail=True, me=user.id)
+    member = ws.require_member(db, task.community_id, user)
+    data = _task(task, detail=True, me=user.id)
+    # Decided here rather than in the serializer, which has no session and so
+    # could only compare creator ids -- missing the community admins who may
+    # also manage the task. The UI reads this instead of guessing.
+    data["can_manage"] = (
+        task.created_by == user.id or member.role != CommunityRole.MEMBER.value
+    )
+    return data
 
 
 @router.post("/tasks/{task_id}/respond")
@@ -559,6 +566,92 @@ def add_comment(task_id: str, payload: CommentBody, background: BackgroundTasks,
     db.commit()
     background.add_task(work_notify.deliver_in_background)
     return _task(_load_task(db, task_id), detail=True, me=user.id)
+
+
+class AssigneesIn(BaseModel):
+    user_ids: list[str] = Field(min_length=1, max_length=50)
+
+
+@router.post("/tasks/{task_id}/assignees", status_code=status.HTTP_201_CREATED)
+def add_task_assignees(task_id: str, payload: AssigneesIn, background: BackgroundTasks,
+                       db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Put more people on an existing task. Each one starts pending."""
+    task = _load_task(db, task_id)
+    added = ws.add_assignees(db, task, user, payload.user_ids)
+    db.commit()
+    db.refresh(task)
+    background.add_task(work_notify.deliver_in_background)
+    return {"added": len(added), "task": _task(task, detail=True, me=user.id)}
+
+
+@router.get("/tasks/{task_id}/assignees/{member_id}/removal-cost")
+def assignee_removal_cost(task_id: str, member_id: str,
+                          db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """What is lost by taking this person off, asked before doing it.
+
+    An assignment is not just a name: it carries a status, a percentage and a
+    history of updates, none of which survives. Saying so first is the
+    difference between a decision and a surprise.
+    """
+    task = _load_task(db, task_id)
+    ws.require_task_manager(db, task, user)
+    assignment = next((a for a in task.assignments if a.user_id == member_id), None)
+    if not assignment:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "That person isn't on this task.")
+    return ws.removal_cost(assignment)
+
+
+@router.delete("/tasks/{task_id}/assignees/{member_id}")
+def remove_task_assignee(task_id: str, member_id: str, background: BackgroundTasks,
+                         db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    task = _load_task(db, task_id)
+    cost = ws.remove_assignee(db, task, user, member_id)
+    db.commit()
+    db.refresh(task)
+    background.add_task(work_notify.deliver_in_background)
+    return {"removed": cost, "task": _task(task, detail=True, me=user.id)}
+
+
+class ReassignIn(BaseModel):
+    from_user_id: str = Field(min_length=1, max_length=36)
+    to_user_id: str = Field(min_length=1, max_length=36)
+
+
+@router.post("/tasks/{task_id}/reassign")
+def reassign_task(task_id: str, payload: ReassignIn, background: BackgroundTasks,
+                  db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Hand one person's place on a task to somebody else, in one step."""
+    task = _load_task(db, task_id)
+    result = ws.reassign(db, task, user, payload.from_user_id, payload.to_user_id)
+    db.commit()
+    db.refresh(task)
+    background.add_task(work_notify.deliver_in_background)
+    return {"reassigned": result, "task": _task(task, detail=True, me=user.id)}
+
+
+class TaskUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=4000)
+    priority: str | None = None
+    due_date: datetime | None = None
+    estimated_minutes: int | None = Field(default=None, ge=0, le=100_000)
+
+
+@router.put("/tasks/{task_id}")
+def update_task(task_id: str, payload: TaskUpdate, background: BackgroundTasks,
+                db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Edit a task, and tell the people carrying it what moved."""
+    task = _load_task(db, task_id)
+
+    fields = payload.model_dump(exclude_unset=True)
+    if "priority" in fields and fields["priority"] not in ("low", "medium", "high", "urgent"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown priority.")
+
+    changed = ws.update_task(db, task, user, fields)
+    db.commit()
+    db.refresh(task)
+    background.add_task(work_notify.deliver_in_background)
+    return {"changed": changed, "task": _task(task, detail=True, me=user.id)}
 
 
 @router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)

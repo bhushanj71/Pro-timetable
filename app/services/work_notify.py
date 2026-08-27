@@ -49,6 +49,7 @@ class Kind:
     INVITE_DECLINED = "invite_declined"
     REMOVED = "removed_from_community"
     COMMUNITY_DELETED = "community_deleted"
+    TASK_UNASSIGNED = "task_unassigned"
 
 
 # Which preference switch governs each kind. Anything absent is unswitchable.

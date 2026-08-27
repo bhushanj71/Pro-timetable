@@ -27,7 +27,7 @@ const PREVIEW = 3;
 /* Everything the dashboard drew last, so filtering and expanding redraw from
    memory instead of going back to the server on every keystroke. */
 const WK = { data: null, created: [], query: "", expanded: {}, sort: "recent",
-             community: null, pickable: [], profile: null };
+             community: null, pickable: [], profile: null, openTask: null };
 
 function bar(pct, cls = "") {
   return `<div class="wk-bar ${cls}"><span style="width:${Math.max(0, Math.min(100, pct))}%"></span></div>`;
@@ -43,7 +43,7 @@ function personLines(p) {
     </div>`;
 }
 
-function personRow(a) {
+function personRow(a, canManage = false, taskId = null) {
   const pending = a.status === "pending";
   const declined = a.status === "declined";
   return `
@@ -53,6 +53,15 @@ function personRow(a) {
       ${pending ? `<span class="wk-chip pending">⏳ Not answered yet</span>`
         : declined ? `<span class="wk-chip declined">✕ Declined${a.decline_reason ? " · " + esc(a.decline_reason) : ""}</span>`
         : `<span class="wk-person-bar">${bar(a.progress)}</span><span class="wk-pct">${a.progress}%</span>`}
+      ${canManage ? `
+        <span class="wk-person-actions">
+          <button class="chip-x" data-reassign="${esc(a.user.id)}" data-task="${esc(taskId)}"
+                  data-name="${esc(a.user.name)}" title="Hand to someone else"
+                  aria-label="Reassign ${esc(a.user.name)}">⇄</button>
+          <button class="chip-x" data-unassign="${esc(a.user.id)}" data-task="${esc(taskId)}"
+                  data-name="${esc(a.user.name)}" title="Take off this task"
+                  aria-label="Remove ${esc(a.user.name)}">✕</button>
+        </span>` : ""}
     </div>`;
 }
 
@@ -337,6 +346,8 @@ async function openTask(taskId) {
   body.innerHTML = `<div class="sk sk-line long"></div><div class="sk sk-line medium"></div>`;
 
   const t = await cachedFetch(`/api/work/tasks/${taskId}`, { force: true });
+  // Kept so the manage controls can read the roster without refetching.
+  WK.openTask = t;
   // The server marks the caller's own row; matching on display name here
   // was broken and would have confused two members sharing a name.
   const me = t.assignments.find((a) => a.is_me);
@@ -355,7 +366,54 @@ async function openTask(taskId) {
       <div class="wk-basis">${esc(p.basis)}</div>
     </div>
 
-    <div class="wk-people">${t.assignments.map(personRow).join("")}</div>
+    <div class="wk-people">${t.assignments.map((a) => personRow(a, t.can_manage, t.id)).join("")}</div>
+
+    ${t.can_manage ? `
+      <div class="wk-manage">
+        <button class="wk-manage-toggle" id="wk-manage-toggle" aria-expanded="false"
+                aria-controls="wk-manage-panel">
+          <span>⚙️ Manage task</span><span class="wk-chev" aria-hidden="true">›</span>
+        </button>
+
+        <div class="wk-manage-panel hidden" id="wk-manage-panel">
+          <div class="form-group">
+            <label for="wk-add-member">Add someone</label>
+            <div class="reminder-add">
+              <select id="wk-add-member" data-task="${t.id}"></select>
+              <button class="btn btn-sm btn-primary" id="wk-add-assignee" data-task="${t.id}">+ Add</button>
+            </div>
+            <small class="form-hint">They are asked to accept, exactly as at assignment.</small>
+          </div>
+
+          <div class="wk-manage-sep"></div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="wk-edit-title">Title</label>
+              <input type="text" id="wk-edit-title" maxlength="255" value="${esc(t.title)}">
+            </div>
+            <div class="form-group" style="flex:0 0 140px">
+              <label for="wk-edit-priority">Priority</label>
+              <select id="wk-edit-priority">
+                ${["low", "medium", "high", "urgent"].map((p) =>
+                  `<option value="${p}"${t.priority === p ? " selected" : ""}>${p[0].toUpperCase() + p.slice(1)}</option>`).join("")}
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="wk-edit-due">Due</label>
+              <input type="date" id="wk-edit-due" value="${t.due_date ? t.due_date.slice(0, 10) : ""}">
+            </div>
+            <div class="form-group">
+              <label for="wk-edit-desc">Details</label>
+              <input type="text" id="wk-edit-desc" maxlength="4000" value="${esc(t.description || "")}">
+            </div>
+          </div>
+          <button class="btn btn-sm btn-primary" id="wk-update-task" data-task="${t.id}">Update task</button>
+          <small class="form-hint">Everyone still carrying this task is told what changed.</small>
+        </div>
+      </div>` : ""}
 
     ${me && ["accepted", "in_progress", "completed"].includes(me.status) ? `
       <div class="form-group wk-progress-editor" style="margin-top:16px">
@@ -458,6 +516,142 @@ async function openCommunity(id) {
         <button class="btn btn-sm btn-danger" data-delete-community="${c.id}">Delete</button>
       </div>` : ""}`;
 }
+
+/* ---------------- Managing a task ----------------
+   Everything here is refused by the server too, for the creator and the
+   community admins only. These controls exist so the people who may do it can
+   see how, not to decide who may. */
+
+/* Community members not already on the task, for the add and reassign
+   pickers. Fetched fresh because the sheet may have been open a while. */
+async function candidatesFor(taskId, community, exclude) {
+  const c = await cachedFetch(`/api/work/communities/${community}`, { force: true });
+  return c.members.filter((m) => !exclude.has(m.id));
+}
+
+async function fillAddPicker(task) {
+  const select = document.getElementById("wk-add-member");
+  if (!select) return;
+  const taken = new Set(task.assignments.map((a) => a.user.id));
+  const free = await candidatesFor(task.id, task.community.id, taken);
+
+  select.innerHTML = free.length
+    ? free.map((m) => `<option value="${esc(m.id)}">${esc(m.name)}${m.department ? ` — ${esc(m.department)}` : ""}</option>`).join("")
+    : `<option value="">Everyone in this community is already on it</option>`;
+  select.disabled = !free.length;
+  document.getElementById("wk-add-assignee").disabled = !free.length;
+}
+
+document.getElementById("wk-taskdetail-modal")?.addEventListener("click", (e) => {
+  if (e.target.closest("#wk-manage-toggle")) {
+    const panel = document.getElementById("wk-manage-panel");
+    const btn = document.getElementById("wk-manage-toggle");
+    const opening = panel.classList.contains("hidden");
+    panel.classList.toggle("hidden", !opening);
+    btn.setAttribute("aria-expanded", String(opening));
+    btn.classList.toggle("is-open", opening);
+    if (opening && WK.openTask) fillAddPicker(WK.openTask);
+  }
+});
+
+document.addEventListener("click", async (e) => {
+  // --- Add ---
+  const add = e.target.closest("#wk-add-assignee");
+  if (add) {
+    const id = document.getElementById("wk-add-member").value;
+    if (!id) return;
+    setButtonLoading(add, true);
+    try {
+      const r = await apiFetch(`/api/work/tasks/${add.dataset.task}/assignees`,
+        { method: "POST", body: { user_ids: [id] } });
+      showToast(r.added ? "Added — they have been asked to accept" : "They were already on it", "success");
+      await openTask(add.dataset.task);
+      await loadWork();
+    } catch (err) { showToast(err.message, "error"); }
+    finally { setButtonLoading(add, false); }
+    return;
+  }
+
+  // --- Remove ---
+  const off = e.target.closest("[data-unassign]");
+  if (off) {
+    const { task, unassign, name } = off.dataset;
+    let cost = null;
+    try {
+      cost = await apiFetch(`/api/work/tasks/${task}/assignees/${unassign}/removal-cost`);
+    } catch (_) { /* the confirmation below still stands without it */ }
+
+    // Asked with the cost in the question. "Are you sure?" is not informed
+    // consent when it does not mention the 60% and four updates going with it.
+    const lost = cost && cost.accepted
+      ? `\n\n${cost.name} accepted this and is at ${cost.progress}%.` +
+        (cost.updates ? ` ${cost.updates} progress update${cost.updates === 1 ? "" : "s"} will be lost.` : "")
+      : "";
+    if (!confirm(`Take ${name} off this task?${lost}`)) return;
+
+    try {
+      await apiFetch(`/api/work/tasks/${task}/assignees/${unassign}`, { method: "DELETE" });
+      showToast(`${name} was taken off the task`, "success");
+      await openTask(task);
+      await loadWork();
+    } catch (err) { showToast(err.message, "error"); }
+    return;
+  }
+
+  // --- Reassign ---
+  const swap = e.target.closest("[data-reassign]");
+  if (swap) {
+    const { task, reassign, name } = swap.dataset;
+    const current = WK.openTask;
+    if (!current) return;
+    const taken = new Set(current.assignments.map((a) => a.user.id));
+    let free = [];
+    try {
+      free = await candidatesFor(task, current.community.id, taken);
+    } catch (err) { return showToast(err.message, "error"); }
+    if (!free.length) return showToast("Everyone in this community is already on this task", "error");
+
+    const choice = prompt(
+      `Hand ${name}'s place to whom?\n\n` +
+      free.map((m, i) => `${i + 1}. ${m.name}${m.department ? ` — ${m.department}` : ""}`).join("\n") +
+      `\n\nType a number. ${name}'s progress is not carried over.`);
+    const picked = free[Number(choice) - 1];
+    if (!picked) return;
+
+    try {
+      await apiFetch(`/api/work/tasks/${task}/reassign`,
+        { method: "POST", body: { from_user_id: reassign, to_user_id: picked.id } });
+      showToast(`Passed to ${picked.name} — they have been asked to accept`, "success");
+      await openTask(task);
+      await loadWork();
+    } catch (err) { showToast(err.message, "error"); }
+    return;
+  }
+
+  // --- Update the task itself ---
+  const save = e.target.closest("#wk-update-task");
+  if (save) {
+    const due = document.getElementById("wk-edit-due").value;
+    setButtonLoading(save, true);
+    try {
+      const r = await apiFetch(`/api/work/tasks/${save.dataset.task}`, {
+        method: "PUT",
+        body: {
+          title: document.getElementById("wk-edit-title").value.trim(),
+          description: document.getElementById("wk-edit-desc").value.trim() || null,
+          priority: document.getElementById("wk-edit-priority").value,
+          due_date: due ? new Date(due + "T17:00").toISOString() : null,
+        },
+      });
+      // Says what moved, not just "saved" -- the professor is about to be
+      // asked by whoever gets the notification.
+      showToast(r.changed.length ? `Updated: ${r.changed.join(", ")}` : "Nothing changed", "success");
+      await openTask(save.dataset.task);
+      await loadWork();
+    } catch (err) { showToast(err.message, "error"); }
+    finally { setButtonLoading(save, false); }
+  }
+});
 
 /* ---------------- The same-college directory ---------------- */
 let dirTimer;
