@@ -171,6 +171,18 @@ that built perfectly and opened to a blank screen.
 Run it from the Actions tab, or push a change under `ios/`. Download the
 `.app` artifact and drag it onto a Simulator on any Mac.
 
+**It has been run, and it passed.** The build compiled, booted an iPhone 15,
+installed the app, launched it and screenshotted the result: the landing page
+rendered, loaded from the live Render deployment. Artifacts are in `dist/ios/`
+(`App.app`, 4.0 MB, and `ios-launch.png`).
+
+The screenshot immediately earned its keep. It showed the top bar overflowing
+with "Get started free" clipped off the right edge -- a defect the compile step
+could never have caught, and one nobody would have seen until an iPhone was in
+their hands. Fixed and re-verified in a second run. This is exactly the failure
+mode the Android side already hit, and the reason the job boots the app rather
+than stopping at a green build.
+
 For the `archive` job, add these repository secrets:
 
 ```
