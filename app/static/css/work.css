@@ -856,7 +856,34 @@ button.user-chip .ps-badge { position: absolute; top: -3px; right: -3px; }
 }
 .wk-person { align-items: flex-start; }
 .wk-person .wk-avatar { margin-top: 1px; }
-.wk-person .wk-chip, .wk-person .chip-x { flex: 0 0 auto; margin-top: 2px; }
+.wk-person .wk-chip, .wk-person .chip-x { flex: 0 1 auto; margin-top: 2px; }
+
+/* The declined chip is the only one holding text a person typed, so it is the
+   only one that cannot behave like a status pill.
+
+   As nowrap and flex: 0 0 auto it refused to shrink and refused to wrap, so a
+   reason of any length took the whole row and crushed .wk-id -- which has
+   min-width: 0 -- to nothing. Measured at 393px with a six-word reason: the
+   name block was 0px wide and the department rendered 575px tall, one letter
+   per line, in a row 612px deep.
+
+   Wrapping is right rather than truncating: the reason is why the work came
+   back, which is the one thing the person who assigned it needs to read. */
+.wk-chip.declined {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+  min-width: 0;
+}
+
+/* The bar and its percentage move as one thing. As separate children of a
+   wrapping row they could be split across two lines, leaving a number under a
+   bar it no longer sits beside. */
+.wk-person-progress {
+  display: flex; align-items: center; gap: 8px;
+  flex: 1 1 auto; min-width: 90px;
+}
+.wk-person-progress .wk-person-bar { flex: 1 1 auto; }
 
 .wk-dir-role { opacity: 0.85; }
 
@@ -965,6 +992,35 @@ button.user-chip .ps-badge { position: absolute; top: -3px; right: -3px; }
 #wk-add-member { flex: 1; min-width: 0; }
 
 @media (max-width: 768px) {
+  /* One line cannot hold an avatar, a name, a department, a status and two
+     buttons at 393px. Rather than shrinking all of them until each is
+     unreadable, the row becomes two: who it is, then how it is going.
+
+     order moves the buttons up beside the name; without it they would land
+     below the status, on a third line, because flex wraps in DOM order. */
+  .wk-person { flex-wrap: wrap; row-gap: 6px; }
+  .wk-person > .wk-person-actions { order: 1; margin-left: auto; }
+
+  /* flex-basis: 0, and it has to be 0.
+
+     A flex line is packed from hypothetical sizes and only shrunk afterwards,
+     so with basis auto the identity block was measured at its full text width
+     first -- filling the line on its own and pushing the buttons onto a line
+     of their own, before any shrinking got a chance to run. At 0 it takes no
+     part in that decision, then grows into whatever the buttons leave. */
+  .wk-person > .wk-id { flex: 1 1 0; }
+
+  .wk-person > .wk-chip,
+  .wk-person > .wk-person-progress {
+    order: 2;
+    /* The indent is subtracted from the basis. A full 100% plus a margin is
+       wider than the row, which is an overflow rather than a second line. */
+    flex: 1 0 calc(100% - 36px);
+    /* Indented past the avatar so the second line still reads as part of
+       this person and not as a new one. */
+    margin-left: 36px;
+  }
+
   .wk-person-actions { margin-left: 0; }
   .wk-person-actions .chip-x { min-width: 44px; min-height: 44px; }
   .wk-manage-toggle { min-height: 44px; }

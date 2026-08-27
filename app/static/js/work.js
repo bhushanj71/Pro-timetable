@@ -72,7 +72,7 @@ function personRow(a, canManage = false, taskId = null) {
       ${personLines(a.user)}
       ${pending ? `<span class="wk-chip pending">⏳ Not answered yet</span>`
         : declined ? `<span class="wk-chip declined">✕ Declined${a.decline_reason ? " · " + esc(a.decline_reason) : ""}</span>`
-        : `<span class="wk-person-bar">${bar(a.progress)}</span><span class="wk-pct">${a.progress}%</span>`}
+        : `<span class="wk-person-progress"><span class="wk-person-bar">${bar(a.progress)}</span><span class="wk-pct">${a.progress}%</span></span>`}
       ${canManage ? `
         <span class="wk-person-actions">
           <button class="chip-x" data-reassign="${esc(a.user.id)}" data-task="${esc(taskId)}"
