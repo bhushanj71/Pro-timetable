@@ -150,5 +150,35 @@ has not been tested on a device — there is no microphone in this environment.
 another machine set `sdk.dir` (forward slashes — a properties file eats single
 backslashes, which is what made the first build fail).
 
-**iOS still cannot be built here.** It needs macOS and Xcode; this is
-Windows. The project is complete and archive-ready.
+**iOS cannot be built on this machine, and no simulator can run here.** The
+iOS SDK and the Simulator ship only inside Xcode, which Apple releases for
+macOS alone — unlike the Android SDK, which was simply a download away. There
+is no Windows equivalent to install.
+
+The way round it is a Mac you rent by the minute. `.github/workflows/ios.yml`
+builds on a GitHub macOS runner, free for a public repository:
+
+| Job | Needs an Apple account? | Produces |
+|---|---|---|
+| `simulator` | **No** | A `.app`, plus a screenshot of it actually running |
+| `archive` | Yes (paid, US$99/yr) | A signed `.ipa` for App Store Connect |
+
+The `simulator` job does more than compile: it boots an iPhone 15 simulator,
+installs the app, launches it and screenshots the result. That is the check
+that matters, because this project has already shipped an Android package
+that built perfectly and opened to a blank screen.
+
+Run it from the Actions tab, or push a change under `ios/`. Download the
+`.app` artifact and drag it onto a Simulator on any Mac.
+
+For the `archive` job, add these repository secrets:
+
+```
+IOS_CERTIFICATE_P12        base64 of your .p12 distribution certificate
+IOS_CERTIFICATE_PASSWORD   its password
+IOS_PROVISIONING_PROFILE   base64 of your .mobileprovision
+APPLE_TEAM_ID              10-character team ID
+```
+
+The certificate is imported into a throwaway keychain with a random password
+and deleted with the runner. It never touches the repository.

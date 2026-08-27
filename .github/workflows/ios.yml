@@ -1,0 +1,200 @@
+name: iOS
+
+# Building anything for iOS needs macOS: the SDK and the Simulator ship only
+# inside Xcode, which Apple releases for macOS alone. GitHub's macOS runners
+# are that Mac. For a public repository they cost nothing.
+#
+# Two jobs, and the split matters:
+#
+#   simulator  builds and BOOTS the app in an iOS Simulator, screenshots it,
+#              and uploads the .app. Needs no Apple Developer account at all,
+#              so it works today.
+#   archive    produces a signed .ipa for App Store Connect. Needs a paid
+#              account and certificates, so it skips itself until those
+#              secrets exist rather than failing every run.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - "app/static/**"
+      - "app/templates/**"
+      - "capacitor.config.json"
+      - "package*.json"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+jobs:
+  simulator:
+    name: Build and boot in the Simulator
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync Capacitor
+        # Copies the web assets and re-generates the plugin registration the
+        # Podfile depends on. Skipping it means building whatever was last
+        # committed rather than what is in the tree now.
+        run: npx cap sync ios
+
+      - name: Install pods
+        working-directory: ios/App
+        run: pod install --repo-update
+
+      - name: Show what Xcode will build
+        run: |
+          xcodebuild -workspace ios/App/App.xcworkspace -list
+          xcodebuild -version
+
+      - name: Build for the Simulator
+        # No signing: a simulator build is not installed on a device, so it
+        # needs no certificate. This is what lets the job run with no Apple
+        # account.
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build | xcpretty || \
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Boot a simulator and install the app
+        # Building proves it compiles. Booting proves it launches -- which is
+        # the failure this project has already had once on Android, where a
+        # perfectly valid package opened to a blank screen.
+        run: |
+          xcrun simctl boot "iPhone 15" || true
+          xcrun simctl bootstatus "iPhone 15" -b
+          APP=$(find build/Build/Products/Debug-iphonesimulator -name "App.app" -maxdepth 1 | head -1)
+          echo "Installing $APP"
+          xcrun simctl install booted "$APP"
+          xcrun simctl launch booted com.profschedule.ai
+
+      - name: Let it load, then screenshot
+        # The app loads the live site, so this is also a check that the
+        # deployment is reachable from a clean machine.
+        run: |
+          sleep 25
+          xcrun simctl io booted screenshot ios-launch.png
+          ls -lh ios-launch.png
+
+      - name: Upload the screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-launch-screenshot
+          path: ios-launch.png
+
+      - name: Upload the .app
+        # Drag this onto a running Simulator on any Mac to install it.
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-app
+          path: build/Build/Products/Debug-iphonesimulator/App.app
+
+  archive:
+    name: Archive for the App Store
+    runs-on: macos-14
+    timeout-minutes: 40
+    # Skips itself, rather than failing, until the signing secrets exist.
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for signing credentials
+        id: creds
+        run: |
+          if [ -z "${{ secrets.IOS_CERTIFICATE_P12 }}" ]; then
+            echo "ready=false" >> $GITHUB_OUTPUT
+            echo "::notice::No signing credentials configured. See mobile/README.md for what to add."
+          else
+            echo "ready=true" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.creds.outputs.ready == 'true'
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install and sync
+        if: steps.creds.outputs.ready == 'true'
+        run: |
+          npm ci
+          npx cap sync ios
+          cd ios/App && pod install --repo-update
+
+      - name: Import the signing certificate
+        if: steps.creds.outputs.ready == 'true'
+        env:
+          CERT: ${{ secrets.IOS_CERTIFICATE_P12 }}
+          CERT_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+        run: |
+          # A throwaway keychain with a random password, unlocked only for this
+          # run. The certificate never touches the repository.
+          KEYCHAIN=$RUNNER_TEMP/build.keychain
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          echo "$CERT" | base64 --decode > $RUNNER_TEMP/cert.p12
+          security import $RUNNER_TEMP/cert.p12 -k "$KEYCHAIN" -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$PROFILE" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/build.mobileprovision
+          rm $RUNNER_TEMP/cert.p12
+
+      - name: Archive and export
+        if: steps.creds.outputs.ready == 'true'
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -o pipefail
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App \
+            -configuration Release -sdk iphoneos -archivePath build/App.xcarchive \
+            DEVELOPMENT_TEAM="$TEAM_ID" archive
+          cat > build/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath build/App.xcarchive \
+            -exportOptionsPlist build/ExportOptions.plist -exportPath build/ipa
+
+      - name: Upload the IPA
+        if: steps.creds.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: build/ipa/*.ipa
