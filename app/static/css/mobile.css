@@ -237,34 +237,46 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   .data-table { font-size: 0.78rem; }
   .data-table th, .data-table td { padding: 9px 8px; }
 
-  /* Modals become bottom sheets — easier to reach one-handed. */
-  .modal-backdrop { align-items: flex-end; padding: 0; }
+  /* Dialogs open in the middle.
+
+     They used to be bottom sheets, sliding up from the bottom edge on the
+     theory that a sheet is easier to reach one-handed. That is true of a
+     notification list you skim and flick away, and wrong for these: a task
+     sheet or a community sheet is a thing you read and edit, and arriving
+     from off-screen makes it read as sliding in from behind the page rather
+     than opening on top of it.
+
+     Centred and scaled in place instead, the same as on a desktop, so a
+     dialog is the same object on every screen. */
+  .modal-backdrop {
+    align-items: center;
+    justify-items: center;
+    padding: 16px;
+  }
   .modal-card {
-    max-width: none; width: 100%;
-    border-radius: 22px 22px 0 0;
-    max-height: 85vh; padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
-    animation: sheetUp 300ms var(--ease-out) both;
+    max-width: none;
+    width: 100%;
+    /* Rounded on all four corners now that it is not sitting on an edge. */
+    border-radius: var(--radius-lg);
+    /* dvh, not vh: with a browser toolbar on screen vh overshoots and the
+       bottom of the dialog ends up under it. */
+    max-height: min(86dvh, calc(100dvh - 32px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 20px 18px;
+    animation: scaleIn 220ms var(--ease-out) both;
   }
 
-  /* A sheet slides up from the bottom edge -- exactly where the tab bar sits,
-     so the bar covered the sheet's own buttons (Save / Delete were clipped on
-     the event editor). Take the bar out while any dialog is open: it is not a
-     usable target mid-edit anyway, and this leaves the sheet the full bottom
-     edge to occupy rather than fighting over it.
-
-     Belt and braces, because these fail independently: :has() removes the bar,
-     and the padding below reserves its height for browsers without :has(). */
+  /* The tab bar is still taken out while a dialog is open. It is not a usable
+     target mid-edit, and leaving it lit under a scrim invites a tap that
+     cannot land. */
   body:has(.modal-backdrop:not(.hidden)) .bottom-nav { display: none; }
 
-  @supports not selector(:has(*)) {
-    .modal-card { padding-bottom: calc(20px + 62px + env(safe-area-inset-bottom)); }
-  }
   .modal-actions .btn { flex: 1; min-width: 44%; }
 
   .toast-container { bottom: 82px; left: 15px; right: 15px; }
 }
 
-@keyframes sheetUp { from { transform: translateY(100%); } to { transform: none; } }
 @keyframes sheetDown { from { transform: translateY(-100%); } to { transform: none; } }
 
 /* Very narrow phones */
