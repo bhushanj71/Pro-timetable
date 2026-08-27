@@ -6,7 +6,7 @@ verbatim, the two breaks merged down the page with their text on its side, and
 Monday to Saturday. If any of that drifts, the document stops being the form
 the office accepts, which is the only thing it is for.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 
 from docx import Document
 from docx.oxml.ns import qn
@@ -18,6 +18,11 @@ class _User:
     name = "Dr. Test"
     department_rel = None
     college_rel = None
+    timezone = "UTC"
+
+
+class _KolkataUser(_User):
+    timezone = "Asia/Kolkata"
 
 
 class _Event:
@@ -30,12 +35,12 @@ class _Event:
         self.location = location
 
 
-def _doc(events):
-    return Document(build_timetable_doc(_User(), events))
+def _doc(events, user=None):
+    return Document(build_timetable_doc(user or _User(), events))
 
 
-def _table(events):
-    return _doc(events).tables[0]
+def _table(events, user=None):
+    return _doc(events, user).tables[0]
 
 
 # --------------------------------------------------------------------------
@@ -199,3 +204,54 @@ def test_the_other_export_routes_still_work(auth_client):
     subscription feed is built on the ICS one."""
     for path in ("/api/export/csv", "/api/export/ics"):
         assert auth_client.get(path).status_code == 200
+
+
+# --------------------------------------------------------------------------
+# The professor's clock, not the server's
+# --------------------------------------------------------------------------
+class _UTCEvent:
+    """Stored the way the browser sends it: converted to UTC before it ever
+    reaches the database."""
+
+    def __init__(self, utc_start, utc_end, subject):
+        self.start_datetime = datetime(*utc_start, tzinfo=timezone.utc)
+        self.end_datetime = datetime(*utc_end, tzinfo=timezone.utc)
+        self.subject = subject
+        self.title = subject
+        self.location = None
+
+
+def test_periods_are_read_in_the_professors_timezone():
+    """A 9:15 AM lecture in Kolkata is stored as 03:45 UTC. Reading the hour
+    off the stored value asks what time it was in London -- 03:45 is before
+    the first period, so the lecture fell out of the table entirely and the
+    timetable arrived empty."""
+    # 2026-08-26 03:45Z is Wednesday 09:15 in Asia/Kolkata.
+    events = [_UTCEvent((2026, 8, 26, 3, 45), (2026, 8, 26, 4, 45), "DBMS")]
+
+    t = _table(events, _KolkataUser())
+    assert "DBMS" in t.cell(3, 2).text, "should sit in Wednesday's 9:15 period"
+
+    doc = _doc(events, _KolkataUser())
+    assert "Outside the timetable hours" not in chr(10).join(p.text for p in doc.paragraphs)
+
+
+def test_the_day_comes_from_the_local_clock_too():
+    """19:00 UTC on a Friday is 00:30 on Saturday in Kolkata. Taking the day
+    from the stored value files it under the wrong row -- and this one belongs
+    in no row at all, because 00:30 is outside every period."""
+    events = [_UTCEvent((2026, 8, 28, 19, 0), (2026, 8, 28, 20, 0), "Late Session")]
+    doc = _doc(events, _KolkataUser())
+    listed = chr(10).join(p.text for p in doc.paragraphs)
+    assert "Saturday 29 Aug" in listed, listed
+    assert "12:30 AM" in listed, listed
+
+
+def test_an_afternoon_lecture_is_not_filed_under_the_morning():
+    """13:30 in Kolkata is 08:00 UTC, which is a real period -- so this one did
+    not fall out of the table, it landed in the wrong cell, five hours early.
+    Quietly wrong is worse than visibly missing."""
+    events = [_UTCEvent((2026, 8, 24, 8, 0), (2026, 8, 24, 9, 0), "DSA")]
+    t = _table(events, _KolkataUser())
+    assert "DSA" in t.cell(1, 7).text, "Monday, 01:30 PM"
+    assert t.cell(1, 1).text == "", "must not also appear in the 8:15 period"

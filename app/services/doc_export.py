@@ -9,6 +9,12 @@ A fixed grid has one consequence worth being honest about. Anything that does
 not fall inside one of these periods -- an evening lab, a Sunday viva -- has no
 cell to go in. Rather than dropping it silently, the document lists it under
 the table.
+
+Every time here is read in the professor's own timezone. Events are stored as
+UTC, and reading .hour straight off the stored value asks what time it was in
+London -- which for a professor in Asia/Kolkata puts a 9:15 lecture at 03:45,
+outside every column on the form. The whole timetable then arrives empty with
+the week listed underneath it.
 """
 from __future__ import annotations
 
@@ -21,6 +27,8 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
+
+from app.services.nlp_dates import ensure_aware_utc, get_tz
 
 DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
@@ -131,6 +139,10 @@ def _columns_for(minutes_start: int, minutes_end: int) -> list[int]:
 
 
 def build_timetable_doc(user, events) -> io.BytesIO:
+    # The professor's timezone, not the server's and not UTC. This is the one
+    # conversion the whole document depends on.
+    tz = get_tz(getattr(user, "timezone", None) or "UTC")
+
     doc = Document()
 
     # Landscape with narrow margins: eleven columns do not fit otherwise.
@@ -189,16 +201,22 @@ def build_timetable_doc(user, events) -> io.BytesIO:
     grid: dict[tuple[int, int], list[str]] = {}
     unplaced: list[str] = []
     for e in events:
-        day = e.start_datetime.weekday()          # Monday is 0, Sunday is 6
-        start = e.start_datetime.hour * 60 + e.start_datetime.minute
-        end = e.end_datetime.hour * 60 + e.end_datetime.minute
+        # Converted first, and the day comes from the converted value too: an
+        # 00:30 class is the small hours of the next day locally, and reading
+        # the day off the stored UTC would file it under the day before.
+        local_start = ensure_aware_utc(e.start_datetime).astimezone(tz)
+        local_end = ensure_aware_utc(e.end_datetime).astimezone(tz)
+
+        day = local_start.weekday()               # Monday is 0, Sunday is 6
+        start = local_start.hour * 60 + local_start.minute
+        end = local_end.hour * 60 + local_end.minute
         columns = _columns_for(start, end)
 
         if day >= len(DAYS) or not columns:
             unplaced.append(
-                e.start_datetime.strftime("%A %d %b, %I:%M %p")
+                local_start.strftime("%A %d %b, %I:%M %p")
                 + "–"
-                + e.end_datetime.strftime("%I:%M %p")
+                + local_end.strftime("%I:%M %p")
                 + " — "
                 + (e.subject or e.title)
             )
