@@ -470,3 +470,9 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* The landing page has its own bar, so the safe-area padding applied to
+   .topbar never reached it. On iOS that put the logo under the clock. */
+.is-native .lp-nav {
+  padding-top: calc(14px + env(safe-area-inset-top, 0px));
+}

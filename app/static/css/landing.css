@@ -161,9 +161,22 @@
 }
 
 @media (max-width: 640px) {
-  .lp-nav { padding: 14px 18px; gap: 12px; }
+  /* Measured at 393px: the bar came to 411px and "Get started free" ran off
+     the right edge. The brand was the fixed part and the button was pushed
+     out, so the brand is what has to yield. */
+  .lp-nav { padding: 14px 16px; gap: 10px; }
   .lp-nav .brand-tag { display: none; }
   .lp-nav-cta .btn-ghost { display: none; }
+  .lp-nav .brand-block { min-width: 0; flex: 0 1 auto; overflow: hidden; }
+  .lp-nav .brand-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* The call to action is the point of the bar; it never shrinks. */
+  .lp-nav-cta { flex: 0 0 auto; }
+}
+
+@media (max-width: 430px) {
+  /* On the narrowest phones the mark carries the identity on its own, and the
+     words are the first thing that can go without costing anything. */
+  .lp-nav .brand-name { display: none; }
   .lp-hero { padding: 32px 18px 52px; }
   .lp-section { padding: 52px 18px; }
   .lp-grid { grid-template-columns: 1fr; }
