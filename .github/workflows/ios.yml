@@ -61,26 +61,36 @@ jobs:
         # No signing: a simulator build is not installed on a device, so it
         # needs no certificate. This is what lets the job run with no Apple
         # account.
+        #
+        # Built for BOTH simulator architectures. The runner is Apple Silicon,
+        # so the default is a thin arm64 slice -- fine on this runner, and a
+        # coin flip on a hosted simulator service whose fleet may be Intel.
+        # ONLY_ACTIVE_ARCH=NO is what actually produces both; ARCHS alone is
+        # overridden by it in a Debug configuration.
         run: |
           set -o pipefail
-          xcodebuild \
-            -workspace ios/App/App.xcworkspace \
-            -scheme App \
-            -configuration Debug \
-            -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
-            -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
-            build | xcpretty || \
-          xcodebuild \
-            -workspace ios/App/App.xcworkspace \
-            -scheme App \
-            -configuration Debug \
-            -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
-            -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
-            build
+          ARGS=(
+            -workspace ios/App/App.xcworkspace
+            -scheme App
+            -configuration Debug
+            -sdk iphonesimulator
+            -destination "platform=iOS Simulator,name=iPhone 15,OS=latest"
+            -derivedDataPath build
+            CODE_SIGNING_ALLOWED=NO
+            ONLY_ACTIVE_ARCH=NO
+            ARCHS="arm64 x86_64"
+          )
+          xcodebuild "${ARGS[@]}" build | xcpretty || xcodebuild "${ARGS[@]}" build
+
+      - name: Confirm both architectures are present
+        # Asserted, not assumed: a silently-thin binary is the exact failure
+        # the step above exists to prevent, and it stays invisible until the
+        # app refuses to start on someone else's simulator.
+        run: |
+          APP=$(find build/Build/Products/Debug-iphonesimulator -name "App.app" -maxdepth 1 | head -1)
+          lipo -info "$APP/App"
+          lipo -info "$APP/App" | grep -q x86_64 || { echo "::error::x86_64 slice missing"; exit 1; }
+          lipo -info "$APP/App" | grep -q arm64  || { echo "::error::arm64 slice missing";  exit 1; }
 
       - name: Boot a simulator and install the app
         # Building proves it compiles. Booting proves it launches -- which is
@@ -108,12 +118,34 @@ jobs:
           name: ios-launch-screenshot
           path: ios-launch.png
 
-      - name: Upload the .app
-        # Drag this onto a running Simulator on any Mac to install it.
+      - name: Zip the .app for a hosted simulator
+        # This zip is made HERE, on macOS, and that is the entire point.
+        #
+        # actions/upload-artifact does not preserve POSIX permissions. The
+        # first run's artifact arrived with the App binary at rw-r--r-- --
+        # the executable bit gone, so nothing could launch it. Zipping on the
+        # runner turns the bundle into one opaque file whose bytes survive the
+        # trip intact, permissions and symlinks included.
+        #
+        # ditto rather than zip: it is Apple's own archiver and preserves
+        # bundle structure. --keepParent puts App.app at the root of the
+        # archive, which is the layout a hosted simulator expects.
+        run: |
+          APP=$(find build/Build/Products/Debug-iphonesimulator -name "App.app" -maxdepth 1 | head -1)
+          ditto -c -k --sequesterRsrc --keepParent "$APP" App-simulator.zip
+          echo "--- archive root ---"
+          unzip -l App-simulator.zip | head -8
+          echo "--- permissions on the binary ---"
+          unzip -Z App-simulator.zip "App.app/App"
+          ls -lh App-simulator.zip
+
+      - name: Upload the zipped .app
+        # Ready to hand straight to a hosted simulator, or unzip and drag onto
+        # a Simulator on any Mac.
         uses: actions/upload-artifact@v4
         with:
           name: ios-simulator-app
-          path: build/Build/Products/Debug-iphonesimulator/App.app
+          path: App-simulator.zip
 
   archive:
     name: Archive for the App Store
