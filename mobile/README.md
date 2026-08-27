@@ -138,5 +138,17 @@ only while it is open.
 `RECORD_AUDIO` permission and both iOS usage strings are declared, but this
 has not been tested on a device — there is no microphone in this environment.
 
-**Neither binary was built here.** No JDK, no Android SDK, and Windows rather
-than macOS. `gradlew assembleDebug` fails with `JAVA_HOME is not set`.
+**Android builds now.** JDK 17 and the Android SDK (platform 34, build-tools
+34) were installed to `E:/android-toolchain`, and both artifacts build:
+
+| Artifact | State |
+|---|---|
+| `app-debug.apk` (4.5 MB) | Signed with Android's **debug** key. Installs on any phone. Not for Play. |
+| `app-release.aab` (3.3 MB) | Play's format, **unsigned**. Needs your keystore. |
+
+`android/local.properties` points gradle at the SDK. It is gitignored, so on
+another machine set `sdk.dir` (forward slashes — a properties file eats single
+backslashes, which is what made the first build fail).
+
+**iOS still cannot be built here.** It needs macOS and Xcode; this is
+Windows. The project is complete and archive-ready.

@@ -37,3 +37,4 @@ DerivedData/
 *.ipa
 *.aab
 *.apk
+dist/
