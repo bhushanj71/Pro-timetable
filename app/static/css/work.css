@@ -102,7 +102,9 @@
    setting (0.9 x 1.85rem = 26.6px bold, still large text). */
 .wk-stat-n { font-size: 1.85rem; font-weight: 800; color: var(--tone-ink, var(--tone)); line-height: 1.05; }
 .wk-stat-l {
-  font-size: 0.68rem; color: var(--text-muted); font-weight: 800;
+  /* 0.68rem was 10.88px. Uppercase with letter-spacing reads smaller still,
+     and this is the word that says what the number means. */
+  font-size: 0.72rem; color: var(--text-muted); font-weight: 800;
   text-transform: uppercase; letter-spacing: 0.07em; margin-top: 1px;
 }
 .wk-stat-note {
@@ -548,7 +550,7 @@
 @media (max-width: 380px) {
   .wk-stat { padding: 11px 6px; }
   .wk-stat-n { font-size: 1.2rem; }
-  .wk-stat-l { font-size: 0.62rem; letter-spacing: 0.02em; }
+  .wk-stat-l { font-size: 0.68rem; letter-spacing: 0.02em; }
   .wk-request-actions { width: 100%; }
   .ps-opt { padding: 10px 10px; font-size: 0.75rem; }
 }

@@ -1604,3 +1604,35 @@ pre {
   /* Still says "working", without the rotation. */
   #refresh-btn.is-spinning { animation: none; opacity: 0.55; }
 }
+
+/* Navigation in progress ----------------------------------------------------
+   The tapped item carries the spinner, in its own icon's place. A general
+   "loading" says the app is busy; this says which thing was tapped, which is
+   what stops the second tap.
+   -------------------------------------------------------------------------- */
+.bn-item.is-navigating .bn-ico,
+.nav-link.is-navigating .nav-ico { opacity: 0; }
+
+.bn-item.is-navigating::after,
+.nav-link.is-navigating::after {
+  content: "";
+  position: absolute;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--primary);
+  animation: veilSpin 640ms linear infinite;
+}
+.bn-item.is-navigating::after { top: 9px; left: 50%; margin-left: -9px; }
+.nav-link.is-navigating::after { left: 14px; top: 50%; margin-top: -9px; }
+
+.bn-item.is-navigating, .nav-link.is-navigating { color: var(--primary); }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Pulse rather than spin -- but never nothing, because this is the only
+     thing saying the tap registered. */
+  .bn-item.is-navigating::after,
+  .nav-link.is-navigating::after {
+    animation: veilPulse 1.4s var(--ease) infinite;
+  }
+}

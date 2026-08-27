@@ -46,6 +46,18 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   /* Height alone left the round topbar icons at 42x44. They are circles, so
      the narrow axis is the one a thumb actually has to hit. */
   .icon-btn { min-width: 44px; }
+
+  /* The same omission, found again in three more places. Every one of these
+     was 44px tall and far narrower, which is the shape a height-only rule
+     produces: it looks handled in the CSS and misses under a thumb.
+     Measured before the fix -- week arrows 24.8px, month arrows 29px, the
+     timetable overflow button 42px.
+
+     These are the worst possible controls to have small, because they are
+     the only way to move between weeks and months on a phone, and a miss
+     lands on nothing at all rather than on the wrong thing. */
+  .tt-step, .tt-overflow .btn { min-width: 44px; }
+  .mini-nav button { min-width: 44px; }
   /* 44px is the platform minimum for a reliable tap. */
   .btn-sm { min-height: 44px; padding: 10px 14px; font-size: 0.82rem; }
   .task-check { width: 26px; height: 26px; }
@@ -77,7 +89,10 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
     flex: 1;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 3px; padding: 9px 4px 7px;
-    font-size: 0.63rem; font-weight: 700;
+    /* 0.63rem was 10.08px -- the smallest text in the app, on its primary
+       navigation. Five labels still fit across a 320px screen at this size;
+       that was measured, not assumed. */
+    font-size: 0.7rem; font-weight: 700;
     color: var(--text-muted);
     position: relative;
     transition: color var(--t-fast) var(--ease);
@@ -174,6 +189,10 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   .tt-toolbar-wrap { display: flex; align-items: center; gap: 8px; }
   .tt-week-nav { display: flex; gap: 6px; flex: 1; }
   .tt-week-nav .btn { flex: 1; padding: 9px 6px; font-size: 0.78rem; }
+  /* The arrows stop shrinking; the label absorbs the remaining width. Under
+     flex: 1 all three shared the row, but min-width: auto let the arrows
+     collapse to their glyph while "This Week" held its content width. */
+  .tt-week-nav .tt-step { flex: 0 0 44px; padding-left: 0; padding-right: 0; }
 
   /* Everything else collapses behind a single overflow button. */
   .tt-overflow { position: relative; }
@@ -231,7 +250,7 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   .calendar-toolbar { gap: 7px; }
   .calendar-view-switch { width: 100%; margin-left: 0; order: 3; }
   .calendar-view-switch .btn { flex: 1; }
-  .month-cell { min-height: 62px; padding: 5px; font-size: 0.7rem; }
+  .month-cell { min-height: 62px; padding: 5px; font-size: 0.72rem; }
   .month-grid { gap: 4px; }
 
   .data-table { font-size: 0.78rem; }
@@ -283,7 +302,10 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
 @media (max-width: 340px) {
   .quick-actions { grid-template-columns: minmax(0, 1fr); }
   .hero-greet { font-size: 1.12rem; }
-  .bn-item { font-size: 0.58rem; }
+  /* The tab labels used to shrink again here, to 9.28px, which is backwards:
+     the smallest screen is where legibility is already hardest, and shrinking
+     type is not how five items are made to fit. They fit at full size --
+     measured at 320px -- so there is nothing left to trade away. */
 }
 
 /* Landscape phones: the tab bar would eat too much of a short viewport. */

@@ -256,6 +256,81 @@ function hideRouteVeil() {
    with -- including a veil that has nothing left to wait for. */
 window.addEventListener("pageshow", (e) => { if (e.persisted) hideRouteVeil(); });
 
+/* ---------------- Navigation feedback ----------------
+   Every item in the tab bar and the sidebar is an ordinary link to a
+   server-rendered page. Between the tap and the new document painting there
+   was nothing on screen at all: no pressed state, no spinner, nothing. On
+   localhost that gap is about 95ms and invisible. Over mobile data it is far
+   longer, and a cold start on the host is several seconds of a screen that
+   looks frozen -- which is when people tap a second time.
+
+   Two signals, deliberately on different clocks:
+
+   The tapped item shows a spinner immediately, in place of its own icon. It
+   is the tapped item that says it was tapped, which is more precise than a
+   general "loading" and is the part that stops the second tap.
+
+   The full veil waits. Showing it at once would mean covering the whole
+   screen for 95ms on every navigation -- a flash that reads as a glitch and
+   is worse than no feedback. It appears only if the page is genuinely slow,
+   so on a fast connection it never shows at all. */
+const NAV_VEIL_DELAY = 400;
+let navPending = null;
+
+function navLabel(link) {
+  // The label without its icon or badge: "🏠 Home" is not what to say.
+  const copy = link.cloneNode(true);
+  // Both badge classes: the sidebar uses .nav-badge and the tab bar .bn-badge,
+  // and missing one turns "Reminders" into "Reminders 0" in the veil. The
+  // count is still in the text even when the badge is hidden by CSS.
+  copy.querySelectorAll(".bn-ico, .nav-ico, .bn-badge, .nav-badge").forEach((n) => n.remove());
+  return copy.textContent.trim();
+}
+
+function beginNavigation(link) {
+  if (navPending) return;
+  link.classList.add("is-navigating");
+  const label = navLabel(link);
+  navPending = {
+    link,
+    timer: setTimeout(() => {
+      showRouteVeil(label ? `Opening ${label}…` : "Loading…");
+    }, NAV_VEIL_DELAY),
+  };
+}
+
+function cancelNavigation() {
+  if (!navPending) return;
+  clearTimeout(navPending.timer);
+  navPending.link.classList.remove("is-navigating");
+  navPending = null;
+  hideRouteVeil();
+}
+
+document.addEventListener("click", (e) => {
+  const link = e.target.closest(".bn-item[href], .sidebar .nav-link[href]");
+  if (!link) return;
+
+  // A modified click opens a new tab, so this document is going nowhere.
+  // Showing it a spinner would leave one spinning forever.
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey ||
+      e.shiftKey || e.altKey || link.target === "_blank") return;
+
+  // Already here. There is no navigation to wait for, and a veil for a page
+  // that never reloads is the flash this whole delay exists to avoid.
+  const href = new URL(link.getAttribute("href"), location.href);
+  if (href.pathname === location.pathname && href.origin === location.origin) return;
+
+  beginNavigation(link);
+});
+
+/* A restored page keeps the DOM it was unloaded with, spinner included. */
+window.addEventListener("pageshow", (e) => { if (e.persisted) cancelNavigation(); });
+
+/* If the navigation is abandoned -- a download, a refused request, a link
+   that turns out to be a no-op -- the spinner must not outlive it. */
+window.addEventListener("pagehide", cancelNavigation);
+
 /* ---------------- Logout ---------------- */
 document.getElementById("logout-btn")?.addEventListener("click", async () => {
   isSigningOut = true;
