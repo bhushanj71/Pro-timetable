@@ -161,6 +161,13 @@ input, select, textarea, button { font-size: inherit; }
 .stagger > *:nth-child(4) { animation-delay: 150ms; }
 .stagger > *:nth-child(5) { animation-delay: 190ms; }
 .stagger > *:nth-child(6) { animation-delay: 230ms; }
+/* Past the sixth the delay stops growing. A long page should not spend a
+   second and a half assembling itself, and nothing below the fold is being
+   watched anyway. */
+.stagger > *:nth-child(n+7) { animation-delay: 230ms; }
+
+/* A hidden section must not be handed a fill-mode that reveals it. */
+.stagger > .hidden { animation: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -1635,4 +1642,113 @@ pre {
   .nav-link.is-navigating::after {
     animation: veilPulse 1.4s var(--ease) infinite;
   }
+}
+
+/* ==========================================================================
+   Timetable toolbar
+
+   One bar, at every width. Its whole layout used to live inside the phone
+   breakpoint, so above 768px .tt-toolbar-wrap, .tt-week-nav and .tt-overflow
+   were unstyled block elements and the controls stacked into four separate
+   rows down the corner of the page.
+
+   The week nav is a segmented control -- three buttons sharing one track --
+   because they are one decision, "which week", not three unrelated actions.
+   Add and the overflow sit outside it: those do something to the timetable
+   rather than move around it.
+   ========================================================================== */
+.tt-toolbar-wrap {
+  display: flex;
+  /* stretch, not center, and not a hardcoded height. Whatever sets the tallest
+     control -- the 44px touch minimum on a phone, the natural button height on
+     a desktop -- every other control matches it. A fixed height here would
+     have quietly overridden that 44px, because .tt-week-nav .btn outranks the
+     plain .btn the minimum is written on. */
+  align-items: stretch;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.tt-week-nav {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  min-width: 0;
+}
+
+/* Inside the track the buttons drop their own chrome -- three bordered
+   buttons in a bordered container reads as boxes in a box. */
+.tt-week-nav .btn {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  border-radius: var(--radius-pill, 999px);
+  /* Centred inside whatever height the track ends up with. Left to their own
+     padding the arrows came out 2px taller than the label, because a glyph and
+     a word do not measure the same -- and a segmented control with three
+     different heights in it stops reading as one control. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--t-fast) var(--ease),
+              color var(--t-fast) var(--ease),
+              transform var(--t-fast) var(--ease);
+}
+.tt-week-nav .btn:hover { background: var(--primary-softer); color: var(--primary); }
+.tt-week-nav .tt-today { font-weight: 700; white-space: nowrap; }
+
+/* The arrows lean the way they move. A press that only dims gives no sense
+   of direction; this one says which way the week went. */
+.tt-week-nav .tt-step:active { transform: translateX(0) scale(0.88); }
+#tt-prev:active { transform: translateX(-2px) scale(0.9); }
+#tt-next:active { transform: translateX(2px) scale(0.9); }
+
+/* The overflow button fills its wrapper so it matches the rest of the bar;
+   without this the wrapper stretches and the button rattles inside it. */
+.tt-overflow { position: relative; flex: 0 0 auto; display: flex; }
+.tt-overflow > .btn { flex: 1 1 auto; }
+
+/* The button turns into the thing it opens, and back. Rotating a "..." a
+   quarter turn is enough to say the menu is the same object, still open. */
+#tt-more-btn { transition: transform var(--t) var(--ease-spring), background var(--t-fast) var(--ease); }
+#tt-more-btn.is-open { transform: rotate(90deg); background: var(--primary-softer); }
+
+.tt-overflow-menu {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 90;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; box-shadow: var(--shadow-lg);
+  padding: 7px; min-width: 190px;
+  display: flex; flex-direction: column; gap: 3px;
+  animation: menuIn 180ms var(--ease-spring) both;
+  transform-origin: top right;
+}
+@keyframes menuIn {
+  from { opacity: 0; transform: scale(0.94) translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.tt-overflow-menu .btn {
+  justify-content: flex-start; border: none; box-shadow: none;
+  background: transparent; width: 100%;
+  transition: background var(--t-fast) var(--ease), padding-left var(--t-fast) var(--ease);
+}
+/* Slides a little towards the pointer instead of lifting: a menu row that
+   lifts off its own menu looks detached from it. */
+.tt-overflow-menu .btn:hover {
+  background: var(--bg-tint);
+  transform: none;
+  padding-left: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt-overflow-menu { animation: none; }
+  #tt-more-btn.is-open { transform: none; }
+  .tt-week-nav .tt-step:active,
+  #tt-prev:active, #tt-next:active { transform: none; }
+  .tt-overflow-menu .btn:hover { padding-left: 12px; }
 }

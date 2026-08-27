@@ -186,30 +186,12 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   /* ------------------------------------------------------------------
      Timetable: a 7-column grid is unusable at 375px, so show one day
      ------------------------------------------------------------------ */
-  .tt-toolbar-wrap { display: flex; align-items: center; gap: 8px; }
-  .tt-week-nav { display: flex; gap: 6px; flex: 1; }
-  .tt-week-nav .btn { flex: 1; padding: 9px 6px; font-size: 0.78rem; }
-  /* The arrows stop shrinking; the label absorbs the remaining width. Under
-     flex: 1 all three shared the row, but min-width: auto let the arrows
-     collapse to their glyph while "This Week" held its content width. */
-  .tt-week-nav .tt-step { flex: 0 0 44px; padding-left: 0; padding-right: 0; }
-
-  /* Everything else collapses behind a single overflow button. */
-  .tt-overflow { position: relative; }
-  .tt-overflow-menu {
-    position: absolute; right: 0; top: 50px; z-index: 90;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 14px; box-shadow: var(--shadow-lg);
-    padding: 7px; min-width: 190px;
-    display: flex; flex-direction: column; gap: 3px;
-    animation: scaleIn var(--t) var(--ease-out) both;
-    transform-origin: top right;
-  }
-  .tt-overflow-menu .btn {
-    justify-content: flex-start; border: none; box-shadow: none;
-    background: transparent; width: 100%;
-  }
-  .tt-overflow-menu .btn:hover { background: var(--bg-tint); transform: none; }
+  /* The bar itself is styled globally now, in style.css. Only the phone's
+     own proportions belong here: the week nav takes the width the "+ Add"
+     and overflow buttons leave, so the bar fills the row instead of huddling
+     at one end of it. */
+  .tt-week-nav { flex: 1 1 auto; }
+  .tt-week-nav .tt-today { flex: 1 1 auto; }
 
   /* Day picker */
   .tt-daybar {

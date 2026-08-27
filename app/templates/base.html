@@ -175,7 +175,13 @@
 
       {% block body %}
       <main class="content full">
-        <div class="content-main">
+        {# stagger, so every page assembles the way the dashboard already did.
+
+           The mechanism existed and was applied to exactly one template, which
+           is why the dashboard felt animated and the other seven did not. The
+           page wrapper's own fade is a single slab arriving; this is the
+           sections arriving in order, which is what reads as motion. #}
+        <div class="content-main stagger">
           {% block content %}{% endblock %}
         </div>
       </main>

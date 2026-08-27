@@ -123,14 +123,40 @@ function renderMobileTimetable(data) {
 }
 
 /* ---------------- Timetable overflow menu ---------------- */
+/* is-open drives the button's quarter turn, and aria-expanded says the same
+   thing to a screen reader. Both are set in one place so they cannot drift
+   apart -- a rotated button that still reports itself closed is worse than
+   no rotation at all. */
+function setMoreMenu(open) {
+  const menu = document.getElementById("tt-more-menu");
+  const btn = document.getElementById("tt-more-btn");
+  if (!menu) return;
+  menu.classList.toggle("hidden", !open);
+  btn?.classList.toggle("is-open", open);
+  btn?.setAttribute("aria-expanded", String(open));
+}
+
 document.getElementById("tt-more-btn")?.addEventListener("click", (e) => {
   e.stopPropagation();
-  document.getElementById("tt-more-menu")?.classList.toggle("hidden");
+  const menu = document.getElementById("tt-more-menu");
+  setMoreMenu(menu.classList.contains("hidden"));
 });
+
 document.addEventListener("click", (e) => {
   const menu = document.getElementById("tt-more-menu");
   if (menu && !menu.classList.contains("hidden") && !menu.contains(e.target)) {
-    menu.classList.add("hidden");
+    setMoreMenu(false);
+  }
+});
+
+/* Escape closes it. A menu that can only be dismissed by clicking elsewhere
+   is a trap for anyone driving the page from the keyboard. */
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const menu = document.getElementById("tt-more-menu");
+  if (menu && !menu.classList.contains("hidden")) {
+    setMoreMenu(false);
+    document.getElementById("tt-more-btn")?.focus();
   }
 });
 
