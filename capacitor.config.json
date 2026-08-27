@@ -5,11 +5,13 @@
   "loggingBehavior": "none",
   "server": {
     "url": "https://profschedule-ai.onrender.com",
-    "hostname": "profschedule-ai.onrender.com",
     "androidScheme": "https",
     "iosScheme": "https",
     "cleartext": false,
-    "allowNavigation": ["profschedule-ai.onrender.com"]
+    "allowNavigation": [
+      "profschedule-ai.onrender.com"
+    ],
+    "errorPath": "index.html"
   },
   "android": {
     "allowMixedContent": false,
@@ -22,13 +24,17 @@
   },
   "plugins": {
     "SplashScreen": {
-      "launchAutoHide": false,
+      "launchAutoHide": true,
       "backgroundColor": "#FDF9F7",
       "androidSplashResourceName": "splash",
       "androidScaleType": "CENTER_CROP",
-      "showSpinner": false,
+      "showSpinner": true,
       "splashFullScreen": false,
-      "splashImmersive": false
+      "splashImmersive": false,
+      "launchShowDuration": 2000,
+      "launchFadeOutDuration": 250,
+      "androidSpinnerStyle": "large",
+      "spinnerColor": "#E0785D"
     },
     "StatusBar": {
       "overlaysWebView": false,
@@ -40,7 +46,11 @@
       "resizeOnFullScreen": true
     },
     "PushNotifications": {
-      "presentationOptions": ["badge", "sound", "alert"]
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
     },
     "LocalNotifications": {
       "smallIcon": "ic_stat_icon",
