@@ -292,7 +292,11 @@ def deliver_pending_pushes(db: Session, limit: int = 200) -> dict:
         icon = PUSH_ICON.get(n.kind, "\U0001F514")
         # Deep-links to the task so the notification lands somewhere useful
         # rather than on a dashboard the professor has to search.
-        url = f"/work?task={n.task_id}" if n.task_id else "/work"
+        #
+        # This used to be /work?task=<id>, and nothing ever read that query
+        # parameter -- the link opened the dashboard and dropped the id on the
+        # floor. Now the task is a real page, so the URL is the task.
+        url = f"/work/task/{n.task_id}" if n.task_id else "/work"
         try:
             pushed += send_push_to_user(db, user, f"{icon} {n.title}", n.body or "", url=url)
         except Exception:

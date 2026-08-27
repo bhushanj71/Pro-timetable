@@ -476,3 +476,21 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
 .is-native .lp-nav {
   padding-top: calc(14px + env(safe-area-inset-top, 0px));
 }
+
+/* --------------------------------------------------------------------------
+   Work detail pages on a phone
+   -------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  /* The way back stays reachable while reading a long task. Sticky rather
+     than fixed: fixed would need the tab bar's height subtracting from
+     everything below it, and this scrolls with the card it belongs to. */
+  .wk-detail-bar {
+    position: sticky;
+    top: calc(var(--topbar-h, 65px) + env(safe-area-inset-top, 0px));
+    z-index: 5;
+    margin: 0 -4px 12px;
+    padding: 6px 4px;
+    background: var(--bg);
+  }
+  .wk-detail-card { padding: 14px; }
+}

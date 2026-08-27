@@ -111,38 +111,10 @@
   </div>
 </div>
 
-<!-- Mandatory work profile.
-     Shown over the Work module until a college and department are chosen.
-     The server enforces the same rule on every action that would place
-     someone in the organisation, so this panel is the explanation, not the
-     protection. -->
-<div id="wk-profile-modal" class="modal-backdrop hidden" data-mandatory="true">
-  <div class="modal-card wk-profile-card" style="max-width:440px">
-    <h3>🏫 Complete your Work profile</h3>
-    <p class="muted-text" style="margin:4px 0 16px">
-      Colleagues find each other by college and department, and assignments show
-      who you are. Your personal schedule is unaffected.
-    </p>
+{% include "_work_modals.html" %}
 
-    <div class="form-group">
-      <label for="wk-p-college">College</label>
-      <select id="wk-p-college"><option value="">Loading…</option></select>
-    </div>
-
-    <div class="form-group">
-      <label for="wk-p-department">Department <span class="wk-req">*</span></label>
-      <select id="wk-p-department"><option value="">Select your department…</option></select>
-      <small class="form-hint" id="wk-p-hint">You must select your department to take part in Work.</small>
-    </div>
-
-    <div class="modal-actions">
-      <button class="btn btn-primary" id="wk-p-save" disabled>Continue</button>
-      <a class="btn" href="/dashboard">Back to Personal</a>
-    </div>
-  </div>
-</div>
-
-<!-- Create community -->
+<!-- Create community. Local to the dashboard: it is the only place a
+     community is started from. -->
 <div id="wk-community-modal" class="modal-backdrop hidden">
   <div class="modal-card" style="max-width:440px">
     <h3>Create a community</h3>
@@ -164,111 +136,6 @@
     <div class="modal-actions">
       <button class="btn btn-primary" id="wk-c-create">Create</button>
       <button class="btn" data-close-modal="wk-community-modal">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- Community detail -->
-<div id="wk-detail-modal" class="modal-backdrop hidden">
-  <div class="modal-card" style="max-width:560px">
-    <div id="wk-detail-body"></div>
-    <div class="modal-actions">
-      <button class="btn" data-close-modal="wk-detail-modal">Close</button>
-    </div>
-  </div>
-</div>
-
-<!-- Delete a community: step two.
-     Step one is the preview request that fills this in and issues the ticket
-     the delete is refused without, so this dialog cannot be skipped. -->
-<div id="wk-delete-modal" class="modal-backdrop hidden">
-  <div class="modal-card wk-danger-card" style="max-width:460px">
-    <button class="sheet-close" data-close-modal="wk-delete-modal" aria-label="Close">✕</button>
-    <h3>Delete <span id="wk-del-name"></span>?</h3>
-    <p class="muted-text" style="margin:4px 0 14px">
-      This cannot be undone, and it deletes the work as well as the community.
-    </p>
-
-    <ul class="wk-impact" id="wk-del-impact"></ul>
-    <p class="wk-impact-warn hidden" id="wk-del-warn"></p>
-
-    <div class="form-group">
-      <label for="wk-del-confirm">Type <strong id="wk-del-phrase"></strong> to confirm</label>
-      <input type="text" id="wk-del-confirm" autocomplete="off" spellcheck="false"
-             aria-describedby="wk-del-hint">
-      <small class="form-hint" id="wk-del-hint">
-        Typing the name is what stops this being a reflexive click.
-      </small>
-    </div>
-
-    <div class="modal-actions">
-      <button class="btn btn-danger" id="wk-del-go" disabled>Delete permanently</button>
-      <button class="btn" data-close-modal="wk-delete-modal">Keep it</button>
-    </div>
-  </div>
-</div>
-
-<!-- Assign a task -->
-<div id="wk-task-modal" class="modal-backdrop hidden">
-  <div class="modal-card" style="max-width:520px">
-    <h3 id="wk-task-title-text">Assign a task</h3>
-    <p class="muted-text" id="wk-task-sub" style="margin-bottom:14px"></p>
-    <input type="hidden" id="wk-task-community">
-
-    <div class="form-group">
-      <label for="wk-t-title">Task</label>
-      <input type="text" id="wk-t-title" placeholder="Build the login API" maxlength="255">
-    </div>
-    <div class="form-group">
-      <label for="wk-t-desc">Details</label>
-      <input type="text" id="wk-t-desc" placeholder="What needs doing" maxlength="4000">
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label for="wk-t-priority">Priority</label>
-        <select id="wk-t-priority">
-          <option value="low">Low</option>
-          <option value="medium" selected>Medium</option>
-          <option value="high">High</option>
-          <option value="urgent">Urgent</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="wk-t-due">Due</label>
-        <input type="date" id="wk-t-due">
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label for="wk-t-filter">Assign to</label>
-      <div class="wk-filter-row">
-        <input type="search" id="wk-t-search" placeholder="Search by name or department"
-               autocomplete="off" aria-label="Search people to assign">
-        <select id="wk-t-filter" aria-label="Filter by department">
-          <option value="">All departments</option>
-        </select>
-      </div>
-      <div id="wk-t-members" class="wk-picker"></div>
-      <small class="form-hint">Each person is asked to accept. Nothing becomes their responsibility until they do.</small>
-    </div>
-
-    <div class="modal-actions">
-      <button class="btn btn-primary" id="wk-t-create">Send assignment</button>
-      <button class="btn" data-close-modal="wk-task-modal">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- Task detail -->
-<div id="wk-taskdetail-modal" class="modal-backdrop hidden">
-  <div class="modal-card" style="max-width:560px">
-    <!-- Opening a task to read it is the common case; leaving without
-         changing anything should not require scrolling past a progress
-         slider to find a button. -->
-    <button class="sheet-close" data-close-modal="wk-taskdetail-modal" aria-label="Close">✕</button>
-    <div id="wk-taskdetail-body"></div>
-    <div class="modal-actions">
-      <button class="btn" data-close-modal="wk-taskdetail-modal">Done — nothing to update</button>
     </div>
   </div>
 </div>

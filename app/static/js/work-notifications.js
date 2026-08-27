@@ -171,8 +171,10 @@ document.getElementById("notif-panel")?.addEventListener("click", async (e) => {
   const open = e.target.closest("[data-wn-task]");
   if (open) {
     document.getElementById("notif-panel").classList.add("hidden");
-    if (typeof openTask === "function") openTask(open.dataset.wnTask);
-    else window.location.href = "/work";
+    // One answer from every page. This used to call openTask() when it
+    // happened to be defined, which stopped working the moment the task
+    // stopped being a dialog the dashboard could open over itself.
+    window.location.assign(`/work/task/${encodeURIComponent(open.dataset.wnTask)}`);
   }
 });
 

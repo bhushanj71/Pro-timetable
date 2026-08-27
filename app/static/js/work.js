@@ -29,6 +29,26 @@ const PREVIEW = 3;
 const WK = { data: null, created: [], query: "", expanded: {}, sort: "recent",
              community: null, pickable: [], profile: null, openTask: null };
 
+/* Which page this is. work.js runs on all three: the dashboard, a task page
+   and a community page. The dataset attributes come from work_detail.html. */
+const DETAIL = document.querySelector(".wk-detail-page");
+const DETAIL_KIND = DETAIL?.dataset.detailKind || null;
+const DETAIL_ID = DETAIL?.dataset.detailId || null;
+
+/* Redraws whatever this page is showing, whichever page that is. Handlers
+   call this rather than loadWork() so one code path serves all three. */
+function refreshView() {
+  if (DETAIL_KIND === "task") return openTask(DETAIL_ID);
+  if (DETAIL_KIND === "community") return openCommunity(DETAIL_ID);
+  return loadWork();
+}
+
+/* The dashboard counts are stale after most actions -- but only if there is a
+   dashboard. On a detail page there is nothing behind this to refresh, and
+   fetching three endpoints to redraw a page that is not on screen is just a
+   slower way to do nothing. */
+const syncDashboard = () => (DETAIL ? Promise.resolve() : loadWork());
+
 function bar(pct, cls = "") {
   return `<div class="wk-bar ${cls}"><span style="width:${Math.max(0, Math.min(100, pct))}%"></span></div>`;
 }
@@ -137,7 +157,7 @@ const matches = (text) => !WK.query || String(text).toLowerCase().includes(WK.qu
 
 function taskRow(t, pct, meta, badge = "") {
   return `
-    <div class="wk-task" data-open-task="${t.id}">
+    <a class="wk-task" href="/work/task/${encodeURIComponent(t.id)}">
       <div class="wk-task-row">
         <span class="wk-dot" data-p="${esc(t.priority || "medium")}"></span>
         <div class="wk-task-main">
@@ -150,7 +170,7 @@ function taskRow(t, pct, meta, badge = "") {
         </div>
       </div>
       ${bar(pct)}
-    </div>`;
+    </a>`;
 }
 
 /* Renders at most PREVIEW rows and wires the card's own "View all" toggle. */
@@ -239,14 +259,14 @@ function paintDashboard() {
   paintList("wk-communities", "wk-viewall-communities", "communities",
     data.communities.filter((c) => matches(c.name)),
     (c) => `
-      <div class="wk-community" data-open-community="${c.id}">
+      <a class="wk-community" href="/work/community/${encodeURIComponent(c.id)}">
         <span class="wk-community-icon">${esc(c.icon)}</span>
         <div class="wk-community-main">
           <div class="wk-community-name">${esc(c.name)}</div>
           <div class="wk-task-meta">${c.member_count} member${c.member_count === 1 ? "" : "s"} · ${esc(c.my_role)}</div>
         </div>
         <span class="wk-chev" aria-hidden="true">›</span>
-      </div>`,
+      </a>`,
     WK.query ? "No communities match that search." : "No communities yet. Create one to start assigning work.",
     "communities");
 
@@ -339,13 +359,45 @@ document.querySelectorAll(".wk-viewall").forEach((btn) => {
   });
 });
 
+/* A detail page whose data will not load. As a dialog this could just be
+   closed; a page has to say what happened and offer the way out, or it is a
+   dead end with a spinner on it. */
+function detailError(body, err, what) {
+  const status = err?.status;
+  const message = status === 404 ? `This ${what} no longer exists.`
+    : status === 403 ? `You do not have access to this ${what}.`
+    : err?.message || "Something went wrong loading this.";
+  body.innerHTML = `
+    <div class="wk-detail-error">
+      <div class="wk-detail-error-art" aria-hidden="true">🔍</div>
+      <p>${esc(message)}</p>
+      <a class="btn btn-primary" href="/work">Back to Work</a>
+    </div>`;
+}
+
+/* Back, and back means back: the history entry if there is one, so the
+   dashboard returns scrolled and filtered as it was left. Arriving cold --
+   from a notification, or a pasted link -- there is no such entry, and going
+   "back" would leave the app entirely. */
+document.getElementById("wk-back")?.addEventListener("click", () => {
+  const cameFromApp = document.referrer &&
+    new URL(document.referrer, location.href).host === location.host;
+  if (window.history.length > 1 && cameFromApp) window.history.back();
+  else window.location.assign("/work");
+});
+
 /* ---------------- Task detail ---------------- */
 async function openTask(taskId) {
   const body = document.getElementById("wk-taskdetail-body");
-  wkModal("wk-taskdetail-modal", true);
+  if (!body) return;
   body.innerHTML = `<div class="sk sk-line long"></div><div class="sk sk-line medium"></div>`;
 
-  const t = await cachedFetch(`/api/work/tasks/${taskId}`, { force: true });
+  let t;
+  try {
+    t = await cachedFetch(`/api/work/tasks/${taskId}`, { force: true });
+  } catch (err) {
+    return detailError(body, err, "task");
+  }
   // Kept so the manage controls can read the roster without refetching.
   WK.openTask = t;
   // The server marks the caller's own row; matching on display name here
@@ -448,10 +500,15 @@ async function openTask(taskId) {
 /* ---------------- Community detail ---------------- */
 async function openCommunity(id) {
   const body = document.getElementById("wk-detail-body");
-  wkModal("wk-detail-modal", true);
+  if (!body) return;
   body.innerHTML = `<div class="sk sk-line long"></div><div class="sk sk-line medium"></div>`;
 
-  const c = await cachedFetch(`/api/work/communities/${id}`, { force: true });
+  let c;
+  try {
+    c = await cachedFetch(`/api/work/communities/${id}`, { force: true });
+  } catch (err) {
+    return detailError(body, err, "community");
+  }
   const canInvite = c.my_role === "owner" || c.my_role === "admin";
   const isOwner = c.my_role === "owner";
   WK.community = id;
@@ -542,7 +599,7 @@ async function fillAddPicker(task) {
   document.getElementById("wk-add-assignee").disabled = !free.length;
 }
 
-document.getElementById("wk-taskdetail-modal")?.addEventListener("click", (e) => {
+document.addEventListener("click", (e) => {
   if (e.target.closest("#wk-manage-toggle")) {
     const panel = document.getElementById("wk-manage-panel");
     const btn = document.getElementById("wk-manage-toggle");
@@ -566,7 +623,7 @@ document.addEventListener("click", async (e) => {
         { method: "POST", body: { user_ids: [id] } });
       showToast(r.added ? "Added — they have been asked to accept" : "They were already on it", "success");
       await openTask(add.dataset.task);
-      await loadWork();
+      await syncDashboard();
     } catch (err) { showToast(err.message, "error"); }
     finally { setButtonLoading(add, false); }
     return;
@@ -593,7 +650,7 @@ document.addEventListener("click", async (e) => {
       await apiFetch(`/api/work/tasks/${task}/assignees/${unassign}`, { method: "DELETE" });
       showToast(`${name} was taken off the task`, "success");
       await openTask(task);
-      await loadWork();
+      await syncDashboard();
     } catch (err) { showToast(err.message, "error"); }
     return;
   }
@@ -623,7 +680,7 @@ document.addEventListener("click", async (e) => {
         { method: "POST", body: { from_user_id: reassign, to_user_id: picked.id } });
       showToast(`Passed to ${picked.name} — they have been asked to accept`, "success");
       await openTask(task);
-      await loadWork();
+      await syncDashboard();
     } catch (err) { showToast(err.message, "error"); }
     return;
   }
@@ -647,7 +704,7 @@ document.addEventListener("click", async (e) => {
       // asked by whoever gets the notification.
       showToast(r.changed.length ? `Updated: ${r.changed.join(", ")}` : "Nothing changed", "success");
       await openTask(save.dataset.task);
-      await loadWork();
+      await syncDashboard();
     } catch (err) { showToast(err.message, "error"); }
     finally { setButtonLoading(save, false); }
   }
@@ -766,9 +823,15 @@ document.getElementById("wk-del-go")?.addEventListener("click", async (e) => {
       body: { confirm: document.getElementById("wk-del-confirm").value, ticket: WK_DELETE.ticket },
     });
     wkModal("wk-delete-modal", false);
-    wkModal("wk-detail-modal", false);
     showToast("Community deleted", "success");
-    await loadWork();
+    // Standing on the page for a community that no longer exists is a dead
+    // end -- and reloading it would only 404. Leave, and replace the history
+    // entry so back does not walk straight into it.
+    if (DETAIL_KIND === "community" && DETAIL_ID === WK_DELETE.id) {
+      window.location.replace("/work");
+      return;
+    }
+    await refreshView();
   } catch (err) {
     showToast(err.message, "error");
   } finally {
@@ -787,7 +850,7 @@ document.addEventListener("click", async (e) => {
       await apiFetch(`/api/work/invitations/${invite.dataset.invite}/respond`,
         { method: "POST", body: { accept: invite.dataset.accept === "1" } });
       showToast(invite.dataset.accept === "1" ? "Joined" : "Declined", "success");
-      await loadWork();
+      await refreshView();
     } catch (err) { showToast(err.message, "error"); setButtonLoading(invite, false); }
     return;
   }
@@ -802,17 +865,12 @@ document.addEventListener("click", async (e) => {
       await apiFetch(`/api/work/tasks/${respond.dataset.taskRespond}/respond`,
         { method: "POST", body: { accept, reason } });
       showToast(accept ? "Task accepted — it's now in your active list" : "Task declined", "success");
-      wkModal("wk-taskdetail-modal", false);
-      await loadWork();
+      // Stays on the task rather than closing it: the answer changes what the
+      // page shows -- a progress slider appears -- and that is worth seeing.
+      await refreshView();
     } catch (err) { showToast(err.message, "error"); setButtonLoading(respond, false); }
     return;
   }
-
-  const openT = t.closest("[data-open-task]");
-  if (openT) return openTask(openT.dataset.openTask);
-
-  const openC = t.closest("[data-open-community]");
-  if (openC) return openCommunity(openC.dataset.openCommunity);
 
   if (t.closest("[data-invite-to]")) {
     document.getElementById("wk-invite-row")?.classList.remove("hidden");
@@ -872,7 +930,7 @@ document.addEventListener("click", async (e) => {
         { method: "DELETE" });
       showToast("Removed", "success");
       openCommunity(removeM.dataset.community);
-      await loadWork();
+      await syncDashboard();
     } catch (err) { showToast(err.message, "error"); }
     return;
   }
@@ -888,7 +946,7 @@ document.addEventListener("click", async (e) => {
       await apiFetch(`/api/work/tasks/${t.dataset.task}/progress`, { method: "PUT", body: { progress, note } });
       showToast(`Progress saved — ${progress}%`, "success");
       await openTask(t.dataset.task);
-      await loadWork();
+      await syncDashboard();
     } catch (err) { showToast(err.message, "error"); }
     finally { setButtonLoading(t, false); }
   }
@@ -1068,7 +1126,7 @@ document.getElementById("wk-p-save")?.addEventListener("click", async (e) => {
     await apiFetch("/api/org/profile", { method: "PUT", body: { college_id, department_id } });
     wkModal("wk-profile-modal", false);
     showToast("Work profile saved", "success");
-    await loadWork();
+    await refreshView();
   } catch (err) {
     showToast(err.message, "error");
   } finally {
@@ -1113,15 +1171,15 @@ document.getElementById("wk-t-create")?.addEventListener("click", async (e) => {
     wkModal("wk-task-modal", false);
     document.getElementById("wk-t-title").value = "";
     showToast(`Sent to ${ids.length} ${ids.length === 1 ? "person" : "people"} to accept`, "success");
-    await loadWork();
+    await refreshView();
   } catch (err) { showToast(err.message, "error"); }
   finally { setButtonLoading(e.currentTarget, false); }
 });
 
-registerRefresh(loadWork);
+registerRefresh(refreshView);
 
 if (document.querySelector(".work-mode")) {
   // The panel comes first: everything below it needs a department to mean
   // anything, and the server refuses the same actions regardless.
-  ensureWorkProfile().then((ok) => { if (ok) loadWork(); });
+  ensureWorkProfile().then((ok) => { if (ok) refreshView(); });
 }

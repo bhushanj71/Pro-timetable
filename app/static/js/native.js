@@ -113,8 +113,10 @@
       // Mapped rather than navigated to blindly: a link is untrusted input,
       // and the app should not follow it to an arbitrary origin.
       const routes = [
-        [/^\/work\/task\/([\w-]+)$/, (m) => `/work?task=${encodeURIComponent(m[1])}`],
-        [/^\/work\/community\/([\w-]+)$/, (m) => `/work?community=${encodeURIComponent(m[1])}`],
+        // These are real pages now, so a deep link lands on the thing itself
+        // rather than on the dashboard with a dialog opened over it.
+        [/^\/work\/task\/([\w-]+)$/, (m) => `/work/task/${encodeURIComponent(m[1])}`],
+        [/^\/work\/community\/([\w-]+)$/, (m) => `/work/community/${encodeURIComponent(m[1])}`],
         [/^\/personal\/lecture\/([\w-]+)$/, (m) => `/timetable?event=${encodeURIComponent(m[1])}`],
         [/^\/(dashboard|work|timetable|calendar|tasks|reminders|profile)\b/, (m) => m[0]],
       ];

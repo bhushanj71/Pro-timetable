@@ -70,6 +70,39 @@ def work_page(request: Request, user: User | None = Depends(get_current_user_opt
     return templates.TemplateResponse("work.html", _ctx(request, user))
 
 
+# A task and a community each get a real URL rather than a dialog over the
+# dashboard. That is what makes the back button, the Android back gesture and
+# a notification deep link all mean the same thing.
+#
+# No ownership check here: the page is a shell, and the data behind it comes
+# from the API, which does check. Guessing an id gets you an empty frame and a
+# 403 in the fetch, not somebody else's task.
+@router.get("/work/task/{task_id}")
+def work_task_page(
+    task_id: str, request: Request, user: User | None = Depends(get_current_user_optional)
+):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse(
+        "work_detail.html",
+        _ctx(request, user, kind="task", oid=task_id,
+             body_id="wk-taskdetail-body", page_title="Task"),
+    )
+
+
+@router.get("/work/community/{community_id}")
+def work_community_page(
+    community_id: str, request: Request, user: User | None = Depends(get_current_user_optional)
+):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse(
+        "work_detail.html",
+        _ctx(request, user, kind="community", oid=community_id,
+             body_id="wk-detail-body", page_title="Community"),
+    )
+
+
 @router.get("/timetable")
 def timetable_page(request: Request, user: User | None = Depends(get_current_user_optional)):
     if not user:

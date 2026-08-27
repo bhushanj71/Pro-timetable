@@ -1,0 +1,42 @@
+{# A task, or a community, as its own page.
+
+   These were dialogs. They stopped being dialogs because they are not
+   dialogs: a task carries a roster, a progress slider, an edit form and a
+   history, and a community carries members, a directory search and an invite
+   flow. That is a place you go, not a question you answer, and the phone made
+   the mismatch obvious -- a full-height sheet over a page you cannot see or
+   return to is a page wearing the wrong clothes.
+
+   Being a real URL is what the back button is built on. The browser's back,
+   Android's back gesture and the button below are then the same action, and a
+   push notification can link straight here instead of opening the dashboard
+   and asking you to find it again. #}
+{% extends "base.html" %}
+{% block title %}{{ page_title }} — ProfSchedule AI{% endblock %}
+
+{% block content %}
+<div class="work-mode wk-detail-page" data-detail-kind="{{ kind }}" data-detail-id="{{ oid }}">
+
+  <div class="wk-detail-bar">
+    <button class="wk-back" id="wk-back" type="button">
+      <span class="wk-back-chev" aria-hidden="true">‹</span>
+      <span>Work</span>
+    </button>
+  </div>
+
+  <div class="card wk-card wk-detail-card">
+    {# Filled by work.js -- the same renderer the dialog used, pointed at a
+       page container instead. #}
+    <div id="{{ body_id }}">
+      <div class="sk sk-line long"></div>
+      <div class="sk sk-line medium"></div>
+    </div>
+  </div>
+</div>
+
+{% include "_work_modals.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/work.js?v={{ v }}"></script>
+{% endblock %}
