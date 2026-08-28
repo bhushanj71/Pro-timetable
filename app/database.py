@@ -201,6 +201,28 @@ _COMPOSITE_INDEXES = [
 ]
 
 
+def postgres_ddl(ddl: str) -> str:
+    """A column definition rewritten for Postgres.
+
+    SQLite has no boolean type, so booleans are declared DEFAULT 0 / DEFAULT 1
+    here and Postgres wants FALSE / TRUE. Only booleans, though.
+
+    This used to be a bare string replace across every definition, which is
+    fine while every DEFAULT 0 or 1 in the table happens to be a boolean, and
+    silently wrong the moment one is not. Adding INTEGER columns broke it in
+    production: DEFAULT 0 became DEFAULT FALSE, and -- worse, because it is not
+    even valid SQL -- DEFAULT 120 became DEFAULT TRUE20. The migration threw
+    partway through, rolled back every column with it, and left the deployed
+    database without fields the models expected.
+
+    Anchoring on the declared type is what makes it safe to add a non-boolean
+    column with a numeric default, which is an ordinary thing to want to do.
+    """
+    if not ddl.upper().lstrip().startswith("BOOLEAN"):
+        return ddl
+    return ddl.replace("DEFAULT 0", "DEFAULT FALSE").replace("DEFAULT 1", "DEFAULT TRUE")
+
+
 def _apply_additive_migrations():
     """Add any missing columns in-place.
 
@@ -222,9 +244,9 @@ def _apply_additive_migrations():
             for name, ddl in columns:
                 if name in present:
                     continue
-                if is_postgres:
-                    ddl = ddl.replace("DEFAULT 0", "DEFAULT FALSE").replace("DEFAULT 1", "DEFAULT TRUE")
-                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+                conn.execute(
+                    text(f"ALTER TABLE {table} ADD COLUMN {name} {postgres_ddl(ddl) if is_postgres else ddl}")
+                )
 
         # Columns whose value must be unique per row can't come from a DDL
         # default, so backfill them explicitly for pre-existing accounts.
