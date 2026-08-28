@@ -60,6 +60,75 @@
       <small class="form-hint">Everything on your schedule also gets a final nudge 5 minutes before it starts.</small>
     </div>
   </div>
+  <!-- ------------------------------------------------------------------
+       Planning constraints.
+
+       These are what the day planner works within, and they are preferences
+       rather than rules: when the timetable leaves no room, the planner moves
+       them and says so on the document instead of double-booking.
+       ------------------------------------------------------------------ -->
+  <h3 style="margin:22px 0 4px;font-size:0.98rem">🗓 Personal planning</h3>
+  <p class="muted-text" style="margin:0 0 12px;font-size:0.82rem">
+    Used to plan each day around your actual classes. Nothing here is fixed —
+    a full day moves them rather than overlapping a lecture.
+  </p>
+
+  <div class="form-row">
+    <div class="form-group"><label for="pf-day-start">Up and about by</label><input type="time" id="pf-day-start" value="{{ user.day_start }}"></div>
+    <div class="form-group"><label for="pf-day-end">Winding down at</label><input type="time" id="pf-day-end" value="{{ user.day_end }}"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label for="pf-dinner-start">Dinner from</label><input type="time" id="pf-dinner-start" value="{{ user.dinner_start }}"></div>
+    <div class="form-group"><label for="pf-dinner-end">Dinner until</label><input type="time" id="pf-dinner-end" value="{{ user.dinner_end }}"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label for="pf-exercise-minutes">Exercise (min)</label>
+      <input type="number" id="pf-exercise-minutes" min="0" max="240" value="{{ user.exercise_minutes }}">
+      <small class="form-hint">0 leaves it out entirely.</small>
+    </div>
+    <div class="form-group">
+      <label for="pf-exercise-when">Preferably</label>
+      <select id="pf-exercise-when">
+        {% for v in ["morning", "afternoon", "evening"] %}
+        <option value="{{ v }}" {% if user.exercise_when == v %}selected{% endif %}>{{ v|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label for="pf-commute">Commute each way (min)</label>
+      <input type="number" id="pf-commute" min="0" max="180" value="{{ user.commute_minutes }}">
+      <small class="form-hint">Held either side of a run of classes, not between back-to-back ones.</small>
+    </div>
+    <div class="form-group">
+      <label for="pf-focus">I think best in the</label>
+      <select id="pf-focus">
+        {% for v in ["morning", "afternoon", "evening"] %}
+        <option value="{{ v }}" {% if user.focus_period == v %}selected{% endif %}>{{ v|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label for="pf-study-target">Study / prep per day (min)</label><input type="number" id="pf-study-target" min="0" max="720" value="{{ user.study_target_minutes }}"></div>
+    <div class="form-group"><label for="pf-break">Break between blocks (min)</label><input type="number" id="pf-break" min="0" max="120" value="{{ user.break_minutes }}"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label for="pf-block-min">Shortest useful block (min)</label><input type="number" id="pf-block-min" min="15" max="240" value="{{ user.study_block_min }}"></div>
+    <div class="form-group"><label for="pf-block-max">Longest block (min)</label><input type="number" id="pf-block-max" min="15" max="480" value="{{ user.study_block_max }}"></div>
+  </div>
+  <div class="form-group">
+    <label for="pf-subjects">Subject priorities</label>
+    <input type="text" id="pf-subjects" value="{{ user.subject_priorities or '' }}" placeholder="ANN, DBMS, Machine Learning">
+    <small class="form-hint">
+      Most important first, separated by commas. Study blocks are named from
+      this list in turn, so they are about something. Left blank, the planner
+      uses whatever you actually taught that day.
+    </small>
+  </div>
+
   <div class="form-group">
     <label>Preferred AI Provider</label>
     <select id="pf-ai-provider">

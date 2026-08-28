@@ -1,5 +1,14 @@
 /* Profile settings form submission. */
 
+/* An emptied number input reads "", and parseInt("") is NaN -- which becomes
+   null over JSON and means "leave this alone" to the server. The fallback is
+   what makes clearing a field mean what it looks like it means. */
+function num(id, fallback) {
+  const raw = document.getElementById(id)?.value;
+  const parsed = parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 document.getElementById("pf-save-btn")?.addEventListener("click", async () => {
   const payload = {
     name: document.getElementById("pf-name").value,
@@ -15,6 +24,23 @@ document.getElementById("pf-save-btn")?.addEventListener("click", async () => {
     default_lecture_duration: parseInt(document.getElementById("pf-lecture-duration").value, 10),
     default_reminder_minutes: parseInt(document.getElementById("pf-reminder-minutes").value, 10),
     preferred_ai_provider: document.getElementById("pf-ai-provider").value,
+
+    // Planning constraints. num() rather than parseInt directly, because an
+    // emptied number field yields "" -> NaN, and NaN serialises to null, which
+    // the server would read as "leave unchanged" instead of "they cleared it".
+    day_start: document.getElementById("pf-day-start").value,
+    day_end: document.getElementById("pf-day-end").value,
+    dinner_start: document.getElementById("pf-dinner-start").value,
+    dinner_end: document.getElementById("pf-dinner-end").value,
+    exercise_minutes: num("pf-exercise-minutes", 0),
+    exercise_when: document.getElementById("pf-exercise-when").value,
+    commute_minutes: num("pf-commute", 0),
+    focus_period: document.getElementById("pf-focus").value,
+    study_target_minutes: num("pf-study-target", 0),
+    break_minutes: num("pf-break", 0),
+    study_block_min: num("pf-block-min", 45),
+    study_block_max: num("pf-block-max", 120),
+    subject_priorities: document.getElementById("pf-subjects").value.trim() || null,
   };
   try {
     await apiFetch("/api/auth/me", { method: "PUT", body: payload });

@@ -3,10 +3,10 @@ Pydantic schemas: request/response validation and the AI structured-output
 contracts. AI-generated JSON is always parsed into these models before it
 touches the database — never executed directly.
 """
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Optional
 
-from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator, model_validator
 
 
 class UTCModel(BaseModel):
@@ -86,6 +86,23 @@ class UserOut(BaseModel):
     avatar_url: Optional[str] = None
     onboarding_completed: bool = False
 
+    # Planning constraints, so the profile form can render what is already set
+    # rather than showing everyone the defaults.
+    day_start: str = "07:00"
+    day_end: str = "22:30"
+    dinner_start: str = "20:00"
+    dinner_end: str = "20:45"
+    exercise_minutes: int = 45
+    exercise_when: str = "morning"
+    commute_minutes: int = 0
+    study_block_min: int = 45
+    study_block_max: int = 120
+    study_target_minutes: int = 180
+    break_minutes: int = 15
+    focus_period: str = "morning"
+    subject_priorities: Optional[str] = None
+    semester_start: Optional[date] = None
+
     model_config = {"from_attributes": True}
 
 
@@ -163,6 +180,42 @@ class UserProfileUpdate(BaseModel):
     default_lecture_duration: Optional[int] = None
     default_reminder_minutes: Optional[int] = None
     preferred_ai_provider: Optional[str] = None
+
+    # --- Personal planning constraints ---------------------------------
+    # Read by the day planner. Bounded here rather than in the planner, so a
+    # nonsense value is refused at the edge instead of producing a plan with a
+    # nine-hour study block in it.
+    day_start: Optional[str] = None
+    day_end: Optional[str] = None
+    dinner_start: Optional[str] = None
+    dinner_end: Optional[str] = None
+    exercise_minutes: Optional[int] = Field(default=None, ge=0, le=240)
+    exercise_when: Optional[str] = None
+    commute_minutes: Optional[int] = Field(default=None, ge=0, le=180)
+    study_block_min: Optional[int] = Field(default=None, ge=15, le=240)
+    study_block_max: Optional[int] = Field(default=None, ge=15, le=480)
+    study_target_minutes: Optional[int] = Field(default=None, ge=0, le=720)
+    break_minutes: Optional[int] = Field(default=None, ge=0, le=120)
+    focus_period: Optional[str] = None
+    subject_priorities: Optional[str] = Field(default=None, max_length=2000)
+    semester_start: Optional[date] = None
+
+    @field_validator("exercise_when", "focus_period")
+    @classmethod
+    def _known_period(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        allowed = {"morning", "afternoon", "evening", "any"}
+        if v not in allowed:
+            raise ValueError(f"must be one of {sorted(allowed)}")
+        return v
+
+    @model_validator(mode="after")
+    def _blocks_make_sense(self):
+        lo, hi = self.study_block_min, self.study_block_max
+        if lo is not None and hi is not None and lo > hi:
+            raise ValueError("study_block_min cannot be longer than study_block_max")
+        return self
 
 
 class Token(BaseModel):

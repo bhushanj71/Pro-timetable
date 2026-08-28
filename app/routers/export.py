@@ -155,6 +155,53 @@ def export_doc(db: Session = Depends(get_db), user: User = Depends(get_current_u
     )
 
 
+@router.get("/plan")
+def export_personal_plan(
+    week_offset: int = 0,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """The week planned around the timetable, day by day.
+
+    Not a routine stamped onto every day: each day is planned from its own
+    commitments outward, so a Tuesday of back-to-back labs and a free Friday
+    come out looking nothing like each other.
+    """
+    from app.services.day_planner import plan_week
+    from app.services.plan_doc import build_personal_schedule_doc
+
+    today = date.today()
+    monday = today - timedelta(days=today.weekday()) + timedelta(weeks=week_offset)
+    start = combine(monday, resolve_time("00:00"), user.timezone)
+    events = (
+        db.query(Event)
+        .filter(
+            Event.user_id == user.id,
+            Event.is_cancelled.is_(False),
+            Event.start_datetime >= start,
+            Event.start_datetime < start + timedelta(days=7),
+        )
+        .order_by(Event.start_datetime)
+        .all()
+    )
+
+    plans = plan_week(events, user, monday)
+
+    period = f"{monday.strftime('%d %b')} – {(monday + timedelta(days=6)).strftime('%d %b %Y')}"
+    if user.semester_start:
+        week_no = ((monday - user.semester_start).days // 7) + 1
+        if week_no >= 1:
+            period += f"  (week {week_no} of term, from {user.semester_start.strftime('%d %b %Y')})"
+
+    buf = build_personal_schedule_doc(user, plans, period)
+    safe = "".join(c for c in user.name if c.isalnum() or c in " -_").strip() or "schedule"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{safe} - Personalised Schedule.docx"'},
+    )
+
+
 @router.post("/import/csv")
 async def import_csv(file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     content = (await file.read()).decode("utf-8")

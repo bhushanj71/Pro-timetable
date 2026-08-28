@@ -1752,3 +1752,12 @@ pre {
   #tt-prev:active, #tt-next:active { transform: none; }
   .tt-overflow-menu .btn:hover { padding-left: 12px; }
 }
+
+/* A rule between deleting a term and dating the next one. They are adjacent
+   because they happen together, and separated because one is destructive and
+   the other is not. */
+.tt-reset-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 16px 0 14px;
+}

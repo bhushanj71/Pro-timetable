@@ -437,6 +437,31 @@ document.getElementById("export-doc-btn")?.addEventListener("click", () => {
   window.location.href = "/api/export/doc";
 });
 
+/* The plan is built for the week on screen, not always the current one --
+   looking at next week and downloading this week would be a surprise. */
+document.getElementById("export-plan-btn")?.addEventListener("click", () => {
+  showToast("Planning your week around your classes…", "success");
+  window.location.href = `/api/export/plan?week_offset=${ttWeekOffset}`;
+});
+
+/* Saved on its own, and never as a side effect of the delete beside it.
+   Someone setting a term date should not have to run a deletion to keep it. */
+document.getElementById("tt-semester-save")?.addEventListener("click", async (e) => {
+  const value = document.getElementById("tt-semester-start").value;
+  setButtonLoading(e.currentTarget, true);
+  try {
+    await apiFetch("/api/auth/me", {
+      method: "PUT",
+      body: { semester_start: value || null },
+    });
+    showToast(value ? "Semester start saved" : "Semester start cleared", "success");
+  } catch (err) {
+    showToast(err.message, "error");
+  } finally {
+    setButtonLoading(e.currentTarget, false);
+  }
+});
+
 /** Seed the generator form from the professor's saved timings so they don't
  *  have to retype what they already gave at signup. */
 function prefillGeneratorFromProfile() {

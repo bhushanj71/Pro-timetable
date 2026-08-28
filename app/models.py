@@ -3,10 +3,11 @@ SQLAlchemy ORM models: User, Event, Reminder, Task, AIConversation.
 """
 import enum
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -102,6 +103,37 @@ class User(Base):
     lunch_end: Mapped[str] = mapped_column(String(8), default="13:30")
     default_lecture_duration: Mapped[int] = mapped_column(Integer, default=60)
     default_reminder_minutes: Mapped[int] = mapped_column(Integer, default=30)
+
+    # --- Personal planning constraints ---------------------------------
+    # What the day planner works within. Every one of these is a preference
+    # rather than a rule: the planner moves them when the timetable leaves no
+    # room, and says so, rather than producing a day that cannot be lived.
+    #
+    # The two above (working hours, lunch) already existed and are read the
+    # same way -- a preferred window, not a fixed appointment.
+    day_start: Mapped[str] = mapped_column(String(8), default="07:00")     # awake by
+    day_end: Mapped[str] = mapped_column(String(8), default="22:30")       # winding down
+    dinner_start: Mapped[str] = mapped_column(String(8), default="20:00")
+    dinner_end: Mapped[str] = mapped_column(String(8), default="20:45")
+    # 0 disables the activity entirely rather than scheduling a zero-length one.
+    exercise_minutes: Mapped[int] = mapped_column(Integer, default=45)
+    exercise_when: Mapped[str] = mapped_column(String(16), default="morning")
+    # Door to door, applied on either side of anything with a location.
+    commute_minutes: Mapped[int] = mapped_column(Integer, default=0)
+    # A study block shorter than the minimum is not worth starting; longer than
+    # the maximum stops being study.
+    study_block_min: Mapped[int] = mapped_column(Integer, default=45)
+    study_block_max: Mapped[int] = mapped_column(Integer, default=120)
+    study_target_minutes: Mapped[int] = mapped_column(Integer, default=180)
+    break_minutes: Mapped[int] = mapped_column(Integer, default=15)
+    # When this person actually thinks well. Study blocks are placed here first.
+    focus_period: Mapped[str] = mapped_column(String(16), default="morning")
+    # Free text, most important first. Used to name study blocks so they are
+    # about something rather than being an hour labelled "Study".
+    subject_priorities: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Anchors the schedule period on the generated document, and is what the
+    # reset dialog asks for when clearing a term out.
+    semester_start: Mapped[date | None] = mapped_column(Date, nullable=True)
     preferred_ai_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     # Admin users can manage all accounts via /admin; regular professors can

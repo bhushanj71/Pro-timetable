@@ -15,6 +15,7 @@
       <button class="btn btn-sm" id="tt-more-btn" aria-label="More actions" aria-haspopup="true" aria-expanded="false">⋯</button>
       <div class="tt-overflow-menu hidden" id="tt-more-menu">
         <button class="btn btn-sm" id="export-doc-btn">⬇ Export DOC</button>
+        <button class="btn btn-sm" id="export-plan-btn">🗓 Download Personalized Schedule</button>
         <button class="btn btn-sm btn-danger" id="tt-reset-btn">🗑 Reset schedule</button>
       </div>
     </div>
@@ -138,9 +139,23 @@
       </select>
     </div>
     <div class="form-group">
-      <label>Limit to one subject (optional)</label>
+      <label for="tt-reset-subject">Limit to one subject (optional)</label>
       <input type="text" id="tt-reset-subject" placeholder="Leave blank for all subjects">
     </div>
+
+    <div class="tt-reset-sep"></div>
+
+    <div class="form-group">
+      <label for="tt-semester-start">Semester begins</label>
+      <input type="date" id="tt-semester-start" value="{{ user.semester_start.isoformat() if user.semester_start else '' }}">
+      <small class="form-hint">
+        Clearing a term and starting the next one are the same moment, which is
+        why this is asked here. It dates the term on your schedule documents and
+        numbers their weeks. Saved on its own — it deletes nothing.
+      </small>
+      <button class="btn btn-sm" id="tt-semester-save" style="margin-top:8px">Save semester date</button>
+    </div>
+
     <p id="tt-reset-warning" class="form-error"></p>
     <div class="modal-actions">
       <button class="btn btn-danger" id="tt-reset-confirm">Delete</button>
