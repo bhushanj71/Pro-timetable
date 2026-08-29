@@ -1097,9 +1097,9 @@ async function fillDepartments(collegeId) {
         "That college has no departments yet. Ask an administrator to add yours.";
       return;
     }
-    if (hint) hint.textContent = "You must select your department to take part in Work.";
-    dept.innerHTML = `<option value="">Select your department…</option>` +
-      departments.map((d) => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("");
+    if (hint) hint.textContent = "Pick your teaching department, or your post if you hold one.";
+    dept.innerHTML = `<option value="">Select your department or post…</option>` +
+      departmentOptions(departments);
     if (WK.profile?.department?.id) dept.value = WK.profile.department.id;
   } catch (err) {
     dept.innerHTML = `<option value="">Could not load departments</option>`;

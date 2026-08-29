@@ -225,6 +225,35 @@ document.addEventListener("keydown", (e) => {
   openBackdrops().forEach(openModalA11y);
 })();
 
+/* ---------------- Department pickers ----------------
+   Departments and administrative posts under separate headings.
+
+   They are the same kind of row in the database, because both answer "which
+   part of the college is this person in", and every membership, filter and
+   directory lookup already runs on a department id. They are not the same kind
+   of thing to a reader, though: a flat list puts Registrar between two
+   engineering departments, where nobody scanning for their own department
+   expects to find it.
+
+   Lives here rather than in work.js or profile.js because both pickers need
+   it, and two copies of a list-rendering rule drift the moment one is
+   changed. */
+function departmentOptions(departments) {
+  const options = (list) =>
+    list.map((d) => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("");
+  const academic = departments.filter((d) => (d.kind || "academic") !== "office");
+  const offices = departments.filter((d) => (d.kind || "academic") === "office");
+
+  // No heading when there is only one group. An optgroup of one labelled
+  // category is a label with nothing to distinguish it from.
+  if (!offices.length) return options(academic);
+  if (!academic.length) return options(offices);
+  return (
+    `<optgroup label="Departments">${options(academic)}</optgroup>` +
+    `<optgroup label="Administration">${options(offices)}</optgroup>`
+  );
+}
+
 /* ---------------- Route veil ----------------
    Signing in and signing out both end in a full page load. Between the click
    and the new document there is nothing on screen saying the click landed,

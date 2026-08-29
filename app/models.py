@@ -625,6 +625,13 @@ class Department(Base):
     college_id: Mapped[str] = mapped_column(String(36), ForeignKey("colleges.id"), index=True)
     name: Mapped[str] = mapped_column(String(200))
     normalised_name: Mapped[str] = mapped_column(String(200))
+    # "academic" for a teaching department, "office" for a post like Principal
+    # or Registrar. Both are rows in this table because both answer the same
+    # question -- which part of the college someone belongs to -- and every
+    # membership, filter and directory lookup already works on a department id.
+    # Splitting them into a second table would double all of that to change
+    # one word in a heading.
+    kind: Mapped[str] = mapped_column(String(16), default="academic")
     status: Mapped[str] = mapped_column(String(16), default=OrgStatus.ACTIVE.value)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)

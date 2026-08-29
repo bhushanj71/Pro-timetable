@@ -171,6 +171,9 @@ _ADDITIVE_COLUMNS = {
         ("subject_priorities", "TEXT"),
         ("semester_start", "DATE"),
     ],
+    "departments": [
+        ("kind", "VARCHAR(16) DEFAULT 'academic' NOT NULL"),
+    ],
     "events": [
         ("google_event_id", "VARCHAR(255)"),
         ("faculty", "VARCHAR(255)"),
@@ -290,6 +293,21 @@ DEFAULT_DEPARTMENTS = [
     "Artificial Intelligence and Data Science",
 ]
 
+# Administrative posts. Held by one person at a time rather than staffed like a
+# department, but they answer the same question a department does -- which part
+# of the college somebody belongs to -- so they sit in the same list, under
+# their own heading.
+DEFAULT_OFFICES = [
+    "Principal",
+    "Dean Administration",
+    "Dean IQAC",
+    "Dean Student Affairs",
+    "Dean Academics",
+    "Dean Industry Institute Interaction",
+    "Dean Collaboration",
+    "Registrar",
+]
+
 
 def seed_organisation():
     """Create the default college and its departments, once.
@@ -316,12 +334,15 @@ def seed_organisation():
 
         existing = {d.normalised_name for d in
                     db.query(Department).filter(Department.college_id == college.id).all()}
-        for name in DEFAULT_DEPARTMENTS:
+        for name, kind in (
+            [(n, "academic") for n in DEFAULT_DEPARTMENTS]
+            + [(n, "office") for n in DEFAULT_OFFICES]
+        ):
             dept_key = normalise_org_name(name)
             if dept_key in existing:
                 continue
             db.add(Department(
-                college_id=college.id, name=name,
+                college_id=college.id, name=name, kind=kind,
                 normalised_name=dept_key, status=OrgStatus.ACTIVE.value,
             ))
         db.commit()

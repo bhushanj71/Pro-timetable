@@ -5,6 +5,8 @@ Reads are open to any signed-in user, because the pickers need them. Writes
 are checked here on the server for every call -- a hidden button is not a
 permission.
 """
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func
@@ -159,6 +161,10 @@ def manage_departments(college_id: str, db: Session = Depends(get_db),
 class DepartmentIn(BaseModel):
     college_id: str = Field(min_length=1, max_length=36)
     name: str = Field(min_length=1, max_length=200)
+    # An administrative post rather than a teaching department. Defaulted, so
+    # every existing caller keeps creating departments without knowing this
+    # field is here.
+    kind: Literal["academic", "office"] = "academic"
 
 
 @router.post("/departments", status_code=status.HTTP_201_CREATED)
@@ -168,7 +174,7 @@ def add_department(payload: DepartmentIn, db: Session = Depends(get_db),
     if not college:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such college.")
     og.require_college_admin(user, college.id)
-    return og.department_dict(og.create_department(db, college, payload.name))
+    return og.department_dict(og.create_department(db, college, payload.name, payload.kind))
 
 
 class DepartmentUpdate(BaseModel):

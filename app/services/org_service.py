@@ -70,7 +70,11 @@ def list_departments(db: Session, college_id: str, *, include_archived: bool = F
     q = db.query(Department).filter(Department.college_id == college_id)
     if not include_archived:
         q = q.filter(Department.status == OrgStatus.ACTIVE.value)
-    return q.order_by(Department.name).all()
+    rows = q.order_by(Department.name).all()
+    # Teaching departments first, posts after. Most people picking from this
+    # list are in a department, and a list that opens with "Dean Academics"
+    # buries the answer almost everyone needs.
+    return sorted(rows, key=lambda d: ((getattr(d, "kind", "academic") or "academic") != "academic", d.name))
 
 
 def college_dict(c: College, *, departments: int | None = None, members: int | None = None) -> dict:
@@ -85,7 +89,14 @@ def college_dict(c: College, *, departments: int | None = None, members: int | N
 
 
 def department_dict(d: Department, *, members: int | None = None) -> dict:
-    out = {"id": d.id, "college_id": d.college_id, "name": d.name, "status": d.status}
+    out = {
+        "id": d.id, "college_id": d.college_id, "name": d.name,
+        # Lets a picker group teaching departments and administrative posts
+        # under separate headings instead of listing Registrar between two
+        # engineering departments.
+        "kind": getattr(d, "kind", "academic") or "academic",
+        "status": d.status,
+    }
     if members is not None:
         out["member_count"] = members
     return out
@@ -230,7 +241,7 @@ def update_college(db: Session, college: College, *, name=None, location=None, s
     return college
 
 
-def create_department(db: Session, college: College, name: str) -> Department:
+def create_department(db: Session, college: College, name: str, kind: str = "academic") -> Department:
     name = (name or "").strip()
     key = normalise_org_name(name)
     if not key:
@@ -250,6 +261,7 @@ def create_department(db: Session, college: College, name: str) -> Department:
         raise HTTPException(status.HTTP_409_CONFLICT, f"“{clash.name}” is already in this college.")
 
     dept = Department(college_id=college.id, name=name, normalised_name=key,
+                      kind=kind if kind in ("academic", "office") else "academic",
                       status=OrgStatus.ACTIVE.value)
     db.add(dept)
     db.commit()

@@ -159,8 +159,8 @@ async function fillProfileDepartments(collegeId, selected) {
     return;
   }
   const { departments } = await apiFetch(`/api/org/colleges/${collegeId}/departments`);
-  deptSel.innerHTML = `<option value="">Select your department…</option>` +
-    departments.map((d) => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("");
+  deptSel.innerHTML = `<option value="">Select your department or post…</option>` +
+    departmentOptions(departments);
   if (selected) deptSel.value = selected;
 }
 

@@ -1050,10 +1050,14 @@ def test_only_admins_can_browse_the_directory(owner, rahul, amit):
 
 # --- The organisation ------------------------------------------------------
 
-def test_the_default_college_has_its_eight_departments(owner):
+def test_the_default_college_has_its_eight_teaching_departments(owner):
+    """The administrative posts seeded beside these are checked in
+    test_org_offices; this stays about the teaching departments, so a change
+    to one group cannot quietly be excused by the other."""
     college, depts = _org(owner)
     assert college["name"] == "DYPCoE, Akurdi"
-    assert {d["name"] for d in depts} == {
+    academic = {d["name"] for d in depts if d["kind"] == "academic"}
+    assert academic == {
         "Computer Engineering",
         "Information Technology",
         "Electronics and Telecommunication Engineering",
@@ -1068,10 +1072,13 @@ def test_the_default_college_has_its_eight_departments(owner):
 def test_seeding_twice_does_not_duplicate_anything(owner):
     from app.database import seed_organisation
 
+    before = len(_org(owner)[1])
     seed_organisation()
     seed_organisation()
     college, depts = _org(owner)
-    assert len(depts) == 8
+    # Counted rather than hardcoded: the point is that seeding is idempotent,
+    # not how many rows there happen to be this month.
+    assert len(depts) == before
     assert len(owner.get("/api/org/colleges").json()["colleges"]) == 1
 
 
