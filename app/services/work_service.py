@@ -23,6 +23,7 @@ from app.models import (
     CommunityMember,
     CommunityRole,
     InviteStatus,
+    TaskActivity,
     TaskAssignment,
     TaskProgressUpdate,
     User,
@@ -198,6 +199,12 @@ def create_task(db: Session, community: Community, creator: User, *, title: str,
 
     for uid in dict.fromkeys(assignee_ids):   # de-duplicated, order preserved
         db.add(TaskAssignment(task_id=task.id, user_id=uid))
+        # Logged here as well as in add_assignees. A task created with people
+        # on it never passes through that function, so without this the very
+        # first event in every task's history was missing.
+        target = db.get(User, uid)
+        log_activity(db, task, creator, kind="assigned",
+                     note=f"assigned this to {target.name}" if target else "assigned this")
         notify(db, uid, "task_assigned",
                # The department goes in the title because the recipient may
                # know two people by this name and only one of them is their
@@ -532,6 +539,24 @@ def college_directory(
 # ---------------------------------------------------------------------------
 # Managing a task after it exists
 # ---------------------------------------------------------------------------
+def log_activity(db: Session, task: WorkTask, actor: User, *, kind: str,
+                 note: str | None = None, old=None, new=None) -> TaskActivity:
+    """Record something that happened to a task.
+
+    Not flushed or committed here. The caller is in the middle of doing the
+    thing being logged, and a log entry that survives a failed operation is
+    worse than no log at all.
+    """
+    row = TaskActivity(
+        task_id=task.id, user_id=actor.id, action=kind,
+        old_value=None if old is None else str(old)[:255],
+        new_value=None if new is None else str(new)[:255],
+        comment=note,
+    )
+    db.add(row)
+    return row
+
+
 def require_task_manager(db: Session, task: WorkTask, user: User) -> None:
     """Who may change a task's roster or its details.
 
@@ -572,6 +597,9 @@ def add_assignees(db: Session, task: WorkTask, actor: User, user_ids: list[str])
         assignment = TaskAssignment(task_id=task.id, user_id=uid)
         db.add(assignment)
         added.append(assignment)
+        target = db.get(User, uid)
+        log_activity(db, task, actor, kind="assigned",
+                     note=f"assigned this to {target.name}" if target else "assigned this")
         notify(
             db, uid, "task_assigned",
             f"{actor.name}{_from_dept(actor)} assigned you “{task.title}”",
@@ -674,6 +702,12 @@ def reassign(db: Session, task: WorkTask, actor: User, from_id: str, to_id: str)
         f"{task.community.name} · reassigned from {cost['name']}",
         community_id=task.community_id, task_id=task.id, actor=actor.id,
     )
+    # cost carries the outgoing person's name deliberately: their assignment
+    # row is deleted above, so reading a name off it here would be reaching
+    # into an object that no longer exists.
+    log_activity(db, task, actor, kind="reassigned",
+                 note=f"handed this from {cost['name']} to {incoming.name}",
+                 old=cost["name"], new=incoming.name)
     _refresh_task_status(db, task)
     return {"from": cost, "to": incoming.name}
 

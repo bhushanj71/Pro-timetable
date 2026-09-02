@@ -9,7 +9,9 @@ import hmac
 import time
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status,
+)
 from pydantic import BaseModel, Field
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, selectinload
@@ -24,7 +26,9 @@ from app.models import (
     CommunityMember,
     CommunityRole,
     InviteStatus,
+    TaskActivity,
     TaskAssignment,
+    TaskAttachment,
     TaskComment,
     User,
     WorkNotification,
@@ -32,7 +36,13 @@ from app.models import (
 )
 from app.schemas import UTCModel
 from app.services.nlp_dates import ensure_aware_utc
-from app.services import org_service as og, work_notify, work_service as ws
+from app.services import (
+    attachments as att,
+    org_service as og,
+    work_notify,
+    work_service as ws,
+    work_tracking as wt,
+)
 
 router = APIRouter(prefix="/api/work", tags=["work"])
 
@@ -147,7 +157,9 @@ def _assignment(a: TaskAssignment, me: str | None = None) -> dict:
     }
 
 
-def _task(t: WorkTask, *, detail: bool = False, me: str | None = None) -> dict:
+def _task(t: WorkTask, *, detail: bool = False, me: str | None = None,
+          db_session: Session | None = None, viewer: User | None = None,
+          member=None) -> dict:
     data = {
         "id": t.id, "title": t.title, "description": t.description,
         "priority": t.priority, "status": t.status,
@@ -164,18 +176,54 @@ def _task(t: WorkTask, *, detail: bool = False, me: str | None = None) -> dict:
             {"id": c.id, "user": _person(c.user), "body": c.body, "at": ensure_aware_utc(c.created_at).isoformat()}
             for c in sorted(t.comments, key=lambda c: c.created_at)
         ]
-        data["timeline"] = sorted(
-            (
-                {
-                    "at": u.created_at.isoformat(), "kind": u.kind, "note": u.note,
-                    "from": u.from_progress, "to": u.to_progress,
-                    "user": _person(a.user),
-                }
-                for a in t.assignments for u in a.updates
-            ),
-            key=lambda x: x["at"], reverse=True,
+        # One timeline out of three sources. Progress lives on the
+        # assignment, comments on the task, and everything else -- uploads,
+        # reassignment, completion -- in the activity log. Merging them at
+        # read time is what makes the history read as one story rather than
+        # three tabs the reader has to interleave themselves.
+        events = [
+            {
+                "at": ensure_aware_utc(u.created_at).isoformat(), "kind": u.kind,
+                "note": u.note, "from": u.from_progress, "to": u.to_progress,
+                "user": _person(a.user),
+            }
+            for a in t.assignments for u in a.updates
+        ]
+        events += [
+            {
+                "at": ensure_aware_utc(c.created_at).isoformat(), "kind": "comment",
+                "note": c.body, "from": None, "to": None, "user": _person(c.user),
+            }
+            for c in t.comments
+        ]
+        events += [
+            {
+                "at": ensure_aware_utc(act.created_at).isoformat(), "kind": act.action,
+                "note": act.comment, "from": act.old_value, "to": act.new_value,
+                "user": _person(act.user),
+            }
+            for act in t.activities
+        ]
+        data["timeline"] = sorted(events, key=lambda x: x["at"], reverse=True)
+        data["attachments"] = (
+            _attachments_of(db_session, t, viewer=viewer, member=member) if db_session else []
+        )
+        data["can_attach"] = (
+            att.may_attach(t, viewer, member) if viewer is not None else False
         )
     return data
+
+
+def _load_community(db: Session, community_id: str) -> Community:
+    community = (
+        db.query(Community)
+        .options(selectinload(Community.members).selectinload(CommunityMember.user))
+        .filter(Community.id == community_id)
+        .first()
+    )
+    if not community:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Community not found")
+    return community
 
 
 def _load_task(db: Session, task_id: str) -> WorkTask:
@@ -185,6 +233,7 @@ def _load_task(db: Session, task_id: str) -> WorkTask:
             selectinload(WorkTask.assignments).selectinload(TaskAssignment.user),
             selectinload(WorkTask.assignments).selectinload(TaskAssignment.updates),
             selectinload(WorkTask.comments).selectinload(TaskComment.user),
+            selectinload(WorkTask.activities).selectinload(TaskActivity.user),
             selectinload(WorkTask.community),
             selectinload(WorkTask.creator),
         )
@@ -515,7 +564,7 @@ def list_tasks(
 def get_task(task_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     task = _load_task(db, task_id)
     member = ws.require_member(db, task.community_id, user)
-    data = _task(task, detail=True, me=user.id)
+    data = _task(task, detail=True, me=user.id, db_session=db, viewer=user, member=member)
     # Decided here rather than in the serializer, which has no session and so
     # could only compare creator ids -- missing the community admins who may
     # also manage the task. The UI reads this instead of guessing.
@@ -876,3 +925,258 @@ def search_people(
         seen.add(u.id)
         people.append(_person(u))
     return {"people": people}
+
+
+# ===========================================================================
+# Attachments
+#
+# The bytes live in the database. There is no object storage in this project
+# and the host's disk is ephemeral, so a file written to it disappears on the
+# next deploy -- silently, which for evidence of work is the worst way to lose
+# something. See TaskAttachment for the trade and the way out of it.
+# ===========================================================================
+def _attachments_of(db: Session, task: WorkTask, *, viewer: User | None = None,
+                    member=None) -> list[dict]:
+    """The task's files, each carrying whether this viewer may remove it.
+
+    Decided here rather than in the browser, for the same reason can_manage is:
+    the page cannot see a membership role, and a rule it has to guess at is a
+    rule that will eventually be guessed wrong.
+    """
+    rows = (
+        db.query(TaskAttachment)
+        .options(selectinload(TaskAttachment.uploader))
+        .filter(TaskAttachment.task_id == task.id)
+        .order_by(TaskAttachment.uploaded_at.desc())
+        .all()
+    )
+    out = []
+    for a in rows:
+        data = att.attachment_dict(a, person=_person)
+        data["can_remove"] = (
+            att.may_delete(a, task, viewer, member) if viewer is not None else False
+        )
+        out.append(data)
+    return out
+
+
+@router.get("/tasks/{task_id}/attachments")
+def list_attachments(task_id: str, db: Session = Depends(get_db),
+                     user: User = Depends(get_current_user)):
+    task = _load_task(db, task_id)
+    member = ws.require_member(db, task.community_id, user)
+    return {"attachments": _attachments_of(db, task, viewer=user, member=member)}
+
+
+@router.post("/tasks/{task_id}/attachments", status_code=status.HTTP_201_CREATED)
+async def upload_attachment(task_id: str, file: UploadFile = File(...),
+                            db: Session = Depends(get_db),
+                            user: User = Depends(get_current_user)):
+    """Attach a file to a task.
+
+    Read first, then measure. Content-Length on a multipart part is a claim,
+    not a fact, so the cap is enforced on what actually arrived. One byte over
+    is read deliberately: it is how a file exactly at the limit is told apart
+    from one above it.
+    """
+    task = _load_task(db, task_id)
+    member = ws.require_member(db, task.community_id, user)
+    if not att.may_attach(task, user, member):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Only the people assigned to this task, the person who assigned it, "
+            "or a community admin can attach files to it.",
+        )
+
+    body = await file.read(att.MAX_BYTES + 1)
+    name, content_type = att.validate(file.filename or "", file.content_type or "", len(body))
+
+    row = TaskAttachment(
+        task_id=task.id, uploaded_by=user.id, file_name=name,
+        content_type=content_type, size_bytes=len(body), data=body,
+    )
+    db.add(row)
+
+    # The upload is an event in the task's story, not a silent side effect --
+    # the timeline is how an owner sees that evidence arrived, and when.
+    ws.log_activity(db, task, user, kind="attachment", note="uploaded " + name)
+    db.commit()
+    db.refresh(row)
+    return att.attachment_dict(row, person=_person)
+
+
+@router.get("/attachments/{attachment_id}")
+def download_attachment(attachment_id: str, download: bool = False,
+                        db: Session = Depends(get_db),
+                        user: User = Depends(get_current_user)):
+    from fastapi.responses import Response
+
+    row = db.get(TaskAttachment, attachment_id)
+    if not row:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "That file no longer exists.")
+    task = _load_task(db, row.task_id)
+    ws.require_member(db, task.community_id, user)
+
+    # inline only for types a browser renders without running anything. An
+    # open-in-tab for arbitrary content is a way to get script onto this
+    # origin, so everything else is sent as a download whatever was asked for.
+    inline = (not download) and row.content_type in att.INLINE_SAFE
+    disposition = "inline" if inline else "attachment"
+    return Response(
+        content=row.data,
+        media_type=row.content_type,
+        headers={
+            "Content-Disposition": disposition + '; filename="' + row.file_name + '"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.delete("/attachments/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_attachment(attachment_id: str, db: Session = Depends(get_db),
+                      user: User = Depends(get_current_user)):
+    row = db.get(TaskAttachment, attachment_id)
+    if not row:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "That file no longer exists.")
+    task = _load_task(db, row.task_id)
+    member = ws.require_member(db, task.community_id, user)
+    if not att.may_delete(row, task, user, member):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "You can only remove files you uploaded yourself.",
+        )
+    name = row.file_name
+    db.delete(row)
+    ws.log_activity(db, task, user, kind="attachment", note="removed " + name)
+    db.commit()
+    return None
+
+
+# ===========================================================================
+# Tracking: the owner's dashboard, and one member's history
+# ===========================================================================
+def _tracked(assignment: TaskAssignment, task: WorkTask, counts: dict) -> dict:
+    """One row of a member's history: the task, and their share of it."""
+    return {
+        "id": task.id,
+        "title": task.title,
+        "description": task.description,
+        "priority": task.priority,
+        "bucket": wt.bucket_of(assignment, task),
+        "status": assignment.status,
+        "progress": assignment.progress,
+        "assigned_by": _person(task.creator),
+        "assigned_at": ensure_aware_utc(assignment.assigned_at).isoformat(),
+        "due_date": ensure_aware_utc(task.due_date).isoformat() if task.due_date else None,
+        "completed_at": (
+            ensure_aware_utc(assignment.completed_at).isoformat()
+            if assignment.completed_at else None
+        ),
+        "updated_at": ensure_aware_utc(task.updated_at).isoformat(),
+        "decline_reason": assignment.decline_reason,
+        "attachment_count": counts.get(task.id, 0),
+        "member": _person(assignment.user),
+        "member_id": assignment.user_id,
+    }
+
+
+@router.get("/communities/{community_id}/overview")
+def community_overview(community_id: str, db: Session = Depends(get_db),
+                       user: User = Depends(get_current_user)):
+    """The community's workload, summarised, with a row per member.
+
+    Open to every member rather than the owner alone. A team where only one
+    person can see who is carrying what is a team where nobody else can offer
+    to help -- and these numbers say nothing a member could not already work
+    out by opening the tasks one at a time.
+    """
+    community = _load_community(db, community_id)
+    ws.require_member(db, community.id, user)
+    data = wt.community_overview(db, community.id)
+    return {
+        "community": {"id": community.id, "name": community.name, "icon": community.icon},
+        "totals": {
+            "members": data["members_total"],
+            "tasks": data["tasks_total"],
+            "active": data["active"],
+            "pending": data["pending"],
+            "in_progress": data["in_progress"],
+            "completed": data["completed"],
+            "incomplete": data["incomplete"],
+            "overdue": data["overdue"],
+        },
+        "performance": [
+            {
+                "user": _person(p["user"]),
+                "user_id": p["user"].id,
+                "role": p["role"],
+                "assigned": p["assigned"],
+                "completed": p["completed"],
+                "in_progress": p["in_progress"],
+                "pending": p["pending"],
+                "incomplete": p["incomplete"],
+                "overdue": p["overdue"],
+                "completion": p["completion"],
+            }
+            for p in data["performance"]
+        ],
+    }
+
+
+@router.get("/communities/{community_id}/members/{member_id}/tasks")
+def member_task_history(
+    community_id: str,
+    member_id: str,
+    period: str | None = Query(None, pattern="^(today|week|month|custom)$"),
+    start: str | None = None,
+    end: str | None = None,
+    status_filter: str | None = Query(None, alias="status"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Everything one member has been given in this community.
+
+    Anyone may read their own history. Reading someone else's needs a managing
+    role: "what has Rahul been working on" is a supervisor's question, and the
+    answer is not a colleague's to take.
+    """
+    community = _load_community(db, community_id)
+    member = ws.require_member(db, community.id, user)
+    if member_id != user.id and member.role == CommunityRole.MEMBER.value:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Only the community's owner or an admin can look at another member's work.",
+        )
+
+    subject = db.get(User, member_id)
+    if not subject or not ws.membership(db, community.id, member_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "That person is not in this community.")
+
+    window = wt.resolve_period(period, user.timezone, start, end)
+    wanted = {s for s in (status_filter or "").split(",") if s in wt.BUCKETS}
+    result = wt.member_overview(db, community.id, member_id, period=window, statuses=wanted or None)
+
+    return {
+        "member": _person(subject),
+        "member_id": subject.id,
+        "period": window.label,
+        "tally": result["tally"],
+        "tasks": [_tracked(a, t, result["attachment_counts"]) for a, t in result["pairs"]],
+    }
+
+
+@router.get("/communities/{community_id}/search")
+def search_work(community_id: str, q: str = Query(min_length=1, max_length=120),
+                db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """By member name, task title, or the start of a task id."""
+    community = _load_community(db, community_id)
+    member = ws.require_member(db, community.id, user)
+
+    rows = wt.search(db, community.id, q)
+    # A plain member sees only their own work in results, exactly as they do
+    # everywhere else. Search must not become the way around that.
+    if member.role == CommunityRole.MEMBER.value:
+        rows = [a for a in rows if a.user_id == user.id]
+
+    counts = wt.attachment_counts(db, [a.task_id for a in rows])
+    return {"results": [_tracked(a, a.task, counts) for a in rows]}

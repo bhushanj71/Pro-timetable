@@ -1077,3 +1077,157 @@ button.user-chip .ps-badge { position: absolute; top: -3px; right: -3px; }
 }
 .wk-detail-error-art { font-size: 2.4rem; margin-bottom: 10px; opacity: 0.7; }
 .wk-detail-error p { color: var(--text-muted); margin: 0 0 16px; }
+
+
+/* ==========================================================================
+   Attachments
+
+   Directly under the progress bar, because that is where the evidence for a
+   number belongs: a percentage and the report justifying it should be read in
+   one glance, not one above the fold and the other below it.
+   ========================================================================== */
+.wk-atts {
+  margin: 12px 0 4px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-alt);
+}
+.wk-atts-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.82rem; margin-bottom: 8px;
+}
+.wk-atts-count {
+  font-size: 0.7rem; font-weight: 800;
+  background: var(--bg-tint); color: var(--text-muted);
+  padding: 1px 7px; border-radius: var(--radius-pill);
+}
+.wk-atts-empty { font-size: 0.78rem; color: var(--text-muted); margin: 0; }
+
+.wk-att {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px; border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+.wk-att-icon { font-size: 1.15rem; flex: 0 0 auto; }
+/* min-width: 0 so a long filename truncates instead of pushing the actions off
+   the row -- the same collapse the person rows had. */
+.wk-att-main { flex: 1 1 auto; min-width: 0; }
+.wk-att-name {
+  font-weight: 650; font-size: 0.82rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wk-att-meta { font-size: 0.72rem; color: var(--text-muted); margin-top: 1px; }
+.wk-att-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.wk-att-act {
+  font-size: 0.75rem; font-weight: 700;
+  color: var(--primary); text-decoration: none;
+}
+.wk-att-act:hover { text-decoration: underline; }
+
+.wk-atts-more {
+  display: block; width: 100%;
+  margin-top: 4px; padding: 7px;
+  border: none; background: transparent;
+  color: var(--primary); font: inherit; font-size: 0.78rem; font-weight: 700;
+  cursor: pointer; border-radius: 8px;
+}
+.wk-atts-more:hover { background: var(--primary-softer); }
+
+.wk-att-add {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 8px; padding: 8px 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-pill);
+  font-size: 0.78rem; font-weight: 700;
+  color: var(--text-soft); cursor: pointer;
+  transition: background var(--t) var(--ease), border-color var(--t) var(--ease);
+}
+.wk-att-add:hover { background: var(--primary-softer); border-color: var(--primary); color: var(--primary); }
+
+.wk-att-progress { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.wk-att-progress .wk-bar { flex: 1 1 auto; }
+.wk-att-progress-label { font-size: 0.72rem; color: var(--text-muted); flex: 0 0 auto; }
+
+/* ==========================================================================
+   Work board
+   ========================================================================== */
+.wk-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+.wk-metric {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  text-align: center;
+}
+.wk-metric-n { font-size: 1.6rem; font-weight: 800; line-height: 1.05; color: var(--text); }
+.wk-metric-l {
+  font-size: 0.72rem; font-weight: 800; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px;
+}
+.wk-metric[data-tone="alert"] .wk-metric-n { color: var(--danger); }
+.wk-metric[data-tone="done"] .wk-metric-n { color: var(--primary); }
+
+.wk-board-search { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.wk-board-search input {
+  flex: 1 1 auto; min-width: 0;
+  padding: 10px 14px; border-radius: var(--radius-pill);
+  border: 1px solid var(--border); background: var(--surface-alt);
+  font: inherit; font-size: 0.85rem; color: var(--text);
+}
+
+.wk-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.wk-filters select, .wk-range input {
+  padding: 8px 12px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface);
+  font: inherit; font-size: 0.8rem; color: var(--text);
+}
+.wk-range { display: flex; gap: 8px; }
+
+/* --- The performance table --- */
+.wk-table-wrap { overflow-x: auto; }
+.wk-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.wk-table th, .wk-table td {
+  padding: 10px 8px; text-align: left; vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+.wk-table th {
+  font-size: 0.7rem; font-weight: 800; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.wk-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.wk-table tbody tr { cursor: pointer; transition: background var(--t-fast) var(--ease); }
+.wk-table tbody tr:hover { background: var(--primary-softer); }
+.wk-table tbody tr:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.wk-late { color: var(--danger); font-weight: 800; }
+
+.wk-inline-bar { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+.wk-inline-bar .wk-bar { flex: 1 1 auto; }
+
+/* --- One task in a member's history --- */
+.wk-track {
+  display: block; color: inherit; text-decoration: none;
+  padding: 11px; margin-bottom: 8px;
+  border-radius: 12px;
+  background: var(--surface-alt); border: 1px solid var(--border);
+  transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
+}
+.wk-track:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+.wk-track:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.wk-track-head { display: flex; align-items: flex-start; gap: 9px; margin-bottom: 9px; }
+.wk-track-main { flex: 1 1 auto; min-width: 0; }
+.wk-track-atts { font-size: 0.72rem; color: var(--text-muted); margin-top: 7px; }
+.wk-track-note { font-size: 0.72rem; color: var(--danger); margin-top: 6px; }
+
+.wk-badge.pending { background: var(--bg-tint); color: var(--text-muted); }
+.wk-badge.in_progress { background: var(--primary-softer); color: var(--primary); }
+.wk-badge.completed { background: var(--primary-softer); color: var(--primary); }
+.wk-badge.incomplete { background: var(--bg-tint); color: var(--text-muted); }
+.wk-badge.overdue { background: var(--danger-soft); color: var(--danger); }
+.wk-bar.late span { background: var(--danger); }

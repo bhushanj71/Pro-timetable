@@ -1,0 +1,107 @@
+{# The work board: the community's whole workload on one page.
+
+   Three layers, and you can stop at any of them: the headline numbers, then a
+   row per member, then one member's complete history. Each is a click deeper
+   and none of them is a dead end -- every task row goes to the task itself.
+
+   The tables become cards below 720px rather than scrolling sideways. A
+   six-column table on a phone is a table nobody reads. #}
+{% extends "base.html" %}
+{% block title %}{{ page_title }} — ProfSchedule AI{% endblock %}
+
+{% block content %}
+<div class="work-mode wk-board" data-community="{{ community_id }}">
+
+  <div class="wk-detail-bar">
+    <a class="wk-back" href="/work/community/{{ community_id }}">
+      <span class="wk-back-chev" aria-hidden="true">‹</span>
+      <span>Community</span>
+    </a>
+  </div>
+
+  <div class="card wk-card">
+    <div class="wk-card-head">
+      <span class="wk-card-icon" data-tone="info" aria-hidden="true">📊</span>
+      <div class="wk-card-titles">
+        <h3 id="wk-board-name">Work board</h3>
+        <p class="wk-card-sub">Who is carrying what, and what each of them has finished.</p>
+      </div>
+    </div>
+
+    {# Loaded first and shown while the numbers arrive, so the page has shape
+       before it has content. #}
+    <div class="wk-metrics" id="wk-metrics">
+      <div class="sk sk-line long"></div>
+    </div>
+  </div>
+
+  <div class="card wk-card">
+    <div class="wk-card-head">
+      <span class="wk-card-icon" data-tone="active" aria-hidden="true">🔎</span>
+      <div class="wk-card-titles"><h3>Find work</h3></div>
+    </div>
+    <div class="wk-board-search">
+      <input type="search" id="wk-board-q" autocomplete="off"
+             placeholder="Search by member, task, or task ID…"
+             aria-label="Search by member name, task name, or task ID">
+      <button class="btn btn-sm" id="wk-board-q-clear" hidden>Clear</button>
+    </div>
+    <div id="wk-board-results"></div>
+  </div>
+
+  <div class="card wk-card" id="wk-perf-card">
+    <div class="wk-card-head">
+      <span class="wk-card-icon" data-tone="lab" aria-hidden="true">👥</span>
+      <div class="wk-card-titles">
+        <h3>Members</h3>
+        <p class="wk-card-sub">Select anyone to see everything they are carrying.</p>
+      </div>
+    </div>
+    <div id="wk-performance"><div class="sk sk-line long"></div></div>
+  </div>
+
+  {# The drill-down. Hidden until a member is chosen, so the board is not a
+     wall of empty structure on arrival. #}
+  <div class="card wk-card hidden" id="wk-member-card">
+    <div class="wk-card-head">
+      <span class="wk-card-icon" data-tone="info" aria-hidden="true">🗂</span>
+      <div class="wk-card-titles">
+        <h3 id="wk-member-name">Member</h3>
+        <p class="wk-card-sub" id="wk-member-tally"></p>
+      </div>
+      <button class="btn btn-sm" id="wk-member-close">Close</button>
+    </div>
+
+    <div class="wk-filters">
+      <select id="wk-f-status" aria-label="Filter by status">
+        <option value="">All statuses</option>
+        <option value="pending">Pending</option>
+        <option value="in_progress">In progress</option>
+        <option value="completed">Completed</option>
+        <option value="incomplete">Incomplete</option>
+        <option value="overdue">Overdue</option>
+      </select>
+      <select id="wk-f-period" aria-label="Filter by period">
+        <option value="">All time</option>
+        <option value="today">Today</option>
+        <option value="week">This week</option>
+        <option value="month">This month</option>
+        <option value="custom">Custom range…</option>
+      </select>
+      <span class="wk-range hidden" id="wk-f-range">
+        <input type="date" id="wk-f-start" aria-label="From date">
+        <input type="date" id="wk-f-end" aria-label="To date">
+      </span>
+    </div>
+
+    <div id="wk-member-tasks"></div>
+  </div>
+</div>
+
+{% include "_work_modals.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/work.js?v={{ v }}"></script>
+<script src="/static/js/work-board.js?v={{ v }}"></script>
+{% endblock %}

@@ -27,7 +27,8 @@ const PREVIEW = 3;
 /* Everything the dashboard drew last, so filtering and expanding redraw from
    memory instead of going back to the server on every keystroke. */
 const WK = { data: null, created: [], query: "", expanded: {}, sort: "recent",
-             community: null, pickable: [], profile: null, openTask: null };
+             community: null, pickable: [], profile: null, openTask: null,
+             attachmentsOpen: false };
 
 /* Which page this is. work.js runs on all three: the dashboard, a task page
    and a community page. The dataset attributes come from work_detail.html. */
@@ -418,6 +419,8 @@ async function openTask(taskId) {
       <div class="wk-basis">${esc(p.basis)}</div>
     </div>
 
+    ${attachmentBlock(t)}
+
     <div class="wk-people">${t.assignments.map((a) => personRow(a, t.can_manage, t.id)).join("")}</div>
 
     ${t.can_manage ? `
@@ -497,6 +500,136 @@ async function openTask(taskId) {
       </div>` : ""}`;
 }
 
+/* ---------------- Attachments ----------------
+
+   Rendered directly under the progress bar, which is where the evidence for a
+   number belongs: "80%" and the report that justifies it should be read in one
+   glance, not one above the fold and the other below it.
+
+   Long lists collapse. A task with fifteen files would otherwise push the
+   roster, the history and every control off the screen, and the common case is
+   two or three. */
+const ATTACHMENTS_SHOWN = 3;
+
+function attachmentRow(a, canRemove) {
+  const view = a.can_view_inline
+    ? `<a class="wk-att-act" href="/api/work/attachments/${esc(a.id)}" target="_blank" rel="noopener">View</a>`
+    : "";
+  return `
+    <div class="wk-att" data-attachment="${esc(a.id)}">
+      <span class="wk-att-icon" aria-hidden="true">${esc(a.icon)}</span>
+      <div class="wk-att-main">
+        <div class="wk-att-name">${esc(a.file_name)}</div>
+        <div class="wk-att-meta">Uploaded by ${esc(a.uploaded_by.name)} · ${esc(a.size)}</div>
+      </div>
+      <div class="wk-att-actions">
+        ${view}
+        <a class="wk-att-act" href="/api/work/attachments/${esc(a.id)}?download=true">Download</a>
+        ${canRemove ? `<button class="chip-x" data-remove-attachment="${esc(a.id)}"
+                 aria-label="Remove ${esc(a.file_name)}">✕</button>` : ""}
+      </div>
+    </div>`;
+}
+
+function attachmentBlock(t) {
+  const files = t.attachments || [];
+  const expanded = WK.attachmentsOpen;
+  const shown = expanded ? files : files.slice(0, ATTACHMENTS_SHOWN);
+  const hidden = files.length - shown.length;
+
+  return `
+    <div class="wk-atts" id="wk-atts">
+      <div class="wk-atts-head">
+        <strong>Attachments</strong>
+        ${files.length ? `<span class="wk-atts-count">${files.length}</span>` : ""}
+      </div>
+      ${files.length
+        ? shown.map((a) => attachmentRow(a, a.can_remove !== false)).join("")
+        : `<p class="wk-atts-empty">No files yet. Attach the work, or anything needed to do it.</p>`}
+      ${hidden > 0 ? `<button class="wk-atts-more" id="wk-atts-more">View all ${files.length} attachments</button>` : ""}
+      ${expanded && files.length > ATTACHMENTS_SHOWN ? `<button class="wk-atts-more" id="wk-atts-less">Show fewer</button>` : ""}
+
+      ${t.can_attach !== false ? `
+        <label class="wk-att-add" for="wk-att-input">
+          <span aria-hidden="true">+</span> Attach file
+          <input type="file" id="wk-att-input" data-task="${esc(t.id)}" hidden
+                 accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.zip,.txt">
+        </label>
+        <div class="wk-att-progress hidden" id="wk-att-progress">
+          <div class="wk-bar"><span id="wk-att-bar" style="width:0%"></span></div>
+          <span class="wk-att-progress-label" id="wk-att-label">Uploading…</span>
+        </div>` : ""}
+    </div>`;
+}
+
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#wk-atts-more")) {
+    WK.attachmentsOpen = true;
+    if (WK.openTask) openTask(WK.openTask.id);
+  }
+  if (e.target.closest("#wk-atts-less")) {
+    WK.attachmentsOpen = false;
+    if (WK.openTask) openTask(WK.openTask.id);
+  }
+});
+
+/* XMLHttpRequest rather than fetch: it reports upload progress, and fetch
+   still cannot. A 4 MB file over a phone connection is long enough that a
+   silent wait reads as a failure. */
+document.addEventListener("change", (e) => {
+  const input = e.target.closest("#wk-att-input");
+  if (!input || !input.files?.length) return;
+
+  const file = input.files[0];
+  const taskId = input.dataset.task;
+  const wrap = document.getElementById("wk-att-progress");
+  const bar_ = document.getElementById("wk-att-bar");
+  const label = document.getElementById("wk-att-label");
+  wrap?.classList.remove("hidden");
+
+  const form = new FormData();
+  form.append("file", file);
+
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", `/api/work/tasks/${taskId}/attachments`);
+  xhr.withCredentials = true;
+  xhr.upload.addEventListener("progress", (ev) => {
+    if (!ev.lengthComputable) return;
+    const pct = Math.round((ev.loaded / ev.total) * 100);
+    if (bar_) bar_.style.width = `${pct}%`;
+    if (label) label.textContent = pct < 100 ? `Uploading ${pct}%` : "Saving…";
+  });
+  xhr.addEventListener("load", async () => {
+    wrap?.classList.add("hidden");
+    input.value = "";
+    if (xhr.status === 201) {
+      showToast(`${file.name} attached`, "success");
+      await openTask(taskId);
+    } else {
+      let message = "Could not attach that file";
+      try { message = JSON.parse(xhr.responseText).detail || message; } catch (_) {}
+      showToast(message, "error");
+    }
+  });
+  xhr.addEventListener("error", () => {
+    wrap?.classList.add("hidden");
+    input.value = "";
+    showToast("Could not attach that file", "error");
+  });
+  xhr.send(form);
+});
+
+document.addEventListener("click", async (e) => {
+  const remove = e.target.closest("[data-remove-attachment]");
+  if (!remove) return;
+  if (!confirm("Remove this file? This cannot be undone.")) return;
+  try {
+    await apiFetch(`/api/work/attachments/${remove.dataset.removeAttachment}`, { method: "DELETE" });
+    showToast("File removed", "success");
+    if (WK.openTask) await openTask(WK.openTask.id);
+  } catch (err) { showToast(err.message, "error"); }
+});
+
 /* ---------------- Community detail ---------------- */
 async function openCommunity(id) {
   const body = document.getElementById("wk-detail-body");
@@ -519,6 +652,7 @@ async function openCommunity(id) {
 
     <div class="btn-row" style="margin-bottom:14px">
       <button class="btn btn-sm btn-primary" data-assign-in="${c.id}">+ Assign a task</button>
+      <a class="btn btn-sm" href="/work/community/${encodeURIComponent(c.id)}/board">📊 Work board</a>
       ${canInvite ? `<button class="btn btn-sm" data-invite-to="${c.id}">+ Invite by email</button>` : ""}
       ${canInvite ? `<button class="btn btn-sm" data-directory-for="${c.id}">\u{1F3EB} Add from my college</button>` : ""}
     </div>

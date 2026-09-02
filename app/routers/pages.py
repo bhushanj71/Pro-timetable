@@ -103,6 +103,22 @@ def work_community_page(
     )
 
 
+# The work board: who is carrying what, and what each of them has done.
+# A page of its own rather than a panel on the community, because it is a
+# different question -- the community page is about membership, this is about
+# workload -- and because a URL makes it linkable from a notification.
+@router.get("/work/community/{community_id}/board")
+def work_board_page(
+    community_id: str, request: Request, user: User | None = Depends(get_current_user_optional)
+):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse(
+        "work_board.html",
+        _ctx(request, user, community_id=community_id, page_title="Work board"),
+    )
+
+
 @router.get("/timetable")
 def timetable_page(request: Request, user: User | None = Depends(get_current_user_optional)):
     if not user:

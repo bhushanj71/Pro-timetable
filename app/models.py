@@ -9,6 +9,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    LargeBinary,
     ForeignKey,
     Index,
     Integer,
@@ -468,6 +469,12 @@ class WorkTask(Base):
     comments: Mapped[list["TaskComment"]] = relationship(
         back_populates="task", cascade="all, delete-orphan"
     )
+    attachments: Mapped[list["TaskAttachment"]] = relationship(
+        back_populates="task", cascade="all, delete-orphan"
+    )
+    activities: Mapped[list["TaskActivity"]] = relationship(
+        back_populates="task", cascade="all, delete-orphan"
+    )
 
 
 class TaskAssignment(Base):
@@ -530,6 +537,72 @@ class TaskComment(Base):
 
     task: Mapped["WorkTask"] = relationship(back_populates="comments")
     user: Mapped["User"] = relationship()
+
+
+class TaskActivity(Base):
+    """One event in a task's story, whoever caused it.
+
+    TaskProgressUpdate already records a person's progress on their own
+    assignment, and does it well -- but it hangs off the assignment, so it has
+    nowhere to put an event caused by somebody who is not assigned. The owner
+    uploading a brief, or reassigning the work, is exactly that.
+
+    So this is the general log and that stays the progress log. The timeline
+    the task page shows is a merge of the two plus the comments, which is
+    three real things joined at read time rather than one table pretending to
+    be all of them.
+    """
+
+    __tablename__ = "task_activities"
+    __table_args__ = (Index("ix_activity_task", "task_id", "created_at"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    task_id: Mapped[str] = mapped_column(String(36), ForeignKey("work_tasks.id"), index=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+
+    action: Mapped[str] = mapped_column(String(32))
+    old_value: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    new_value: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    task: Mapped["WorkTask"] = relationship(back_populates="activities")
+    user: Mapped["User"] = relationship()
+
+
+class TaskAttachment(Base):
+    """A file submitted as evidence of work, or handed out with the task.
+
+    The bytes live in this row. That is a deliberate choice and not a happy
+    one: there is no object storage configured anywhere in this project, and
+    the host's filesystem is ephemeral -- anything written to disk is gone on
+    the next deploy, which for an attachment means the evidence disappears
+    without anybody being told. A row in Postgres survives a deploy.
+
+    The cost is that the database carries the bytes, so uploads are capped and
+    the column is deferred: no query that lists tasks, members or a dashboard
+    ever loads a file, only its name and size. Moving to object storage later
+    means changing this one column and the two endpoints that read it.
+    """
+
+    __tablename__ = "task_attachments"
+    __table_args__ = (Index("ix_attachment_task", "task_id", "uploaded_at"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    task_id: Mapped[str] = mapped_column(String(36), ForeignKey("work_tasks.id"), index=True)
+    uploaded_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+
+    file_name: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(120))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    # Deferred: listing a task's attachments must never pull megabytes of file
+    # into memory to show a filename.
+    data: Mapped[bytes] = mapped_column(LargeBinary, deferred=True)
+
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    task: Mapped["WorkTask"] = relationship(back_populates="attachments")
+    uploader: Mapped["User"] = relationship()
 
 
 class WorkNotification(Base):

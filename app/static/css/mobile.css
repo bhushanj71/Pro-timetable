@@ -498,3 +498,49 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   }
   .wk-detail-card { padding: 14px; }
 }
+
+
+/* --------------------------------------------------------------------------
+   Work board on a phone
+
+   The performance table becomes cards. Seven columns at 393px is either a
+   sideways scroll or seven unreadable columns, and both are worse than a stack
+   of labelled rows. The labels come from data-label on each cell, so there is
+   one piece of markup and one place to change it.
+   -------------------------------------------------------------------------- */
+@media (max-width: 720px) {
+  .wk-table thead { display: none; }
+  .wk-table, .wk-table tbody, .wk-table tr, .wk-table td { display: block; width: 100%; }
+  .wk-table tr {
+    margin-bottom: 10px; padding: 11px;
+    border: 1px solid var(--border); border-radius: 12px;
+    background: var(--surface-alt);
+  }
+  .wk-table td {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 4px 0; border: none;
+  }
+  .wk-table td::before {
+    content: attr(data-label);
+    font-size: 0.7rem; font-weight: 800; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  /* The member's name is the card's heading, so it keeps neither a label nor
+     the side-by-side layout the numbers use. */
+  .wk-table td[data-label="Member"] { display: block; margin-bottom: 6px; }
+  .wk-table td[data-label="Member"]::before { content: none; }
+  .wk-table .num { text-align: right; }
+  .wk-table-wrap { overflow-x: visible; }
+
+  .wk-metrics { grid-template-columns: repeat(auto-fit, minmax(94px, 1fr)); }
+  .wk-metric-n { font-size: 1.35rem; }
+
+  .wk-filters select, .wk-range input { flex: 1 1 auto; min-height: 44px; }
+  .wk-range { flex: 1 1 100%; }
+
+  /* The file row keeps its actions reachable rather than shrinking them. */
+  .wk-att { flex-wrap: wrap; }
+  .wk-att-actions { width: 100%; justify-content: flex-end; }
+  .wk-att-act { min-height: 44px; display: inline-flex; align-items: center; padding: 0 8px; }
+  .wk-att-add { min-height: 44px; }
+}
