@@ -137,6 +137,12 @@
         `/api/work/communities/${COMMUNITY}/members/${memberId}/tasks?${params}`
       );
       document.getElementById("wk-member-name").textContent = data.member.name;
+      // Offering "Overdue" to someone who may only see completed work is
+      // offering a filter that can only ever return nothing.
+      const statusSel = document.getElementById("wk-f-status");
+      statusSel.querySelectorAll("option").forEach((o) => {
+        o.hidden = data.scope === "completed" && o.value !== "" && o.value !== "completed";
+      });
       const t = data.tally;
       // The tally always describes everything they hold. The list above it is
       // what the filters left, and saying so stops the two reading as a
@@ -145,11 +151,22 @@
         `${t.assigned} assigned · ${t.completed} completed · ${t.in_progress} in progress` +
         `${t.overdue ? ` · ${t.overdue} overdue` : ""} · ${t.completion}% completion`;
 
-      list.innerHTML = data.tasks.length
+      // Said before the list, not after it. A colleague seeing three rows for
+      // somebody with twelve tasks should know why before they draw a
+      // conclusion about how much that person does.
+      const note = data.scope === "completed"
+        ? `<p class="wk-scope-note">Showing ${esc(data.member.name)}'s completed work, in full.
+             Work still in progress is between them and the community's owner.</p>`
+        : "";
+
+      list.innerHTML = note + (data.tasks.length
         ? data.tasks.map(taskRowMarkup).join("")
-        : `<div class="wk-empty">Nothing matches those filters${
-            data.period !== "All time" ? ` in ${data.period.toLowerCase()}` : ""
-          }.</div>`;
+        : `<div class="wk-empty">${
+            data.scope === "completed"
+              ? `${esc(data.member.name)} has not finished anything here yet.`
+              : `Nothing matches those filters${
+                  data.period !== "All time" ? ` in ${data.period.toLowerCase()}` : ""}.`
+          }</div>`);
       card.scrollIntoView({ behavior: "smooth", block: "nearest" });
     } catch (err) {
       list.innerHTML = `<div class="wk-empty">${esc(err.message)}</div>`;

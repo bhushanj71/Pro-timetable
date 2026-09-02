@@ -16,6 +16,7 @@ from __future__ import annotations
 from fastapi import HTTPException, status
 
 from app.models import (
+    AssignmentStatus,
     CommunityRole,
     TaskAttachment,
     User,
@@ -109,14 +110,23 @@ def validate(file_name: str, content_type: str, size: int) -> tuple[str, str]:
 # Permissions
 # --------------------------------------------------------------------------
 def may_attach(task: WorkTask, user: User, member) -> bool:
-    """Assignees do the work; the creator and community admins manage it."""
+    """Assignees do the work; the creator and community admins manage it.
+
+    Declining is excluded deliberately. A declined assignment is still a row
+    on the task, so a plain "are they assigned" check let somebody who had
+    turned the work down keep attaching files to it -- which is neither doing
+    the work nor managing it.
+    """
     if member is None:
         return False
     if task.created_by == user.id:
         return True
     if member.role != CommunityRole.MEMBER.value:
         return True
-    return any(a.user_id == user.id for a in task.assignments)
+    return any(
+        a.user_id == user.id and a.status != AssignmentStatus.DECLINED.value
+        for a in task.assignments
+    )
 
 
 def may_delete(attachment: TaskAttachment, task: WorkTask, user: User, member) -> bool:

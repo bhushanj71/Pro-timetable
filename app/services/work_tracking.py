@@ -193,8 +193,16 @@ def member_tally(assignments: list[tuple[TaskAssignment, WorkTask]], *, now=None
 
 def member_overview(db: Session, community_id: str, user_id: str, *,
                     period: Period | None = None, statuses: set[str] | None = None,
-                    now=None) -> dict:
-    """Everything one person is carrying, bucketed, with their tally."""
+                    visible: set[str] | None = None, now=None) -> dict:
+    """Everything one person is carrying, bucketed, with their tally.
+
+    `visible` is a permission, not a filter, and the two are different things:
+    a filter is the reader choosing what to look at, and this is the reader
+    being told what there is to look at. Applied to the rows only. The tally
+    still counts everything, because those same totals are already on the
+    board's member table where every member can read them -- hiding them here
+    would be a curtain with a window beside it.
+    """
     rows = _rows(db, community_id, user_id=user_id)
     pairs = [(a, a.task) for a in rows]
 
@@ -203,6 +211,8 @@ def member_overview(db: Session, community_id: str, user_id: str, *,
     # completion figure change every time a filter moved, which is nonsense.
     tally = member_tally(pairs, now=now)
 
+    if visible is not None:
+        pairs = [(a, t) for a, t in pairs if bucket_of(a, t, now=now) in visible]
     if period:
         pairs = [(a, t) for a, t in pairs if _in_period(a, t, period)]
     if statuses:

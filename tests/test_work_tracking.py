@@ -66,6 +66,18 @@ def test_someone_with_no_stake_in_the_task_cannot_attach(team, amit):
     assert _upload(amit, t["id"]).status_code == 403
 
 
+def test_someone_who_declined_the_work_can_no_longer_attach_to_it(team):
+    """A declined assignment is still a row on the task, so an "are they
+    assigned" check let somebody who had turned the work down keep uploading
+    to it. Declining is neither doing the work nor managing it."""
+    t = _task(team["owner"], team["community"], [team["ids"]["Rahul"]])
+    assert _upload(team["rahul"], t["id"]).status_code == 201     # still theirs
+
+    team["rahul"].post(f"/api/work/tasks/{t['id']}/respond",
+                       json={"accept": False, "reason": "No capacity"})
+    assert _upload(team["rahul"], t["id"], "after.txt", b"x", "text/plain").status_code == 403
+
+
 def test_a_stranger_to_the_community_cannot_even_see_the_files(team):
     """404, not 403, and deliberately so: telling someone a community exists
     but is closed to them is itself a disclosure. The rest of Work already
@@ -283,12 +295,62 @@ def test_a_member_can_read_their_own_history(team):
     assert _history(team["rahul"], team["community"], team["ids"]["Rahul"]).status_code == 200
 
 
-def test_a_member_cannot_read_another_members_history(team, amit):
-    """The one that matters. "What has Rahul been doing" is a supervisor's
-    question, and the answer is not a colleague's to take."""
+def test_a_colleague_sees_a_members_finished_work_in_full(team, amit):
+    """Finished work is the team's record. A colleague can read all of it --
+    the task, its progress, its files -- because that is how you find out how
+    something was done last time."""
     _join(team["owner"], amit, team["community"], "w_amit@example.com")
     ids = _members(team["owner"], team["community"])
-    assert _history(amit, team["community"], ids["Rahul"]).status_code == 403
+
+    done = _task(team["owner"], team["community"], [ids["Rahul"]], title="Finished")
+    team["rahul"].post(f"/api/work/tasks/{done['id']}/respond", json={"accept": True})
+    team["rahul"].put(f"/api/work/tasks/{done['id']}/progress", json={"progress": 100})
+    _upload(team["rahul"], done["id"])
+
+    r = _history(amit, team["community"], ids["Rahul"])
+    assert r.status_code == 200
+    body = r.json()
+    assert body["scope"] == "completed"
+    assert [t["title"] for t in body["tasks"]] == ["Finished"]
+    assert body["tasks"][0]["attachment_count"] == 1
+
+    # And the task itself opens in full, timeline and files included.
+    detail = amit.get(f"/api/work/tasks/{done['id']}").json()
+    assert detail["attachments"][0]["file_name"] == "Event_Report.pdf"
+    assert any(e["kind"] == "progress" for e in detail["timeline"])
+
+
+def test_a_colleague_does_not_see_work_still_in_flight(team, amit):
+    """Reading somebody's half-finished task is reading over their shoulder.
+    The counts are not secret -- they are on the board's member table, which
+    everyone can read -- but the detail stays between them and their owner."""
+    _join(team["owner"], amit, team["community"], "w_amit@example.com")
+    ids = _members(team["owner"], team["community"])
+
+    _task(team["owner"], team["community"], [ids["Rahul"]], title="Still going")
+    body = _history(amit, team["community"], ids["Rahul"]).json()
+
+    assert [t["title"] for t in body["tasks"]] == []
+    # The tally still counts it, matching the table above it on the page.
+    assert body["tally"]["assigned"] == 1
+    assert body["tally"]["pending"] == 1
+
+
+def test_an_owner_still_sees_everything(team, amit):
+    _join(team["owner"], amit, team["community"], "w_amit@example.com")
+    ids = _members(team["owner"], team["community"])
+    _task(team["owner"], team["community"], [ids["Rahul"]], title="Still going")
+
+    body = _history(team["owner"], team["community"], ids["Rahul"]).json()
+    assert body["scope"] == "all"
+    assert [t["title"] for t in body["tasks"]] == ["Still going"]
+
+
+def test_a_member_still_sees_all_of_their_own_work(team):
+    _task(team["owner"], team["community"], [team["ids"]["Rahul"]], title="Mine, unfinished")
+    body = _history(team["rahul"], team["community"], team["ids"]["Rahul"]).json()
+    assert body["scope"] == "all"
+    assert [t["title"] for t in body["tasks"]] == ["Mine, unfinished"]
 
 
 def test_history_can_be_filtered_by_status(team):
@@ -373,12 +435,18 @@ def test_search_finds_a_task_by_the_start_of_its_id(team):
     assert [h["id"] for h in hits] == [t["id"]]
 
 
-def test_search_does_not_become_a_way_around_the_permission(team, amit):
-    """A plain member sees only their own work in results, exactly as they do
-    everywhere else."""
+def test_search_matches_what_the_history_shows(team, amit):
+    """Search must be neither narrower nor wider than the page it searches:
+    your own work, plus anybody's finished work."""
     _join(team["owner"], amit, team["community"], "w_amit@example.com")
-    _task(team["owner"], team["community"], [team["ids"]["Rahul"]], title="Rahul's job")
+    ids = _members(team["owner"], team["community"])
+
+    live = _task(team["owner"], team["community"], [ids["Rahul"]], title="Ongoing job")
+    done = _task(team["owner"], team["community"], [ids["Rahul"]], title="Finished job")
+    team["rahul"].post(f"/api/work/tasks/{done['id']}/respond", json={"accept": True})
+    team["rahul"].put(f"/api/work/tasks/{done['id']}/progress", json={"progress": 100})
 
     hits = amit.get(f"/api/work/communities/{team['community']}/search",
                     params={"q": "job"}).json()["results"]
-    assert hits == []
+    assert [h["title"] for h in hits] == ["Finished job"]
+    assert live["id"] not in [h["id"] for h in hits]

@@ -1136,30 +1136,41 @@ def member_task_history(
 ):
     """Everything one member has been given in this community.
 
-    Anyone may read their own history. Reading someone else's needs a managing
-    role: "what has Rahul been working on" is a supervisor's question, and the
-    answer is not a colleague's to take.
+    Finished work is the team's record and everyone can read it, in full --
+    the task, its progress, its files and its whole timeline. A community
+    that hides what it has achieved from the people who achieved it is
+    keeping a secret from itself, and the completed history is exactly what
+    a colleague needs to find out how something was done last time.
+
+    Work still in flight is narrower. A colleague reading your half-finished
+    task is reading over your shoulder, so pending, in-progress and overdue
+    rows stay between the person doing them and whoever is managing them.
+    Their counts are not secret -- the same totals sit on the board's member
+    table, which every member can already read -- only the detail is.
     """
     community = _load_community(db, community_id)
     member = ws.require_member(db, community.id, user)
-    if member_id != user.id and member.role == CommunityRole.MEMBER.value:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN,
-            "Only the community's owner or an admin can look at another member's work.",
-        )
 
     subject = db.get(User, member_id)
     if not subject or not ws.membership(db, community.id, member_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "That person is not in this community.")
 
+    own = member_id == user.id
+    manages = member.role != CommunityRole.MEMBER.value
+    visible = None if (own or manages) else {"completed"}
+
     window = wt.resolve_period(period, user.timezone, start, end)
     wanted = {s for s in (status_filter or "").split(",") if s in wt.BUCKETS}
-    result = wt.member_overview(db, community.id, member_id, period=window, statuses=wanted or None)
+    result = wt.member_overview(db, community.id, member_id, period=window,
+                                statuses=wanted or None, visible=visible)
 
     return {
         "member": _person(subject),
         "member_id": subject.id,
         "period": window.label,
+        # Said plainly, so the page can explain a short list rather than
+        # leaving the reader to think the person has done almost nothing.
+        "scope": "completed" if visible else "all",
         "tally": result["tally"],
         "tasks": [_tracked(a, t, result["attachment_counts"]) for a, t in result["pairs"]],
     }
@@ -1173,10 +1184,14 @@ def search_work(community_id: str, q: str = Query(min_length=1, max_length=120),
     member = ws.require_member(db, community.id, user)
 
     rows = wt.search(db, community.id, q)
-    # A plain member sees only their own work in results, exactly as they do
-    # everywhere else. Search must not become the way around that.
+    # The same rule the history uses, for the same reason: search must not be
+    # narrower than the page it searches, nor wider. Your own work, plus
+    # anybody's finished work.
     if member.role == CommunityRole.MEMBER.value:
-        rows = [a for a in rows if a.user_id == user.id]
+        rows = [
+            a for a in rows
+            if a.user_id == user.id or wt.bucket_of(a, a.task) == "completed"
+        ]
 
     counts = wt.attachment_counts(db, [a.task_id for a in rows])
     return {"results": [_tracked(a, a.task, counts) for a in rows]}
