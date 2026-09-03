@@ -254,11 +254,42 @@ function departmentOptions(departments) {
   );
 }
 
+/* Any container marked is-loading-block gets the animation while it waits.
+
+   Server-rendered HTML cannot call loaderMarkup, so the markup is filled in
+   here on load. It means a template says only "this is loading" and does not
+   also carry fifteen spans it would have to keep in step with the stylesheet.
+   Whatever renders into the container replaces it, exactly as the placeholder
+   text it stands in for was replaced. */
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll(".is-loading-block").forEach((el) => {
+    el.innerHTML = loaderMarkup("sm", "Loading");
+  });
+});
+
 /* ---------------- Route veil ----------------
    Signing in and signing out both end in a full page load. Between the click
    and the new document there is nothing on screen saying the click landed,
    which is exactly long enough for someone to press the button again. This
    covers that gap and locks the form underneath at the same time. */
+/* The loading animation's markup, in one place.
+
+   Fifteen spans is a lot to type, and typing it in five places is five places
+   to get the count wrong -- the colour ramp is keyed to nth-child, so fourteen
+   spans silently shifts every colour by one.
+
+   size: "" | "sm" | "lg". */
+function loaderMarkup(size = "", label = "") {
+  const cls = "loader" + (size ? ` loader-${size}` : "");
+  const dots = '<span></span>'.repeat(15);
+  const body = `<div class="${cls}" aria-hidden="true">${dots}</div>` +
+    (label ? `<span class="loader-label">${esc(label)}</span>` : "");
+  // role=status on the wrapper, and the animation itself hidden from the
+  // accessibility tree: fifteen empty spans announce nothing useful, and the
+  // label is what actually says what is happening.
+  return `<div role="status" aria-live="polite" aria-label="${esc(label || "Loading")}">${body}</div>`;
+}
+
 function showRouteVeil(label, sub) {
   let veil = document.getElementById("route-veil");
   if (veil) return veil;
@@ -270,7 +301,7 @@ function showRouteVeil(label, sub) {
   veil.setAttribute("role", "status");
   veil.setAttribute("aria-live", "polite");
   veil.innerHTML = `
-    <div class="route-veil-spinner" aria-hidden="true"></div>
+    ${loaderMarkup("lg")}
     <div class="route-veil-label">${esc(label)}</div>
     ${sub ? `<div class="route-veil-sub">${esc(sub)}</div>` : ""}`;
   document.body.appendChild(veil);
@@ -715,7 +746,13 @@ const LOADER_DELAY_MS = 300;
 
 /** Markup for the five-dot loader. */
 function dotsMarkup(extraClass = "") {
-  return `<span class="dots5 ${extraClass}"><span></span><span></span><span></span><span></span><span></span></span>`;
+  /* Kept as the name every block-level loading state already calls, now
+     drawing the real animation. Renaming it would have meant touching every
+     call site to change nothing about what they wanted -- a loading mark.
+
+     .dots5 stays in the stylesheet: it is still what a button spinner uses,
+     where fifteen ellipses would be a smudge. */
+  return loaderMarkup("sm");
 }
 
 

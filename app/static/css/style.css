@@ -1946,3 +1946,122 @@ pre {
   .lnk-fill::before,
   .lnk-swap > span { transition: none; }
 }
+
+
+/* ==========================================================================
+   The loading animation
+
+   Fifteen overlapping ellipses whose widths oscillate out of phase, so the row
+   pinches toward the middle and opens out again -- a standing wave rather than
+   anything travelling. Colour runs symmetrically from dark maroon at the edges
+   through red, orange and amber, to cyan at dead centre.
+
+   Rebuilt from the Figma prototype rather than exported: it is fifteen shapes
+   and one keyframe, which is smaller as CSS than as any asset, scales to any
+   size from a single variable, and needs no image request at the exact moment
+   the page is already waiting on something.
+
+   The ellipses are positioned absolutely, and that is the whole trick. A flex
+   row does not work here: scaleX changes what is painted and not what is laid
+   out, so the pinched inner ellipses still reserve their full width and the
+   cluster comes out spread across the screen with gaps between the slivers.
+   Fixing their centres and letting the paint overflow is what makes them
+   overlap.
+
+   `translate` carries the position and `transform` carries the animation --
+   two separate properties, so the keyframes never have to restate an offset
+   they do not care about.
+   ========================================================================== */
+.loader {
+  --loader-size: 84px;
+  --loader-step: 0.164;            /* centre-to-centre, as a fraction of size */
+  position: relative;
+  display: block;
+  height: var(--loader-size);
+  width: calc(var(--loader-size) * 3.3);
+  pointer-events: none;
+}
+
+.loader > span {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: var(--loader-size);
+  height: var(--loader-size);
+  margin-left: calc(var(--loader-size) / -2);
+  border-radius: 50%;
+  translate: calc(var(--loader-size) * var(--x)) 0;
+  /* Stacked from the centre outward, so the bright slivers sit on top and the
+     two halves mirror each other. Left to document order the fifteenth ellipse
+     paints over all the others and the right-hand side reads as a solid blob
+     while the left reads as a fan -- the same shape looking like two different
+     ones. */
+  z-index: var(--z, 1);
+  animation: loaderPinch 1.9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  animation-delay: var(--delay, 0s);
+  will-change: transform;
+}
+
+/* One keyframe for all fifteen; the per-ellipse custom properties and the
+   phase offset do the rest. Fifteen separate animations would be fifteen
+   things to keep in step. */
+@keyframes loaderPinch {
+  0%, 100% { transform: scaleX(var(--wide)); }
+  50%      { transform: scaleX(var(--thin)); }
+}
+
+/* Position, colour and amplitude by distance from the centre. Written out
+   rather than generated: there are fifteen, and a reader should be able to see
+   the ramp instead of reconstructing it from arithmetic. */
+.loader > span:nth-child(1)  { --x: -1.148; background: #8C3A32; --wide: 1.00; --thin: 0.90; --delay: 0s;  --z: 1;}
+.loader > span:nth-child(15) { --x:  1.148; background: #8C3A32; --wide: 1.00; --thin: 0.90; --delay: 0s;  --z: 1;}
+.loader > span:nth-child(2)  { --x: -0.984; background: #E03127; --wide: 0.92; --thin: 0.70; --delay: -0.09s;  --z: 2;}
+.loader > span:nth-child(14) { --x:  0.984; background: #E03127; --wide: 0.92; --thin: 0.70; --delay: -0.09s;  --z: 2;}
+.loader > span:nth-child(3)  { --x: -0.820; background: #F2431B; --wide: 0.80; --thin: 0.52; --delay: -0.18s;  --z: 3;}
+.loader > span:nth-child(13) { --x:  0.820; background: #F2431B; --wide: 0.80; --thin: 0.52; --delay: -0.18s;  --z: 3;}
+.loader > span:nth-child(4)  { --x: -0.656; background: #FA6A0A; --wide: 0.66; --thin: 0.36; --delay: -0.27s;  --z: 4;}
+.loader > span:nth-child(12) { --x:  0.656; background: #FA6A0A; --wide: 0.66; --thin: 0.36; --delay: -0.27s;  --z: 4;}
+.loader > span:nth-child(5)  { --x: -0.492; background: #FB9B06; --wide: 0.52; --thin: 0.24; --delay: -0.36s;  --z: 5;}
+.loader > span:nth-child(11) { --x:  0.492; background: #FB9B06; --wide: 0.52; --thin: 0.24; --delay: -0.36s;  --z: 5;}
+.loader > span:nth-child(6)  { --x: -0.328; background: #FDC000; --wide: 0.38; --thin: 0.14; --delay: -0.45s;  --z: 6;}
+.loader > span:nth-child(10) { --x:  0.328; background: #FDC000; --wide: 0.38; --thin: 0.14; --delay: -0.45s;  --z: 6;}
+.loader > span:nth-child(7)  { --x: -0.164; background: #2FA8E8; --wide: 0.16; --thin: 0.05; --delay: -0.54s;  --z: 7;}
+.loader > span:nth-child(9)  { --x:  0.164; background: #2FA8E8; --wide: 0.16; --thin: 0.05; --delay: -0.54s;  --z: 7;}
+.loader > span:nth-child(8)  { --x:  0;     background: #1E7FD0; --wide: 0.11; --thin: 0.04; --delay: -0.63s;  --z: 8;}
+
+/* Small enough to sit beside a line of text. Below roughly this the ellipses
+   stop being separable and it reads as a smudge, which is why buttons keep
+   their ring rather than shrinking this into one. */
+.loader-sm { --loader-size: 34px; }
+.loader-lg { --loader-size: 110px; }
+
+.loader-label {
+  display: block;
+  margin-top: 10px;
+  text-align: center;
+  font-size: 0.86rem;
+  font-weight: 650;
+  color: var(--text-muted);
+}
+
+/* Inline with text rather than a block of its own. */
+.loader-inline { display: inline-flex; align-items: center; gap: 12px; }
+.loader-inline .loader-label { margin-top: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* The shape stays and stops moving, so a page still looks like itself to
+     somebody who asked not to be moved. Held at its widest rather than
+     mid-pinch: the pinched state is a row of thin lines, and a thin line that
+     never resolves reads as a rendering fault. */
+  .loader > span { animation: none; transform: scaleX(var(--wide)); }
+}
+
+/* A container waiting on its first render. Centred, with room to breathe, so
+   the animation is not jammed against the top of an empty card. */
+.is-loading-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 26px 0;
+}
