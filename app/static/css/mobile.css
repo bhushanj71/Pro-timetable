@@ -102,12 +102,27 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   .bn-item:active .bn-ico { transform: scale(0.86); }
   .bn-item.active { color: var(--primary); }
   .bn-item.active .bn-ico { transform: translateY(-2px) scale(1.08); }
-  /* Indicator bar above the active tab. */
+  /* Indicator bar above the active tab. Kept as the fallback: if nav-pill.js
+     has not run there is still something marking where you are. */
   .bn-item.active::before {
     content: ""; position: absolute; top: 0; left: 50%;
     width: 26px; height: 3px; margin-left: -13px;
     background: var(--primary); border-radius: 0 0 4px 4px;
     animation: scaleIn var(--t) var(--ease-spring) both;
+  }
+  .bottom-nav.has-pill .bn-item.active::before { display: none; }
+
+  /* The travelling pill, fluid-tabs style: a soft raised chip on the bar
+     rather than the sidebar's solid coral. The label here is already coral,
+     and a coral pill under coral text would take the label with it.
+
+     Fully rounded, as in the source, and inset by nav-pill.js so it reads as
+     a pill sitting on a track instead of a block filling the bar. */
+  .bottom-nav .nav-pill {
+    border-radius: 999px;
+    background: var(--primary-softer);
+    border: 1px solid var(--primary-soft);
+    box-shadow: var(--shadow-xs);
   }
   .bn-badge {
     position: absolute; top: 5px; right: 50%; margin-right: -20px;

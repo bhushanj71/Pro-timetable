@@ -116,8 +116,18 @@ function renderAgenda(container, events) {
     .join("")}</div>`;
 }
 
+/* Which view is showing. The stylesheet has always had a rule for this and
+   nothing ever set the class, so the switcher gave no sign of the current
+   view; the travelling pill reads it from here. */
+function syncViewButtons() {
+  document.querySelectorAll("[data-view]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.view === calState.view);
+  });
+}
+
 async function renderCalendar() {
   const [start, end] = rangeForView();
+  syncViewButtons();
   updateLabel(start, end);
   const container = document.getElementById("cal-view-container");
   try {

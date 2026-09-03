@@ -45,6 +45,9 @@
   <div class="layout">
     <!-- ==================== Sidebar ==================== -->
     <nav class="sidebar" id="sidebar">
+      {# The travelling indicator. Out of flow, so it does not disturb the
+         column; nav-pill.js gives it a size and a place. #}
+      <span class="nav-pill" aria-hidden="true"></span>
       <a href="/dashboard" class="brand-block">
         <img src="/static/logo.svg?v={{ v }}" alt="ProfSchedule AI" class="brand-logo"
              onerror="this.classList.add('is-missing')">
@@ -228,6 +231,7 @@
 
     <!-- Primary navigation on phones; the drawer keeps the secondary items -->
     <nav class="bottom-nav" aria-label="Primary">
+      <span class="nav-pill" aria-hidden="true"></span>
       {% if in_work %}
         <a class="bn-item {% if request.url.path == '/work' %}active{% endif %}" href="/work">
           <span class="bn-ico">📊</span> Dashboard
@@ -344,6 +348,7 @@
   <script src="/static/js/store.js?v={{ v }}"></script>
   <script src="/static/js/theme.js?v={{ v }}"></script>
   <script src="/static/js/mobile.js?v={{ v }}"></script>
+  <script src="/static/js/nav-pill.js?v={{ v }}"></script>
   {% if user %}
   <script src="/static/js/pwa.js?v={{ v }}"></script>
   <script src="/static/js/push.js?v={{ v }}"></script>

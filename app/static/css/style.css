@@ -9,6 +9,11 @@
   --surface: #ffffff;
   --surface-alt: #fefbfa;
   --border: #f2e7e1;
+  /* The muted band a widget's panel is mounted on. See the Cards section.
+     Its own value rather than an alias of --bg-tint: the band has to be a
+     visible step down from --surface, and --bg-tint sits close enough to
+     white that the frame all but disappeared against a white panel. */
+  --frame-fill: #f4eae3;
   --border-strong: #e8d8d0;
 
   /* Text */
@@ -261,6 +266,79 @@ input, select, textarea, button { font-size: inherit; }
 }
 .nav-link.active:hover::after { transform: translateX(3px); }
 
+/* --------------------------------------------------------------------------
+   The travelling indicator (fluid-tabs)
+
+   One pill per nav, moved under the active item by nav-pill.js. Position and
+   size are custom properties so a single element serves items of different
+   widths, and the spring is the project's own --ease-spring, which already
+   overshoots slightly -- the same character as the source's stiffness 280 /
+   damping 25.
+
+   translate rather than transform, so a hover or press on the item can still
+   use transform without the two fighting over one property.
+   -------------------------------------------------------------------------- */
+.nav-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--pill-w, 0);
+  height: var(--pill-h, 0);
+  translate: var(--pill-x, 0) var(--pill-y, 0);
+  border-radius: 13px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+  transition: translate 460ms var(--ease-spring),
+              width 460ms var(--ease-spring),
+              height 460ms var(--ease-spring),
+              opacity var(--t) var(--ease);
+}
+.nav-pill.is-ready { opacity: 1; }
+/* Placement that is not a move: first paint, a resize, a badge appearing. */
+.nav-pill.is-instant { transition: none; }
+
+/* In the sidebar the pill *is* the active state, so the static gradient is
+   handed over to it rather than drawn twice. */
+.sidebar .nav-pill {
+  background: linear-gradient(135deg, var(--primary) 0%, #eb9375 100%);
+  box-shadow: 0 6px 18px var(--primary-ring);
+}
+.sidebar.has-pill .nav-link.active {
+  background: none;
+  box-shadow: none;
+}
+/* The label has to sit above the pill it is riding on. */
+.nav-link { z-index: 1; }
+
+/* The source pulses the arriving tab through a short blur. That was tried
+   here and rejected: it dims and blurs the label, so anything that stops the
+   animation from finishing -- a background tab, a stalled frame -- leaves a
+   primary navigation item unreadable. The blur is decoration; the label is
+   the function, and the app already refuses that trade in the loader.
+
+   So the arrival is carried by the icon alone, springing up to size. Frozen
+   at any frame it is a slightly small icon, which costs nothing.
+
+   Animating the `scale` property rather than `transform` leaves the active
+   states' own transforms (the tab icon's lift, the sidebar icon's hover)
+   intact instead of overwriting them, and no fill mode means the base value
+   returns the moment it finishes. */
+@keyframes navArrive {
+  0%   { scale: 0.86; }
+  60%  { scale: 1.05; }
+  100% { scale: 1; }
+}
+.nav-link.is-arriving .nav-ico,
+.bn-item.is-arriving .bn-ico { animation: navArrive 460ms var(--ease-spring); }
+
+@media (prefers-reduced-motion: reduce) {
+  /* The pill still marks the active item; it just stops travelling to it. */
+  .nav-pill { transition: opacity var(--t) var(--ease); }
+  .nav-link.is-arriving .nav-ico,
+  .bn-item.is-arriving .bn-ico { animation: none; }
+}
+
 .nav-badge {
   margin-left: auto;
   background: var(--primary-soft);
@@ -280,10 +358,12 @@ input, select, textarea, button { font-size: inherit; }
 .assistant-card {
   margin-top: auto;
   flex-shrink: 0;
+  --frame: 5px;
   background: linear-gradient(160deg, var(--primary-softer) 0%, var(--primary-soft) 100%);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 15px;
+  background-clip: padding-box;
+  border: var(--frame) solid var(--frame-fill);
+  border-radius: calc(var(--radius) + var(--frame));
+  padding: 10px;
   position: relative;
   overflow: hidden;
 }
@@ -400,15 +480,36 @@ input, select, textarea, button { font-size: inherit; }
 /* ==========================================================================
    Cards
    ========================================================================== */
+/* Every widget is a panel mounted on a muted frame -- the watermelon widget-1
+   shape, where the outer band's radius exceeds the inner one by exactly the
+   band's width. Get that wrong and nested rounding reads as a mistake.
+
+   The band is a thick border rather than a wrapper element, which is what
+   makes it affordable: there are thirty-four cards across nineteen templates
+   and none of them needed an extra div. The browser derives the inner corner
+   as outer-radius minus border-width, so the arithmetic cannot drift; a
+   pseudo-element would have collided with .wk-card's accent bar and scrolled
+   away inside .modal-card, and a spread shadow would have eaten the grid gap.
+
+   Padding is reduced by exactly the frame, so the content box is unchanged
+   and not one card moves. This is paint, not layout. */
 .card {
+  --frame: 6px;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  padding: 20px 22px;
+  /* Without this the surface would flood the border area and there would be
+     no frame at all. */
+  background-clip: padding-box;
+  border: var(--frame) solid var(--frame-fill);
+  border-radius: calc(var(--radius) + var(--frame));
+  /* The hairline belongs on the outside of the frame; the panel is told apart
+     from the band by colour, as in the source. */
+  box-shadow: 0 0 0 1px var(--border), var(--shadow-sm);
+  padding: 14px 16px;
   transition: box-shadow var(--t) var(--ease), transform var(--t) var(--ease), border-color var(--t) var(--ease);
 }
-.card-hover:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+/* Lift and shadow already carry the hover. Tinting border-color now would
+   flood the whole six-pixel band instead of shifting a hairline. */
+.card-hover:hover { transform: translateY(-3px); box-shadow: 0 0 0 1px var(--border-strong), var(--shadow-md); }
 
 .card-head {
   display: flex; align-items: center; justify-content: space-between;
@@ -526,11 +627,13 @@ input, select, textarea, button { font-size: inherit; }
    ========================================================================== */
 .quick-actions { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
 .qa-card {
+  --frame: 4px;                /* a narrower band: these tiles are small */
   display: flex; align-items: center; gap: 11px;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px 18px;
+  background-clip: padding-box;
+  border: var(--frame) solid var(--frame-fill);
+  border-radius: calc(var(--radius) + var(--frame));
+  padding: 12px 14px;
   font-weight: 700; font-size: 0.875rem;
   box-shadow: var(--shadow-xs);
   transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease), border-color var(--t) var(--ease);
@@ -541,7 +644,7 @@ input, select, textarea, button { font-size: inherit; }
   background: var(--primary-soft); color: var(--primary);
   transition: transform var(--t) var(--ease-spring);
 }
-.qa-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: var(--primary); }
+.qa-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: var(--primary-soft); }
 .qa-card:hover .qa-ico { transform: scale(1.12) rotate(-6deg); }
 .qa-card:active { transform: translateY(-1px); }
 
@@ -549,10 +652,12 @@ input, select, textarea, button { font-size: inherit; }
    Stat tiles
    ========================================================================== */
 .stat-card {
+  --frame: 5px;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 18px;
+  background-clip: padding-box;
+  border: var(--frame) solid var(--frame-fill);
+  border-radius: calc(var(--radius) + var(--frame));
+  padding: 13px;
   box-shadow: var(--shadow-xs);
   transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
 }
@@ -564,7 +669,9 @@ input, select, textarea, button { font-size: inherit; }
   transition: transform var(--t) var(--ease-spring);
 }
 .stat-card:hover .stat-ico { transform: scale(1.08) rotate(-5deg); }
-.stat-value { font-size: 1.95rem; font-weight: 800; line-height: 1.05; letter-spacing: -0.035em; }
+/* tabular-nums so a figure that updates in place does not jiggle its
+   own width as the digits change. */
+.stat-value { font-size: 1.95rem; font-weight: 800; line-height: 1.05; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; }
 .stat-label { font-size: 0.8rem; font-weight: 600; color: var(--text-soft); }
 .stat-sub { font-size: 0.71rem; color: var(--text-muted); }
 .stat-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: 10px; }
@@ -883,13 +990,27 @@ input, select, textarea, button { font-size: inherit; }
    Calendar page
    ========================================================================== */
 .calendar-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+/* Already the fluid-tabs shape -- a muted track holding a raised chip -- so
+   it only wanted the chip to travel. This is also the one tab strip in the
+   app that switches without loading a page, which makes it the only place the
+   slide is seen as the component intends. */
 .calendar-view-switch {
   display: flex; gap: 3px; margin-left: auto;
   background: var(--bg-tint); padding: 4px; border-radius: 12px;
+  position: relative;
 }
-.calendar-view-switch .btn { box-shadow: none; border-color: transparent; background: transparent; }
+.calendar-view-switch .btn { box-shadow: none; border-color: transparent; background: transparent; position: relative; z-index: 1; }
 .calendar-view-switch .btn:hover { background: var(--surface); transform: none; }
 .calendar-view-switch .btn.active { background: var(--surface); color: var(--primary); box-shadow: var(--shadow-xs); }
+/* Once the pill is live it carries the fill, and the button keeps the colour.
+   Without this the chip would be painted twice, once stationary. */
+.calendar-view-switch.has-pill .btn.active { background: transparent; box-shadow: none; }
+.calendar-view-switch .nav-pill {
+  /* The track's radius less its padding, so the chip is concentric with it. */
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
 
 .month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; }
 .month-cell {
@@ -935,10 +1056,13 @@ input, select, textarea, button { font-size: inherit; }
 }
 .modal-backdrop.hidden { display: none !important; }
 .modal-card {
+  --frame: 8px;
   background: var(--surface);
-  border-radius: var(--radius-lg);
+  background-clip: padding-box;
+  border: var(--frame) solid var(--frame-fill);
+  border-radius: calc(var(--radius-lg) + var(--frame));
   box-shadow: var(--shadow-lg);
-  padding: 26px;
+  padding: 18px;
   width: 100%;
   max-width: 500px;
   max-height: 90vh;
@@ -1190,7 +1314,7 @@ input, select, textarea, button { font-size: inherit; }
   .toast { max-width: none; }
   .popover { width: min(330px, calc(100vw - 30px)); right: 15px; }
   .form-row { flex-direction: column; gap: 0; }
-  .modal-card { padding: 20px; border-radius: var(--radius); }
+  .modal-card { padding: 13px; border-radius: calc(var(--radius) + var(--frame)); }
 }
 
 @media (max-width: 480px) {

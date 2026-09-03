@@ -28,6 +28,11 @@
   --glass-edge-soft: inset 0 1px 0 rgba(255, 255, 255, 0.6);
   --glass-rim: rgba(255, 255, 255, 0.55);
 
+  /* The frame a widget's panel sits on. Fainter than the pane, so more of the
+     ambient field shows through it -- which is what makes it read as the
+     muted outer band rather than a second sheet of the same glass. */
+  --glass-frame: rgba(240, 226, 216, 0.82);
+
   --glass-shadow: 0 6px 24px rgba(76, 52, 42, 0.10), 0 1px 2px rgba(76, 52, 42, 0.05);
   --glass-shadow-lg: 0 24px 60px rgba(76, 52, 42, 0.18), 0 2px 6px rgba(76, 52, 42, 0.07);
 
@@ -47,6 +52,7 @@
   --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.14);
   --glass-edge-soft: inset 0 1px 0 rgba(255, 255, 255, 0.09);
   --glass-rim: rgba(255, 255, 255, 0.13);
+    --glass-frame: rgba(10, 8, 7, 0.55);
 
   --glass-shadow: 0 6px 24px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.30);
   --glass-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.58), 0 2px 6px rgba(0, 0, 0, 0.35);
@@ -61,6 +67,7 @@
     --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.14);
     --glass-edge-soft: inset 0 1px 0 rgba(255, 255, 255, 0.09);
     --glass-rim: rgba(255, 255, 255, 0.13);
+    --glass-frame: rgba(10, 8, 7, 0.55);
 
     --glass-shadow: 0 6px 24px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.30);
     --glass-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.58), 0 2px 6px rgba(0, 0, 0, 0.35);
@@ -108,13 +115,16 @@ body.app-shell::before {
 
 .card {
   background: var(--glass-bg);
-  border: 1px solid var(--glass-rim);
-  box-shadow: var(--glass-shadow), var(--glass-edge-soft);
+  /* The shorthand above resets background-clip, so it has to be restated or
+     the pane floods its own frame. */
+  background-clip: padding-box;
+  border: var(--frame) solid var(--glass-frame);
+  box-shadow: 0 0 0 1px var(--glass-rim), var(--glass-shadow), var(--glass-edge-soft);
 }
 
 /* A pane lifts toward the light rather than just growing a shadow. */
 .card:hover {
-  box-shadow: var(--glass-shadow-lg), var(--glass-edge);
+  box-shadow: 0 0 0 1px var(--glass-rim), var(--glass-shadow-lg), var(--glass-edge);
 }
 
 .sidebar {
@@ -145,10 +155,11 @@ body.app-shell::before {
 
 .modal-card {
   background: var(--glass-bg-strong);
+  background-clip: padding-box;
   -webkit-backdrop-filter: var(--glass-blur-lg);
   backdrop-filter: var(--glass-blur-lg);
-  border: 1px solid var(--glass-rim);
-  box-shadow: var(--glass-shadow-lg), var(--glass-edge);
+  border: var(--frame) solid var(--glass-frame);
+  box-shadow: 0 0 0 1px var(--glass-rim), var(--glass-shadow-lg), var(--glass-edge);
 }
 
 .bottom-nav {

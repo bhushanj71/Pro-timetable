@@ -15,6 +15,9 @@
   --bg-tint: #1f1a17;
   --surface: #201b18;
   --surface-alt: #262019;
+  /* Darker than --surface here: a widget's frame should recede in both
+     themes, and in the dark palette --surface-alt is the lighter step. */
+  --frame-fill: #17120f;
   --border: #332b26;
   --border-strong: #443a33;
 
@@ -69,6 +72,9 @@
     --bg-tint: #1f1a17;
     --surface: #201b18;
     --surface-alt: #262019;
+  /* Darker than --surface here: a widget's frame should recede in both
+     themes, and in the dark palette --surface-alt is the lighter step. */
+  --frame-fill: #17120f;
     --border: #332b26;
     --border-strong: #443a33;
 
