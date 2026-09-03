@@ -478,9 +478,15 @@ async function openTask(taskId) {
           My progress — <strong id="wk-my-progress-value">${me.progress}%</strong>
           <span class="wk-dirty hidden" id="wk-progress-dirty">unsaved</span>
         </label>
-        <div class="wk-bar wk-bar-live"><span id="wk-my-progress-bar" style="width:${me.progress}%"></span></div>
-        <input type="range" id="wk-my-progress" min="0" max="100" step="5" value="${me.progress}"
-               data-initial="${me.progress}" aria-describedby="wk-my-progress-value">
+        <div class="aslider" id="wk-my-progress-slider" style="--pct:${me.progress}">
+          <div class="aslider-track">
+            <i></i><i></i><i></i><i></i><i></i><i></i>
+            <div class="aslider-fill"></div>
+            <div class="aslider-thumb"></div>
+          </div>
+          <input type="range" id="wk-my-progress" min="0" max="100" step="5" value="${me.progress}"
+                 data-initial="${me.progress}" aria-describedby="wk-my-progress-value">
+        </div>
         <input type="text" id="wk-my-note" placeholder="What changed? (optional)" maxlength="2000" style="margin-top:8px">
         <button class="btn btn-sm btn-primary" id="wk-save-progress" data-task="${t.id}" style="margin-top:8px">Save progress</button>
       </div>` : ""}
@@ -500,6 +506,11 @@ async function openTask(taskId) {
             <span>${esc(u.user.name)}${u.to != null ? ` — ${u.from ?? 0}% → ${u.to}%` : ""}${u.note ? ` · ${esc(u.note)}` : ""}</span>
           </div>`).join("")}
       </div>` : ""}`;
+
+  // Start in the right colour stage: a task already at 100% should open green
+  // rather than amber until somebody happens to touch the slider.
+  const slider = document.getElementById("wk-my-progress-slider");
+  if (slider && me) paintSlider(slider, me.progress);
 }
 
 /* ---------------- Attachments ----------------
@@ -1271,19 +1282,52 @@ document.getElementById("wk-p-save")?.addEventListener("click", async (e) => {
   }
 });
 
+/* Position and colour in one place, called from the input handler and again
+   after the sheet is rebuilt.
+
+   The stage is a class rather than a CSS comparison because CSS cannot compare
+   a custom property to a number -- and hiding the thresholds in three
+   selectors would put the rule in the stylesheet while the value lives here.
+*/
+function paintSlider(slider, pct) {
+  slider.style.setProperty("--pct", pct);
+  slider.classList.toggle("is-mid", pct >= 50 && pct < 90);
+  slider.classList.toggle("is-high", pct >= 90);
+}
+
 /* The slider is rebuilt with the sheet, so this is delegated from the document
    rather than bound to an element that will not exist yet. */
 document.addEventListener("input", (e) => {
   if (e.target.id !== "wk-my-progress") return;
   const pct = Number(e.target.value);
   const label = document.getElementById("wk-my-progress-value");
-  const bar = document.getElementById("wk-my-progress-bar");
   const dirty = document.getElementById("wk-progress-dirty");
+  const slider = document.getElementById("wk-my-progress-slider");
+
   if (label) label.textContent = `${pct}%`;
-  if (bar) bar.style.width = `${pct}%`;
+  // One number drives the fill, the thumb and the colour. Setting three
+  // things separately is three chances for them to disagree mid-drag.
+  if (slider) paintSlider(slider, pct);
+
   // Says plainly that the number on screen is not yet the number on the
   // server -- moving a slider looks like it saved, and it does not.
   if (dirty) dirty.classList.toggle("hidden", pct === Number(e.target.dataset.initial));
+});
+
+/* While a finger or pointer is down the thumb tracks it exactly; the spring is
+   for when it is let go, or when the value is set some other way. A spring
+   during the drag would put the thumb behind the finger, which reads as lag
+   rather than as bounce. */
+document.addEventListener("pointerdown", (e) => {
+  if (e.target.id === "wk-my-progress") {
+    document.getElementById("wk-my-progress-slider")?.classList.add("is-dragging");
+  }
+});
+document.addEventListener("pointerup", () => {
+  document.getElementById("wk-my-progress-slider")?.classList.remove("is-dragging");
+});
+document.addEventListener("pointercancel", () => {
+  document.getElementById("wk-my-progress-slider")?.classList.remove("is-dragging");
 });
 
 document.getElementById("wk-t-create")?.addEventListener("click", async (e) => {

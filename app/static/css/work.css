@@ -715,10 +715,6 @@ button.user-chip .ps-badge { position: absolute; top: -3px; right: -3px; }
 /* ==========================================================================
    Live progress
    ========================================================================== */
-.wk-bar-live { margin: 8px 0 10px; height: 9px; }
-/* No transition on the live bar: it tracks the thumb, and easing a drag makes
-   the fill lag behind the finger. */
-.wk-bar-live > span { transition: none; }
 
 .wk-progress-editor label { display: flex; align-items: center; gap: 8px; }
 .wk-progress-editor strong { color: var(--primary); font-size: 0.95rem; }
@@ -1243,4 +1239,136 @@ button.user-chip .ps-badge { position: absolute; top: -3px; right: -3px; }
   color: var(--text-muted);
   font-size: 0.76rem;
   line-height: 1.45;
+}
+
+
+/* ==========================================================================
+   Adaptive slider
+
+   The progress control on a task: a pill track with a gradient fill that
+   changes colour as the value climbs, and a white thumb that springs into
+   place when released.
+
+   One number drives all of it. --pct is set once on the wrapper and the fill
+   width, the thumb position and the colour all read it, so they cannot drift
+   apart mid-drag the way three separately-updated properties would.
+
+   The real <input type="range"> is still here, transparent, on top. Everything
+   visible is paint. Rebuilding a slider out of divs and pointer maths costs
+   the keyboard, the screen reader, the touch behaviour and the step snapping
+   that the browser already gets right -- and this control is how somebody
+   records that their work is finished, which is not a place to lose any of it.
+   ========================================================================== */
+.aslider {
+  --pct: 0;
+  --aslider-h: 52px;
+  --thumb: 44px;
+  position: relative;
+  margin: 10px 0 4px;
+  touch-action: none;          /* the drag is the control, not a page scroll */
+}
+
+.aslider-track {
+  position: relative;
+  height: var(--aslider-h);
+  border-radius: 999px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+}
+
+/* Six dots along the track. They are what stops an empty slider reading as a
+   disabled input: something is clearly there to be moved. */
+.aslider-track > i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  opacity: 0.7;
+  flex: 0 0 auto;
+}
+
+.aslider-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--pct) * 1%);
+  border-radius: 999px;
+  /* The colour carries the meaning, so the stops are the app's own rather
+     than the source component's orange/pink/purple: amber while it is early,
+     the brand orange in the middle, green once the work is essentially done.
+     Purple at 100% would be decoration; green is a claim about the state. */
+  background: linear-gradient(90deg, #FEB101, #FE7C09);
+  transition: width 420ms var(--ease-spring, cubic-bezier(0.34, 1.4, 0.64, 1)),
+              background 300ms var(--ease);
+}
+/* Above half, the brand colour. Above nine tenths, done. Driven from a class
+   rather than from CSS comparisons, which cannot compare a custom property. */
+.aslider.is-mid .aslider-fill { background: linear-gradient(90deg, #FE9F2E, #E0785D); }
+.aslider.is-high .aslider-fill { background: linear-gradient(90deg, #4CAF7D, #2E9E63); }
+
+.aslider-thumb {
+  position: absolute;
+  top: 50%;
+  width: var(--thumb);
+  height: var(--thumb);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+  /* Inset by half a thumb at each end so it never hangs over the edge of the
+     track: at 0% its left edge sits on the track's left edge, at 100% its
+     right edge on the right. */
+  left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--pct) / 100);
+  translate: -50% -50%;
+  transition: left 420ms var(--ease-spring, cubic-bezier(0.34, 1.4, 0.64, 1));
+  pointer-events: none;
+}
+
+/* While the pointer is down the thumb tracks it exactly. A spring during the
+   drag puts the thumb behind the finger, which reads as lag, not as bounce. */
+.aslider.is-dragging .aslider-fill,
+.aslider.is-dragging .aslider-thumb { transition: none; }
+
+/* The control itself: full size, on top, invisible. */
+.aslider input[type="range"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: grab;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.aslider input[type="range"]:active { cursor: grabbing; }
+
+/* The invisible thumb still needs a size, or the browser gives it a default
+   hit area that does not match the one being drawn. */
+.aslider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: var(--thumb);
+  height: var(--thumb);
+  border-radius: 50%;
+}
+.aslider input[type="range"]::-moz-range-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  border: 0;
+  border-radius: 50%;
+}
+
+/* Focus lands on the input, which is invisible, so the ring has to be drawn
+   on the track instead -- otherwise a keyboard user gets no focus indicator
+   at all. */
+.aslider:focus-within .aslider-track {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aslider-fill, .aslider-thumb { transition: none; }
 }
