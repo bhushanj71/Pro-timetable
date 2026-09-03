@@ -546,19 +546,17 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
 }
 
 /* --------------------------------------------------------------------------
-   Module switch on a phone
+   Module switch: desktop only
    -------------------------------------------------------------------------- */
-@media (max-width: 640px) {
-  /* The words go, the icons stay. Two labelled halves do not fit beside a
-     refresh, a theme, a bell and a name at 393px -- and the tab bar carries
-     the same switch with its labels intact, so nothing here is the only way
-     to change module. */
-  .mode-switch { margin-right: 6px; padding: 2px; }
-  .mode-opt { padding: 0 9px; min-height: 32px; }
-  .mode-label { display: none; }
-}
+@media (max-width: 768px) {
+  /* Gone from the bar, because the tab bar below already is the switch: in
+     Personal it ends with Work, in Work it ends with Personal, both with
+     labels and a full-height target. Keeping a second copy up here would be
+     two controls doing one job, competing for the tightest row on the screen
+     with the refresh, the theme, the bell and the name.
 
-@media (max-width: 380px) {
-  /* Past this the bar is genuinely full. The tab bar still has it. */
+     768px is not an arbitrary number: it is exactly where .bottom-nav appears,
+     so the switch is handed over rather than dropped. There is no width at
+     which neither has it. */
   .mode-switch { display: none; }
 }

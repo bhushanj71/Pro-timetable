@@ -104,3 +104,57 @@ def test_the_new_pages_are_not_served_to_a_stranger(client):
     for path in ("/work/communities", "/work/tasks"):
         r = client.get(path, follow_redirects=False)
         assert r.status_code == 302 and r.headers["location"] == "/login"
+
+
+# --------------------------------------------------------------------------
+# The switch is handed over between the two bars, never dropped
+# --------------------------------------------------------------------------
+def test_the_top_bar_switch_disappears_exactly_where_the_tab_bar_appears():
+    """The invariant worth protecting: there must be no width at which neither
+    bar offers a way between the modules.
+
+    Checked in the stylesheets rather than in a browser because it is a
+    statement about breakpoints, and the failure it guards against is somebody
+    moving one number and not the other -- which no single-width screenshot
+    would catch.
+    """
+    import re
+    from pathlib import Path
+
+    css = Path("app/static/css")
+    style = (css / "style.css").read_text(encoding="utf-8")
+    mobile = (css / "mobile.css").read_text(encoding="utf-8")
+
+    def breakpoint_hiding(text: str, selector: str, value: str) -> int | None:
+        """The max-width of the media query that sets `selector` to `value`."""
+        for match in re.finditer(r"@media\s*\(max-width:\s*(\d+)px\)\s*\{", text):
+            start = match.end()
+            depth, i = 1, start
+            while i < len(text) and depth:
+                if text[i] == "{":
+                    depth += 1
+                elif text[i] == "}":
+                    depth -= 1
+                i += 1
+            block = text[start:i]
+            if re.search(rf"{re.escape(selector)}\s*\{{[^}}]*display:\s*{value}", block):
+                return int(match.group(1))
+        return None
+
+    tab_bar_appears = breakpoint_hiding(style + mobile, ".bottom-nav", "flex")
+    switch_hides = breakpoint_hiding(mobile, ".mode-switch", "none")
+
+    assert tab_bar_appears is not None, "could not find where .bottom-nav appears"
+    assert switch_hides is not None, "could not find where .mode-switch hides"
+    assert switch_hides == tab_bar_appears, (
+        f"the top-bar switch hides at {switch_hides}px but the tab bar only "
+        f"appears at {tab_bar_appears}px -- between those widths nothing offers "
+        "a way between Personal and Work"
+    )
+
+
+def test_the_tab_bar_carries_the_switch_in_both_directions(owner):
+    """What makes hiding the top-bar switch on mobile safe."""
+    assert 'href="/work"' in owner.get("/dashboard").text
+    work = owner.get("/work").text
+    assert 'href="/dashboard"' in work
