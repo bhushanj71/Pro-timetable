@@ -82,7 +82,15 @@ async def lifespan(app: FastAPI):
         )
 
     scheduler_task = None
-    if settings.ENABLE_BACKGROUND_SCHEDULER:
+    # Not on serverless. A loop started inside a request handler is frozen the
+    # moment the response is sent and resumes only when the next request
+    # happens to land on the same instance -- so reminders would fire late,
+    # early, or never, depending on traffic. The platform's own cron hits
+    # /api/cron/process-reminders instead, which is a request and therefore
+    # actually runs.
+    from app.database import IS_SERVERLESS
+
+    if settings.ENABLE_BACKGROUND_SCHEDULER and not IS_SERVERLESS:
         from app.services.background import reminder_loop
 
         scheduler_task = asyncio.create_task(reminder_loop())
@@ -98,6 +106,36 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 
 from app.security_headers import SecurityHeadersMiddleware  # noqa: E402
+
+
+@app.middleware("http")
+async def _replicate_on_serverless(request, call_next):
+    """Drive replication from requests where no thread can run.
+
+    Attached to the response as a background task, so the user has their reply
+    before any copying starts -- this must never be latency the visitor pays.
+    Only on serverless: everywhere else the worker thread does it properly,
+    on its own clock, without touching a request at all.
+    """
+    response = await call_next(request)
+
+    from app.database import IS_SERVERLESS, replicator
+
+    if IS_SERVERLESS and replicator.enabled:
+        from starlette.background import BackgroundTask
+
+        existing = response.background
+        task = BackgroundTask(replicator.pump)
+        if existing is not None:
+            from starlette.background import BackgroundTasks
+
+            combined = BackgroundTasks()
+            combined.add_task(existing)
+            combined.add_task(replicator.pump)
+            response.background = combined
+        else:
+            response.background = task
+    return response
 
 app.add_middleware(SecurityHeadersMiddleware)
 

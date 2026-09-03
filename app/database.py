@@ -15,6 +15,14 @@ settings = get_settings()
 
 SQLITE_FALLBACK = "sqlite:///./profschedule.db"
 
+# Vercel sets VERCEL=1 in every function environment, AWS Lambda sets
+# AWS_LAMBDA_FUNCTION_NAME. Read from the platform rather than from a setting
+# somebody has to remember to flip, because the failure mode of forgetting is a
+# background thread that quietly does nothing.
+import os  # noqa: E402
+
+IS_SERVERLESS = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+
 url = (settings.DATABASE_URL or "").strip()
 
 # A declared-but-empty DATABASE_URL (easy to end up with on Render, where the
@@ -454,9 +462,86 @@ def link_existing_users():
         db.close()
 
 
+def schema_fingerprint() -> str:
+    """A short hash of the schema this build expects.
+
+    Covers every table and column on the models plus every registered additive
+    migration, so any change to either produces a different value and the full
+    pass runs again.
+    """
+    import hashlib
+
+    from app import models  # noqa: F401  registers the tables
+
+    parts = []
+    for name in sorted(Base.metadata.tables):
+        table = Base.metadata.tables[name]
+        parts.append(name + ":" + ",".join(sorted(c.name for c in table.columns)))
+    for table, columns in sorted(_ADDITIVE_COLUMNS.items()):
+        parts.append("m:" + table + ":" + ",".join(sorted(n for n, _ in columns)))
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:32]
+
+
+def _read_state() -> tuple[str | None, bool]:
+    """The fingerprint this database was last prepared for, and whether it has
+    been seeded. Two values, one query, and never raises: a missing table just
+    means the work has not been done."""
+    from sqlalchemy import text
+
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT fingerprint, seeded FROM app_schema_state WHERE id = 1")
+            ).first()
+        return (row[0], bool(row[1])) if row else (None, False)
+    except Exception:
+        return (None, False)
+
+
+def _write_state(fingerprint: str, seeded: bool) -> None:
+    from sqlalchemy import text
+
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE IF NOT EXISTS app_schema_state ("
+            " id INTEGER PRIMARY KEY, fingerprint VARCHAR(64), seeded BOOLEAN)"
+        ))
+        updated = conn.execute(
+            text("UPDATE app_schema_state SET fingerprint = :f, seeded = :s WHERE id = 1"),
+            {"f": fingerprint, "s": seeded},
+        ).rowcount
+        if not updated:
+            conn.execute(
+                text("INSERT INTO app_schema_state (id, fingerprint, seeded)"
+                     " VALUES (1, :f, :s)"),
+                {"f": fingerprint, "s": seeded},
+            )
+
+
 def init_db():
-    """Create tables if they don't exist. Safe to call on every cold start."""
+    """Prepare the database, doing as little as possible when it is already right.
+
+    The full pass -- create_all, then a reflection of every table to find
+    missing columns -- costs 33 round trips even when there is nothing to do.
+    That is paid once on a long-running host and once per cold start on a
+    serverless one, where at Supabase's round-trip times it is seconds of
+    latency on somebody's first request.
+
+    So the schema this build expects is fingerprinted and the fingerprint
+    stored. When it matches, the whole pass is skipped for the price of one
+    query. Any model change or new migration entry changes the fingerprint and
+    the full pass runs again, which means this cannot silently skip work that
+    actually needed doing.
+    """
     from app import models  # noqa: F401 ensure models are registered
+
+    expected = schema_fingerprint()
+    current, seeded = _read_state()
+
+    if current == expected and seeded:
+        # The common path, and the whole point: one query, then serve.
+        _start_replication()
+        return
 
     Base.metadata.create_all(bind=engine)
     _apply_additive_migrations()
@@ -477,6 +562,29 @@ def init_db():
     seed_organisation()
     link_existing_users()
 
+    # Recorded only after everything above succeeded, so a failure halfway
+    # through means the next start does the work again rather than trusting a
+    # fingerprint for a schema that was never finished.
+    try:
+        _write_state(expected, True)
+    except Exception:
+        logger.warning("Could not record the schema fingerprint; startup will "
+                       "repeat the full check next time")
+
+    _start_replication()
+
+
+def _start_replication() -> None:
+    """Never on a serverless platform.
+
+    A background thread there is frozen between invocations and holds a
+    database connection while it sleeps, so it is worse than useless: the
+    mirror falls behind exactly as far as the gaps between requests, while
+    still paying for a connection. Replication on serverless belongs in a
+    scheduled function, not a thread inside a request handler.
+    """
+    if IS_SERVERLESS:
+        return
     try:
         replicator.start()
     except Exception:

@@ -456,6 +456,36 @@ class Replicator:
             if not moved:
                 self._stop.wait(IDLE_SECONDS)
 
+    # -- serverless -------------------------------------------------------
+    _last_pump = 0.0
+
+    def pump(self, min_interval: float = 2.0) -> int:
+        """One bounded pass, safe to call from a request.
+
+        This is how replication happens where a background thread cannot run.
+        It fits serverless better than it looks: no traffic means no writes,
+        so a mirror that only advances while requests are arriving is never
+        behind on anything that matters. An idle app has nothing to copy.
+
+        Throttled and bounded, because it runs on somebody's request. It is
+        attached to the response as a background task, so the reply has already
+        been sent by the time this does anything.
+        """
+        if not self.enabled:
+            return 0
+        now = time.monotonic()
+        if now - self._last_pump < min_interval:
+            return 0
+        self._last_pump = now
+        try:
+            moved = self.sync_once()
+            if moved:
+                self.last_replicated_at = _now()
+            return moved
+        except Exception as exc:
+            logger.warning("Inline replication pass failed: %s: %s", type(exc).__name__, exc)
+            return 0
+
     # -- reporting -------------------------------------------------------
     def status(self) -> dict:
         with self._lock:
