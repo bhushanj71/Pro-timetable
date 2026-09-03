@@ -61,7 +61,7 @@
          get between the two, so nothing is lost by hiding them. #}
       {% if in_work %}
         <a class="nav-link {% if request.url.path == '/work' %}active{% endif %}" href="/work">
-          <span class="nav-ico">📊</span> Stats
+          <span class="nav-ico">📊</span> Dashboard
         </a>
         <a class="nav-link {% if request.url.path.startswith('/work/communit') %}active{% endif %}"
            href="/work/communities">
@@ -230,7 +230,7 @@
     <nav class="bottom-nav" aria-label="Primary">
       {% if in_work %}
         <a class="bn-item {% if request.url.path == '/work' %}active{% endif %}" href="/work">
-          <span class="bn-ico">📊</span> Stats
+          <span class="bn-ico">📊</span> Dashboard
         </a>
         <a class="bn-item {% if request.url.path.startswith('/work/communit') %}active{% endif %}"
            href="/work/communities">
