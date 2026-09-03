@@ -816,13 +816,12 @@ input, select, textarea, button { font-size: inherit; }
     var(--bg);
 }
 .auth-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 34px;
+  /* Frame, radius, padding and shadow are set with the rest of the auth
+     styling at the end of this file; what stays here is the sizing and the
+     scroll behaviour, which are about fitting a screen rather than about the
+     look. */
   width: 100%;
-  max-width: 430px;
-  box-shadow: var(--shadow-lg);
+  max-width: 420px;
   animation: fadeUp var(--t-slow) var(--ease-out) both;
   max-height: 94vh;
   overflow-y: auto;
@@ -2065,3 +2064,130 @@ pre {
   justify-content: center;
   padding: 26px 0;
 }
+
+
+/* ==========================================================================
+   Auth pages
+
+   Ported from the watermelon.sh auth-01 layout: a centred card built as two
+   nested rounded boxes -- an outer frame with a little padding and a slightly
+   tighter inner surface -- with iconed fields, a gradient submit and a
+   borderless social button.
+
+   The nesting is the whole look. One box with one radius is a plain card; two,
+   with the inner radius smaller than the outer by exactly the padding between
+   them, reads as a mounted panel. Getting that arithmetic wrong is what makes
+   nested rounding look like a mistake, so the padding is a variable and the
+   inner radius is calculated from it rather than typed twice.
+   ========================================================================== */
+.auth-card {
+  --frame: 8px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius-lg) + var(--frame));
+  padding: var(--frame);
+  box-shadow: var(--shadow-lg);
+}
+
+.auth-panel {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 26px 24px 24px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+.auth-card h1 {
+  font-size: 1.42rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-top: 16px;
+}
+
+/* --- Fields with an icon -------------------------------------------------
+   The icon sits inside the field rather than beside the label, which is what
+   lets the two rows read as one object instead of four stacked things. */
+.field { position: relative; }
+.field > .field-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  translate: 0 -50%;
+  font-size: 0.95rem;
+  line-height: 1;
+  opacity: 0.55;
+  pointer-events: none;
+}
+.field > input { padding-left: 36px !important; }
+
+/* The muted fill belongs to every field in the panel, not only the ones with
+   an icon. Registration has a timezone box and two selects that took no icon,
+   and tinting only the iconed three made the form look like two different
+   forms stacked on top of each other. Checkboxes are excluded: they draw their
+   own box and a fill behind it just smudges the tick. */
+.auth-panel input:not([type="checkbox"]):not([type="radio"]),
+.auth-panel select {
+  background: var(--bg-tint);
+}
+/* Room for the reveal button, so a long password never runs under it. */
+.field.has-toggle > input { padding-right: 42px !important; }
+
+.field-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  translate: 0 -50%;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.field-toggle:hover { background: var(--bg-tint); color: var(--text); }
+.field-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+/* --- Submit --------------------------------------------------------------
+   A vertical gradient rather than a flat fill: it is the only gradient on the
+   page, which is what makes it read as the one thing to press. */
+.auth-card .btn-primary.btn-block {
+  height: 46px;
+  background: linear-gradient(180deg, var(--primary), var(--primary-hover));
+  border: 0;
+  font-weight: 750;
+  letter-spacing: -0.005em;
+}
+
+/* --- Social --------------------------------------------------------------
+   One provider, so one full-width button. The source lays three out in a
+   three-column grid; a single button in a three-column grid is a third of a
+   button and two empty cells. */
+.auth-card .btn-google {
+  height: 44px;
+  background: var(--bg-tint);
+  border: 0;
+  border-radius: var(--radius-md, 12px);
+  font-weight: 650;
+  box-shadow: none;
+}
+.auth-card .btn-google:hover {
+  background: var(--border);
+  transform: none;
+  box-shadow: none;
+}
+
+.auth-card .or-divider {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+/* Registration asks for timings, lunch and working days, which do not fit the
+   sign-in card's width without every time field wrapping onto its own line.
+   Same frame, sized for what it holds. */
+.auth-card.auth-card-wide { max-width: 520px; }

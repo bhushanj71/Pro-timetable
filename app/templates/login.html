@@ -3,6 +3,9 @@
 {% block auth_content %}
 <div class="auth-wrap">
   <div class="auth-card">
+   {# Two nested boxes: the frame, then the panel. The inner radius is the
+      outer one minus the frame padding, so the curves stay concentric. #}
+   <div class="auth-panel">
     <div class="auth-brand">
       <img src="/static/logo.svg?v={{ v }}" alt="ProfSchedule AI" class="brand-logo brand-logo-lg"
            onerror="this.classList.add('is-missing')">
@@ -23,17 +26,28 @@
     <form id="login-form">
       <div class="form-group">
         <label for="email">Email</label>
-        <input type="email" id="email" required autocomplete="username" placeholder="you@college.edu">
+        <div class="field">
+          <span class="field-icon" aria-hidden="true">✉️</span>
+          <input type="email" id="email" required autocomplete="username" placeholder="you@college.edu">
+        </div>
       </div>
       <div class="form-group">
         <label for="password">Password</label>
-        <input type="password" id="password" required autocomplete="current-password" placeholder="••••••••">
+        <div class="field has-toggle">
+          <span class="field-icon" aria-hidden="true">🔒</span>
+          <input type="password" id="password" required autocomplete="current-password" placeholder="••••••••">
+          {# A reveal, because a password typed wrong on a phone keyboard is
+             the most common reason a correct password is reported as failing. #}
+          <button type="button" class="field-toggle" data-reveal="password"
+                  aria-label="Show password" aria-pressed="false">👁</button>
+        </div>
       </div>
       <button type="submit" class="btn btn-primary btn-block">Sign In</button>
       <div id="login-error" class="form-error"></div>
     </form>
     <div class="auth-switch">Don't have an account?
       <a class="lnk lnk-swap" href="/register"><span data-text="Create one">Create one</span></a></div>
+   </div>
   </div>
 </div>
 {% endblock %}

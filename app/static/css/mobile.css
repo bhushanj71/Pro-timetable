@@ -560,3 +560,15 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
      which neither has it. */
   .mode-switch { display: none; }
 }
+
+/* --------------------------------------------------------------------------
+   Auth fields on a phone
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  /* The reveal is 34px on a desktop, where a pointer is exact. On a phone it
+     is a thumb target like any other and takes the same 44px minimum the
+     arrows and checkboxes do -- the field has room, because the padding that
+     keeps text clear of it was already reserved. */
+  .field-toggle { width: 44px; height: 44px; }
+  .field.has-toggle > input { padding-right: 48px !important; }
+}

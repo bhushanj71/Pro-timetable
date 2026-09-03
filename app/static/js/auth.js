@@ -119,3 +119,30 @@ document.getElementById("register-form")?.addEventListener("submit", async (e) =
   const el = document.getElementById("login-error") || document.getElementById("register-error");
   if (el) el.textContent = messages[reason] || "Google sign-in failed.";
 })();
+
+
+/* Reveal a password field.
+
+   Delegated, because both auth pages have one and neither is worth its own
+   listener. Toggling the input's type is what actually works: a CSS-only
+   version cannot un-mask a real password field, and swapping in a text input
+   loses whatever was already typed.
+*/
+document.addEventListener("click", (e) => {
+  const toggle = e.target.closest(".field-toggle[data-reveal]");
+  if (!toggle) return;
+  const input = document.getElementById(toggle.dataset.reveal);
+  if (!input) return;
+
+  const revealing = input.type === "password";
+  input.type = revealing ? "text" : "password";
+  toggle.textContent = revealing ? "🙈" : "👁";
+  toggle.setAttribute("aria-pressed", String(revealing));
+  toggle.setAttribute("aria-label", revealing ? "Hide password" : "Show password");
+  // Focus goes back to the field, at the end of what was typed: the point of
+  // revealing is to carry on typing, and leaving focus on the button means
+  // the next keystroke goes nowhere.
+  input.focus();
+  const end = input.value.length;
+  try { input.setSelectionRange(end, end); } catch (_) { /* not all types allow it */ }
+});

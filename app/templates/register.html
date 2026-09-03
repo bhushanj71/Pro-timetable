@@ -2,7 +2,10 @@
 {% block title %}Create Account — ProfSchedule AI{% endblock %}
 {% block auth_content %}
 <div class="auth-wrap">
-  <div class="auth-card">
+  {# Wider than sign-in: the same frame, sized for the timings, lunch window
+     and working days it also has to hold. #}
+  <div class="auth-card auth-card-wide">
+   <div class="auth-panel">
     <div class="auth-brand">
       <img src="/static/logo.svg?v={{ v }}" alt="ProfSchedule AI" class="brand-logo brand-logo-lg"
            onerror="this.classList.add('is-missing')">
@@ -23,15 +26,27 @@
     <form id="register-form">
       <div class="form-group">
         <label for="name">Full Name</label>
-        <input type="text" id="name" required placeholder="Dr. Jane Doe">
+        <div class="field">
+          <span class="field-icon" aria-hidden="true">👤</span>
+          <input type="text" id="name" required placeholder="Dr. Jane Doe">
+        </div>
       </div>
       <div class="form-group">
         <label for="email">Email</label>
-        <input type="email" id="email" required autocomplete="username">
+        <div class="field">
+          <span class="field-icon" aria-hidden="true">✉️</span>
+          <input type="email" id="email" required autocomplete="username" placeholder="you@college.edu">
+        </div>
       </div>
       <div class="form-group">
         <label for="password">Password</label>
-        <input type="password" id="password" required minlength="8" autocomplete="new-password">
+        <div class="field has-toggle">
+          <span class="field-icon" aria-hidden="true">🔒</span>
+          <input type="password" id="password" required minlength="8" autocomplete="new-password"
+                 placeholder="At least 8 characters">
+          <button type="button" class="field-toggle" data-reveal="password"
+                  aria-label="Show password" aria-pressed="false">👁</button>
+        </div>
       </div>
       <div class="form-group">
         <label for="timezone">Timezone</label>
@@ -91,6 +106,7 @@
     </form>
     <div class="auth-switch">Already have an account?
       <a class="lnk lnk-swap" href="/login"><span data-text="Sign in">Sign in</span></a></div>
+   </div>
   </div>
 </div>
 {% endblock %}
