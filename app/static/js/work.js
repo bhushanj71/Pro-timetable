@@ -515,7 +515,8 @@ const ATTACHMENTS_SHOWN = 3;
 
 function attachmentRow(a, canRemove) {
   const view = a.can_view_inline
-    ? `<a class="wk-att-act" href="/api/work/attachments/${esc(a.id)}" target="_blank" rel="noopener">View</a>`
+    ? `<a class="wk-att-act lnk lnk-arrow" href="/api/work/attachments/${esc(a.id)}"
+           target="_blank" rel="noopener">View</a>`
     : "";
   return `
     <div class="wk-att" data-attachment="${esc(a.id)}">
@@ -526,7 +527,7 @@ function attachmentRow(a, canRemove) {
       </div>
       <div class="wk-att-actions">
         ${view}
-        <a class="wk-att-act" href="/api/work/attachments/${esc(a.id)}?download=true">Download</a>
+        <a class="wk-att-act lnk lnk-wipe" href="/api/work/attachments/${esc(a.id)}?download=true">Download</a>
         ${canRemove ? `<button class="chip-x" data-remove-attachment="${esc(a.id)}"
                  aria-label="Remove ${esc(a.file_name)}">✕</button>` : ""}
       </div>

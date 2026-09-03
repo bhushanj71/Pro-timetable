@@ -46,9 +46,9 @@
       </div>
     </a>
     <nav class="lp-nav-links">
-      <a href="#features">Features</a>
-      <a href="#how">How it works</a>
-      <a href="#notifications">Reminders</a>
+      <a class="lnk lnk-wipe" href="#features">Features</a>
+      <a class="lnk lnk-wipe" href="#how">How it works</a>
+      <a class="lnk lnk-wipe" href="#notifications">Reminders</a>
     </nav>
     <div class="lp-nav-cta" style="position:relative">
       <button class="icon-btn" id="theme-btn" aria-label="Theme">☀️</button>
@@ -279,12 +279,12 @@
     <div>© {{ now_year }} ProfSchedule AI · Built for college faculty</div>
     <div class="lp-footer-links">
       {% if user %}
-      <a href="/dashboard">Dashboard</a>
-      <a href="/timetable">Timetable</a>
-      <a href="/profile">Profile</a>
+      <a class="lnk lnk-centre" href="/dashboard">Dashboard</a>
+      <a class="lnk lnk-centre" href="/timetable">Timetable</a>
+      <a class="lnk lnk-centre" href="/profile">Profile</a>
       {% else %}
-      <a href="/login">Log in</a>
-      <a href="/register">Sign up</a>
+      <a class="lnk lnk-centre" href="/login">Log in</a>
+      <a class="lnk lnk-centre" href="/register">Sign up</a>
       {% endif %}
     </div>
   </footer>

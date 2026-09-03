@@ -1125,7 +1125,9 @@ button.user-chip .ps-badge { position: absolute; top: -3px; right: -3px; }
   font-size: 0.75rem; font-weight: 700;
   color: var(--primary); text-decoration: none;
 }
-.wk-att-act:hover { text-decoration: underline; }
+/* The underline on hover is now drawn by .lnk-wipe / .lnk-arrow, which animate
+   it. Leaving text-decoration here as well would draw a second, static line
+   under the first. */
 
 .wk-atts-more {
   display: block; width: 100%;
