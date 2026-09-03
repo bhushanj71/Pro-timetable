@@ -121,12 +121,65 @@ class Base(DeclarativeBase):
     pass
 
 
+# --------------------------------------------------------------------------
+# Live mirror and failover
+#
+# Inert unless MIRROR_DATABASE_URL is set: no second engine, no worker, no
+# extra write on any transaction. Everything below degrades to the single
+# engine above when it is not configured.
+# --------------------------------------------------------------------------
+from app.replication import Replicator, install_capture      # noqa: E402
+
+replicator = Replicator(
+    engine, url, (settings.MIRROR_DATABASE_URL or "").strip() or None,
+    allow_failover=settings.REPLICATION_ALLOW_FAILOVER,
+)
+install_capture(SessionLocal, replicator)
+
+
+def _session() -> "Session":
+    """A session bound to whichever database is currently live.
+
+    Bound per session rather than by rebinding the factory: a request already
+    holding a session keeps the engine it started on, so a failover cannot
+    move a transaction to a different database halfway through it.
+    """
+    if replicator.enabled and replicator.active_name != "primary":
+        return SessionLocal(bind=replicator.active_engine)
+    return SessionLocal()
+
+
 def get_db():
-    db = SessionLocal()
+    db = _session()
     try:
         yield db
+        # Reaching here means the database answered. That is the signal the
+        # failover counter resets on -- a health probe on a timer would keep
+        # counting failures through an outage the real traffic had recovered
+        # from.
+        replicator.note_success()
+    except Exception as exc:
+        if _is_connection_error(exc):
+            replicator.note_failure(exc)
+        raise
     finally:
         db.close()
+
+
+def _is_connection_error(exc: Exception) -> bool:
+    """Tell "the database is unreachable" from "that query was wrong".
+
+    Only the first should ever trigger a failover. A unique-constraint
+    violation is the application working correctly, and switching databases
+    over one would be a spectacular over-reaction.
+    """
+    from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
+
+    if isinstance(exc, (OperationalError, InterfaceError)):
+        return True
+    if isinstance(exc, DBAPIError) and getattr(exc, "connection_invalidated", False):
+        return True
+    return False
 
 
 # Columns added after the initial release. `create_all` only creates missing
@@ -407,5 +460,24 @@ def init_db():
 
     Base.metadata.create_all(bind=engine)
     _apply_additive_migrations()
+
+    # Before the seed, not after. Seeding writes rows, and those writes are
+    # logged for replication -- which needs the log table to exist first. Doing
+    # this last meant the default college and its departments were written to
+    # the primary and silently never reached the mirror.
+    #
+    # Never fatal either way: a broken mirror must leave the app running on a
+    # perfectly good primary rather than taking it down, which would turn a
+    # redundancy feature into a liability.
+    try:
+        replicator.prepare(Base.metadata)
+    except Exception:
+        logger.exception("Could not prepare the database mirror; continuing without it")
+
     seed_organisation()
     link_existing_users()
+
+    try:
+        replicator.start()
+    except Exception:
+        logger.exception("Could not start database replication; continuing without it")

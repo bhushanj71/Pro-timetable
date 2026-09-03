@@ -334,6 +334,31 @@ def build(path: str) -> str:
          "added to a model without an entry there works on a fresh database and is "
          "missing on every existing one — which is every real deployment.")
 
+    # ---------------- Replication ----------------
+    heading(doc, "The mirror database")
+    body(doc,
+         "When MIRROR_DATABASE_URL is set, every committed change is copied to a "
+         "second database within about a second, and the application switches to "
+         "it if the first stops answering. Two infrastructure tables carry that, "
+         "in both databases, because either can become the source:")
+    bullet(doc,
+           "replication_log — one row per changed row: the table, its primary key "
+           "and whether it was written or deleted. Appended inside the same "
+           "transaction as the change, which is what makes it atomic with the "
+           "data and durable across a restart. It records identity, not values, "
+           "so a 10 MB attachment does not also become a 13 MB log row.")
+    bullet(doc,
+           "replication_state — a single row holding the last sequence this "
+           "database has applied. The bookmark a restart resumes from.")
+    body(doc,
+         "This is asynchronous replication: a failover can lose the last second "
+         "of writes. Synchronous, zero-loss failover is a database-level feature "
+         "— Postgres streaming replication with a coordinator, or a managed "
+         "high-availability plan — and no application-level design can honestly "
+         "claim it. It also assumes a single writing process; two instances that "
+         "disagreed about which database is live would diverge, which is what "
+         "REPLICATION_ALLOW_FAILOVER exists to prevent.")
+
     # ---------------- The tables ----------------
     heading(doc, "Tables")
     documented = set()

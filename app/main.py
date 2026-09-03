@@ -250,11 +250,16 @@ def health():
     """
     from sqlalchemy import text
 
-    from app.database import CONFIG_ERROR, describe_connection, engine
+    from app.database import CONFIG_ERROR, describe_connection, engine, replicator
+
+    # The engine actually serving traffic, which after a failover is not the
+    # primary. Probing the primary here would report "unreachable" while the
+    # app was working perfectly on the mirror.
+    active = replicator.active_engine if replicator.enabled else engine
 
     db_ok, db_error = True, None
     try:
-        with engine.connect() as conn:
+        with active.connect() as conn:
             conn.execute(text("SELECT 1"))
     except Exception as exc:
         db_ok = False
@@ -267,6 +272,7 @@ def health():
         "database_error": db_error,
         "startup_error": _startup_error,
         "assets_error": _assets_error,
+        "replication": replicator.status(),
         "config_error": CONFIG_ERROR,
     }
     if not db_ok:

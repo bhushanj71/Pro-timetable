@@ -31,6 +31,19 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite:///./profschedule.db"
 
+    # A second database kept in step with the first, and switched to if the
+    # first stops answering. Unset by default and completely inert when unset:
+    # no worker, no extra writes, no behaviour change.
+    #
+    # It must be a *separate managed database* with its own URL. A local SQLite
+    # file is not a backup on a host with an ephemeral disk -- it disappears on
+    # the next deploy, which is exactly when a backup is wanted.
+    MIRROR_DATABASE_URL: Optional[str] = None
+    # Off switch for the failover half. Replication still runs; the app just
+    # never switches databases on its own. Set this to false if the app is ever
+    # run as more than one instance, which this design cannot coordinate.
+    REPLICATION_ALLOW_FAILOVER: bool = True
+
     # AI provider (provider-agnostic; any OpenAI-compatible endpoint works)
     AI_PROVIDER: str = "openai"  # openai | nvidia | ollama | none
     AI_API_KEY: Optional[str] = None
