@@ -1811,3 +1811,138 @@ pre {
   font-size: 0.62rem; font-weight: 800;
   display: inline-flex; align-items: center; justify-content: center;
 }
+
+
+/* ==========================================================================
+   Animated link hover effects
+
+   The five effects from skiper-ui's Skiper40, written for this project.
+
+   They arrived as a React + Tailwind + framer-motion component, none of which
+   this app has -- and none of which they need: every one of them is a CSS
+   transition on a pseudo-element. The React was packaging, not substance.
+
+   Opt-in. Nothing changes until a class is added to a link, so these cost
+   nothing but the bytes until something uses them.
+
+       <a class="lnk lnk-wipe" href="...">Read the report</a>
+
+   All five use the project's own timing and colour tokens rather than the
+   original's hard-coded values, so they sit inside the design system instead
+   of beside it, and follow the theme in light and dark without a second rule.
+   ========================================================================== */
+.lnk {
+  position: relative;
+  display: inline-block;
+  color: inherit;
+  text-decoration: none;
+  /* The underlines are pseudo-elements positioned against this, and an inline
+     box gives them nothing stable to sit on. */
+  padding-bottom: 1px;
+}
+.lnk:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+/* --- 1. Underline wiping in from the left, out to the right --------------
+   The exit is not the entrance reversed. Reversing it makes the line retreat
+   the way it came, which reads as undo; carrying on in the same direction
+   reads as the pointer having passed through. */
+.lnk-wipe::after {
+  content: "";
+  position: absolute;
+  left: 0; bottom: 0;
+  width: 100%; height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform var(--t) var(--ease);
+}
+.lnk-wipe:hover::after,
+.lnk-wipe:focus-visible::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+/* --- 2. Underline opening from the centre ------------------------------- */
+.lnk-centre::after {
+  content: "";
+  position: absolute;
+  left: 50%; bottom: 0;
+  width: 0; height: 1px;
+  background: currentColor;
+  transition: width var(--t) var(--ease-out), left var(--t) var(--ease-out);
+}
+.lnk-centre:hover::after,
+.lnk-centre:focus-visible::after { width: 100%; left: 0; }
+
+/* --- 3. Arrow rising into place -----------------------------------------
+   The arrow occupies its space from the start, hidden rather than absent.
+   Adding it on hover would reflow the line and nudge everything after it. */
+.lnk-arrow::after {
+  content: "↗";
+  display: inline-block;
+  margin-left: 4px;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity var(--t) var(--ease), transform var(--t) var(--ease-out);
+}
+.lnk-arrow:hover::after,
+.lnk-arrow:focus-visible::after { opacity: 1; transform: translateY(0); }
+
+/* --- 4. Background filling upward ---------------------------------------
+   mix-blend-mode: difference inverts the text against its own fill, so this
+   stays legible on any background without being told what that background is.
+   The original hard-coded black on white and broke in dark mode. */
+.lnk-fill {
+  padding: 0 4px;
+  isolation: isolate;
+}
+.lnk-fill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform var(--t) var(--ease-out);
+  z-index: -1;
+}
+.lnk-fill:hover,
+.lnk-fill:focus-visible { mix-blend-mode: difference; }
+.lnk-fill:hover::before,
+.lnk-fill:focus-visible::before { transform: scaleY(1); }
+
+/* --- 5. The label sliding up to a copy of itself ------------------------
+   Two stacked copies inside a clipped box. The duplicate is aria-hidden in
+   the markup so a screen reader hears the label once:
+
+       <a class="lnk lnk-swap" href="..."><span data-text="Open">Open</span></a>
+*/
+.lnk-swap { overflow: hidden; vertical-align: bottom; }
+.lnk-swap > span {
+  display: inline-block;
+  position: relative;
+  transition: transform var(--t) var(--ease-out);
+}
+.lnk-swap > span::after {
+  content: attr(data-text);
+  position: absolute;
+  left: 0; top: 100%;
+  color: var(--primary);
+}
+.lnk-swap:hover > span,
+.lnk-swap:focus-visible > span { transform: translateY(-100%); }
+
+@media (prefers-reduced-motion: reduce) {
+  /* The states remain, the travel does not. Removing the effect entirely
+     would take the hover feedback with it; what people asked to be spared is
+     the movement. */
+  .lnk-wipe::after,
+  .lnk-centre::after,
+  .lnk-arrow::after,
+  .lnk-fill::before,
+  .lnk-swap > span { transition: none; }
+}
