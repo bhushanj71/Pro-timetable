@@ -376,6 +376,30 @@ def test_a_broken_mirror_url_leaves_the_app_working(tmp_path):
     assert rep.active_engine is engine
 
 
+def test_the_documented_example_url_is_recognised_as_an_example(tmp_path):
+    """Pasting the example out of the docs is a far more common mistake than a
+    malformed URL, and it deserves a better answer than ten seconds spent
+    failing to resolve a host called "host"."""
+    from app.replication import placeholder_problem
+
+    url = f"sqlite:///{tmp_path / 'p.db'}"
+    engine = create_engine(url, connect_args={"check_same_thread": False})
+    rep = Replicator(engine, url, "postgresql://user:pass@host:5432/dbname")
+
+    assert rep.enabled is False
+    assert rep.active_engine is engine                 # the app carries on
+    assert "example text" in rep.status()["last_error"]
+    assert placeholder_problem("postgresql://u:p@real-host:5432/live") is None
+
+
+def test_a_providers_own_placeholder_is_recognised_too(tmp_path):
+    from app.replication import placeholder_problem
+
+    assert placeholder_problem(
+        "postgresql://postgres:[YOUR-PASSWORD]@db.abc.supabase.co:5432/postgres"
+    )
+
+
 def test_a_dead_mirror_does_not_fail_a_write(pair):
     """Replication is asynchronous precisely so this is true. The user's write
     succeeds; the copy catches up later."""

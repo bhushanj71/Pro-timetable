@@ -105,6 +105,37 @@ replication_state = Table(
 )
 
 
+# The example URL from the documentation, and the placeholders the various
+# providers leave in the strings they hand you. Pasting one of these is a much
+# more common mistake than a genuinely malformed URL, and it deserves a better
+# answer than a DNS timeout.
+_PLACEHOLDERS = (
+    "user:pass@host",
+    "://user:pass@",
+    "/dbname",
+    "[YOUR-PASSWORD]",
+    "YOUR-PASSWORD",
+    "<password>",
+    "[PASSWORD]",
+    "<username>",
+    "<host>",
+    "your-project",
+)
+
+
+def placeholder_problem(url: str) -> str | None:
+    """A plain explanation if this is an example rather than a real URL."""
+    lowered = (url or "").lower()
+    for token in _PLACEHOLDERS:
+        if token.lower() in lowered:
+            return (
+                f"MIRROR_DATABASE_URL still contains the example text {token!r}. "
+                "Replace the whole value with the connection string of a real "
+                "second database. Until then the app runs on the primary alone."
+            )
+    return None
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -134,6 +165,17 @@ class Replicator:
 
         if not mirror_url:
             return
+
+        problem = placeholder_problem(mirror_url)
+        if problem:
+            # Never fatal, and never a silent no-op either. A URL that is
+            # obviously an example should say so on /api/health, rather than
+            # spending ten seconds failing to resolve a host called "host" and
+            # reporting that as though it were a network fault.
+            self.last_error = problem
+            logger.error("Mirror not configured: %s", problem)
+            return
+
         try:
             connect_args = ({"check_same_thread": False} if mirror_url.startswith("sqlite")
                             else {"connect_timeout": 10})

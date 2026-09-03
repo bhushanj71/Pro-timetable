@@ -18,11 +18,22 @@ A **separate managed Postgres** with its own URL. Free tiers that work:
 | Neon | Free tier, separate project |
 | Render Postgres | Free instance |
 
-Then set two environment variables on the app:
+Then set two environment variables **on the Render service** — Dashboard →
+your service → Environment → Add Environment Variable. Saving them restarts the
+app, which is when the mirror is picked up.
 
 ```
-MIRROR_DATABASE_URL=postgresql://user:pass@host:5432/dbname
+MIRROR_DATABASE_URL=<the real connection string from your provider>
 REPLICATION_ALLOW_FAILOVER=true
+```
+
+The first value is a real URL copied out of the provider's dashboard, of the
+shape `postgresql://USER:PASSWORD@HOST:5432/DATABASE`. Pasting that shape
+literally is caught and reported on `/api/health` rather than being retried
+against a host called "host":
+
+```json
+"last_error": "MIRROR_DATABASE_URL still contains the example text 'user:pass@host'. …"
 ```
 
 Nothing else. On the next start the mirror is given the same schema, filled with
