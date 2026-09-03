@@ -1,25 +1,27 @@
 {% extends "base.html" %}
 {% block title %}Work — ProfSchedule AI{% endblock %}
 
+{# The Work module's home. Deliberately only the numbers and the things
+   waiting on an answer -- Communities and Tasks are their own pages now, each
+   reachable from the nav, because one page holding all three meant every visit
+   scrolled past two thirds of itself. #}
 {% block content %}
 <div class="work-mode">
-
   <section class="wk-hero">
     <div class="wk-hero-text">
-      <h2><span class="wk-hero-icon" aria-hidden="true">💼</span> Work</h2>
-      <p class="muted-text">Communities, assignments and progress. Separate from your personal schedule.</p>
+      <h2><span class="wk-hero-icon" aria-hidden="true">📊</span> Work</h2>
+      <p class="muted-text">How much is moving, and anything that needs your answer.</p>
     </div>
     <div class="wk-hero-tools">
-      <!-- Search is the fastest route to a task once there are more than a
-           screenful; it filters what is already loaded, so it answers on the
+      <!-- Search filters what is already loaded, so it answers on the
            keystroke rather than on a round trip. -->
       <div class="wk-search">
         <span class="wk-search-icon" aria-hidden="true">🔍</span>
         <input type="search" id="wk-search" placeholder="Search tasks or communities..."
-               autocomplete="off" aria-label="Search tasks or communities">
+               autocomplete="off" aria-label="Search tasks or communities...">
         <button class="wk-search-clear hidden" id="wk-search-clear" aria-label="Clear search">✕</button>
       </div>
-      <button class="btn btn-primary" id="wk-new-community">+ Create Community</button>
+      <a class="btn" href="/work/communities">👥 Communities</a>
     </div>
   </section>
 
@@ -54,6 +56,7 @@
     </div>
   </div>
 
+
   <!-- Anything waiting on this person comes first: an unanswered request is
        the only thing here that blocks someone else. -->
   <div class="card wk-card wk-inbox" id="wk-inbox-card">
@@ -69,76 +72,10 @@
     <div id="wk-requests"></div>
   </div>
 
-  <div class="wk-columns">
-    <div class="card wk-card" data-accent="active">
-      <div class="wk-card-head">
-        <span class="wk-card-icon" data-tone="active" aria-hidden="true">🔥</span>
-        <div class="wk-card-titles"><h3>My active tasks</h3></div>
-      </div>
-      <div id="wk-active"></div>
-      <button class="wk-viewall hidden" id="wk-viewall-active">
-        <span>View all active tasks</span><span class="wk-chev" aria-hidden="true">›</span>
-      </button>
-    </div>
-
-    <div class="card wk-card" data-accent="info">
-      <div class="wk-card-head">
-        <span class="wk-card-icon" data-tone="info" aria-hidden="true">👥</span>
-        <div class="wk-card-titles"><h3>My communities</h3></div>
-      </div>
-      <div id="wk-communities"></div>
-      <button class="wk-viewall hidden" id="wk-viewall-communities">
-        <span>View all communities</span><span class="wk-chev" aria-hidden="true">›</span>
-      </button>
-    </div>
-  </div>
-
-  <div class="card wk-card" data-accent="lab">
-    <div class="wk-card-head">
-      <span class="wk-card-icon" data-tone="lab" aria-hidden="true">📋</span>
-      <div class="wk-card-titles"><h3>Assigned by me</h3></div>
-      <select class="wk-sort" id="wk-created-sort" aria-label="Sort tasks assigned by me">
-        <option value="recent">Recent</option>
-        <option value="progress">Progress</option>
-        <option value="due">Due date</option>
-        <option value="title">Name</option>
-      </select>
-    </div>
-    <div id="wk-created"></div>
-    <button class="wk-viewall hidden" id="wk-viewall-created">
-      <span>View all assigned tasks</span><span class="wk-chev" aria-hidden="true">›</span>
-    </button>
-  </div>
 </div>
 
 {% include "_work_modals.html" %}
 
-<!-- Create community. Local to the dashboard: it is the only place a
-     community is started from. -->
-<div id="wk-community-modal" class="modal-backdrop hidden">
-  <div class="modal-card" style="max-width:440px">
-    <h3>Create a community</h3>
-    <p class="muted-text" style="margin-bottom:14px">You'll be the owner and can invite people straight away.</p>
-    <div class="form-row">
-      <div class="form-group" style="flex:0 0 88px">
-        <label for="wk-c-icon">Icon</label>
-        <input type="text" id="wk-c-icon" value="👥" maxlength="4">
-      </div>
-      <div class="form-group">
-        <label for="wk-c-name">Name</label>
-        <input type="text" id="wk-c-name" placeholder="AI Research Team" maxlength="120">
-      </div>
-    </div>
-    <div class="form-group">
-      <label for="wk-c-desc">Description</label>
-      <input type="text" id="wk-c-desc" placeholder="What this team works on" maxlength="2000">
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-primary" id="wk-c-create">Create</button>
-      <button class="btn" data-close-modal="wk-community-modal">Cancel</button>
-    </div>
-  </div>
-</div>
 {% endblock %}
 
 {% block scripts %}

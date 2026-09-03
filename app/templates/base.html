@@ -54,27 +54,46 @@
         </div>
       </a>
 
-      <a class="nav-link {% if request.url.path == '/dashboard' %}active{% endif %}" href="/dashboard">
-        <span class="nav-ico">🏠</span> Dashboard
-      </a>
-      <a class="nav-link {% if request.url.path == '/timetable' %}active{% endif %}" href="/timetable">
-        <span class="nav-ico">🗓️</span> Timetable
-      </a>
-      <a class="nav-link {% if request.url.path == '/calendar' %}active{% endif %}" href="/calendar">
-        <span class="nav-ico">📆</span> Calendar
-      </a>
-      <a class="nav-link {% if request.url.path == '/tasks' %}active{% endif %}" href="/tasks">
-        <span class="nav-ico">✅</span> Tasks
-        <span class="nav-badge hidden" id="nav-task-count">0</span>
-      </a>
-      <a class="nav-link {% if request.url.path == '/reminders' %}active{% endif %}" href="/reminders">
-        <span class="nav-ico">🔔</span> Reminders
-        <span class="nav-badge hidden" id="nav-reminder-count">0</span>
-      </a>
-      <a class="nav-link {% if request.url.path == '/work' %}active{% endif %}" href="/work">
-        <span class="nav-ico">💼</span> Work
-        <span class="nav-badge hidden" id="nav-work-count">0</span>
-      </a>
+      {# One nav, two sets of destinations. Showing Timetable and Reminders
+         inside Work was showing the wrong module's furniture: they are
+         personal, they do nothing for shared work, and their presence made
+         Work look like a page rather than a place. The switch above is how you
+         get between the two, so nothing is lost by hiding them. #}
+      {% if in_work %}
+        <a class="nav-link {% if request.url.path == '/work' %}active{% endif %}" href="/work">
+          <span class="nav-ico">📊</span> Stats
+        </a>
+        <a class="nav-link {% if request.url.path.startswith('/work/communit') %}active{% endif %}"
+           href="/work/communities">
+          <span class="nav-ico">👥</span> Communities
+        </a>
+        <a class="nav-link {% if request.url.path.startswith('/work/task') %}active{% endif %}"
+           href="/work/tasks">
+          <span class="nav-ico">✅</span> Tasks
+          <span class="nav-badge hidden" id="nav-work-count">0</span>
+        </a>
+      {% else %}
+        <a class="nav-link {% if request.url.path == '/dashboard' %}active{% endif %}" href="/dashboard">
+          <span class="nav-ico">🏠</span> Dashboard
+        </a>
+        <a class="nav-link {% if request.url.path == '/timetable' %}active{% endif %}" href="/timetable">
+          <span class="nav-ico">🗓️</span> Timetable
+        </a>
+        <a class="nav-link {% if request.url.path == '/calendar' %}active{% endif %}" href="/calendar">
+          <span class="nav-ico">📆</span> Calendar
+        </a>
+        <a class="nav-link {% if request.url.path == '/tasks' %}active{% endif %}" href="/tasks">
+          <span class="nav-ico">✅</span> Tasks
+          <span class="nav-badge hidden" id="nav-task-count">0</span>
+        </a>
+        <a class="nav-link {% if request.url.path == '/reminders' %}active{% endif %}" href="/reminders">
+          <span class="nav-ico">🔔</span> Reminders
+          <span class="nav-badge hidden" id="nav-reminder-count">0</span>
+        </a>
+      {% endif %}
+
+      {# Profile and Admin belong to the account, not to either module, so they
+         stay put in both. #}
       <a class="nav-link {% if request.url.path == '/profile' %}active{% endif %}" href="/profile">
         <span class="nav-ico">👤</span> Profile
       </a>
@@ -108,6 +127,24 @@
     <div class="main-col">
       <header class="topbar" id="topbar">
         <button class="icon-btn menu-btn" id="menu-btn" aria-label="Open menu">☰</button>
+
+        {# The mode switch, in the bar rather than buried in the account menu.
+           Two labelled halves and not a toggle: a toggle shows one state and
+           makes you infer the other, and these are two places rather than an
+           on and an off. Each half says where it goes, and the one you are in
+           is filled rather than merely marked, so the current mode reads at a
+           glance instead of being decoded. #}
+        <div class="mode-switch" role="group" aria-label="Switch module">
+          <a class="mode-opt {% if not in_work %}is-on{% endif %}" href="/dashboard"
+             {% if not in_work %}aria-current="page"{% endif %}>
+            <span aria-hidden="true">👤</span><span class="mode-label">Personal</span>
+          </a>
+          <a class="mode-opt {% if in_work %}is-on{% endif %}" href="/work"
+             {% if in_work %}aria-current="page"{% endif %}>
+            <span aria-hidden="true">💼</span><span class="mode-label">Work</span>
+            <span class="mode-badge hidden" id="mode-work-count">0</span>
+          </a>
+        </div>
 
         <div class="topbar-actions">
           <button class="icon-btn" id="refresh-btn" aria-label="Refresh" title="Refresh">⟳</button>
@@ -191,19 +228,39 @@
 
     <!-- Primary navigation on phones; the drawer keeps the secondary items -->
     <nav class="bottom-nav" aria-label="Primary">
-      <a class="bn-item {% if request.url.path == '/dashboard' %}active{% endif %}" href="/dashboard">
-        <span class="bn-ico">🏠</span> Home
-      </a>
-      <a class="bn-item {% if request.url.path == '/timetable' %}active{% endif %}" href="/timetable">
-        <span class="bn-ico">🗓️</span> Timetable
-      </a>
-      <a class="bn-item {% if request.url.path == '/calendar' %}active{% endif %}" href="/calendar">
-        <span class="bn-ico">📆</span> Calendar
-      </a>
-      <a class="bn-item {% if request.url.path == '/work' %}active{% endif %}" href="/work">
-        <span class="bn-ico">💼</span> Work
-        <span class="bn-badge hidden" id="bn-work-count">0</span>
-      </a>
+      {% if in_work %}
+        <a class="bn-item {% if request.url.path == '/work' %}active{% endif %}" href="/work">
+          <span class="bn-ico">📊</span> Stats
+        </a>
+        <a class="bn-item {% if request.url.path.startswith('/work/communit') %}active{% endif %}"
+           href="/work/communities">
+          <span class="bn-ico">👥</span> Communities
+        </a>
+        <a class="bn-item {% if request.url.path.startswith('/work/task') %}active{% endif %}"
+           href="/work/tasks">
+          <span class="bn-ico">✅</span> Tasks
+          <span class="bn-badge hidden" id="bn-work-count">0</span>
+        </a>
+        {# The way back out. On a phone the top bar's switch is tight, so the
+           tab bar carries the return trip too. #}
+        <a class="bn-item" href="/dashboard">
+          <span class="bn-ico">👤</span> Personal
+        </a>
+      {% else %}
+        <a class="bn-item {% if request.url.path == '/dashboard' %}active{% endif %}" href="/dashboard">
+          <span class="bn-ico">🏠</span> Home
+        </a>
+        <a class="bn-item {% if request.url.path == '/timetable' %}active{% endif %}" href="/timetable">
+          <span class="bn-ico">🗓️</span> Timetable
+        </a>
+        <a class="bn-item {% if request.url.path == '/calendar' %}active{% endif %}" href="/calendar">
+          <span class="bn-ico">📆</span> Calendar
+        </a>
+        <a class="bn-item" href="/work">
+          <span class="bn-ico">💼</span> Work
+          <span class="bn-badge hidden" id="bn-work-count">0</span>
+        </a>
+      {% endif %}
       <button class="bn-item" id="bn-more">
         <span class="bn-ico">☰</span> More
       </button>

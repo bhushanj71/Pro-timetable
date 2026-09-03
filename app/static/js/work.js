@@ -209,7 +209,8 @@ function paintDashboard() {
   paintStat("done", "done", data);
 
   // --- Community invitations ---
-  document.getElementById("wk-invites").innerHTML = data.invitations.map((i) => `
+  const invitesBox = document.getElementById("wk-invites");
+  if (invitesBox) invitesBox.innerHTML = data.invitations.map((i) => `
     <div class="wk-request">
       <div class="wk-request-main">
         <div class="wk-request-title">${esc(i.community.icon)} ${esc(i.community.name)}</div>
@@ -222,7 +223,8 @@ function paintDashboard() {
     </div>`).join("");
 
   // --- Task requests ---
-  document.getElementById("wk-requests").innerHTML = data.requests.map((t) => `
+  const requestsBox = document.getElementById("wk-requests");
+  if (requestsBox) requestsBox.innerHTML = data.requests.map((t) => `
     <div class="wk-request">
       <div class="wk-request-main">
         <div class="wk-request-title"><span class="wk-dot" data-p="${esc(t.priority || "medium")}"></span> ${esc(t.title)}</div>

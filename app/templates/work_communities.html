@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Communities — ProfSchedule AI{% endblock %}
+
+{# Communities, on their own page rather than as one card among four.
+
+   The Work module used to be a single page carrying stats, the inbox,
+   communities and two task lists, so every visit scrolled past most of itself
+   to reach the part that was wanted. Each is now a destination the nav can
+   point at directly. #}
+{% block content %}
+<div class="work-mode">
+
+  <section class="wk-hero">
+    <div class="wk-hero-text">
+      <h2><span class="wk-hero-icon" aria-hidden="true">👥</span> Communities</h2>
+      <p class="muted-text">The teams you belong to, and the work inside them.</p>
+    </div>
+    <div class="wk-hero-tools">
+      <div class="wk-search">
+        <span class="wk-search-icon" aria-hidden="true">🔍</span>
+        <input type="search" id="wk-search" placeholder="Search communities..."
+               autocomplete="off" aria-label="Search communities">
+        <button class="wk-search-clear hidden" id="wk-search-clear" aria-label="Clear search">✕</button>
+      </div>
+      <button class="btn btn-primary" id="wk-new-community">+ Create Community</button>
+    </div>
+  </section>
+
+  <div class="card wk-card" data-accent="info">
+    <div class="wk-card-head">
+      <span class="wk-card-icon" data-tone="info" aria-hidden="true">👥</span>
+      <div class="wk-card-titles"><h3>My communities</h3></div>
+    </div>
+    <div id="wk-communities"></div>
+    <button class="wk-viewall hidden" id="wk-viewall-communities">
+      <span>View all communities</span><span class="wk-chev" aria-hidden="true">›</span>
+    </button>
+  </div>
+</div>
+
+{% include "_work_modals.html" %}
+
+<div id="wk-community-modal" class="modal-backdrop hidden">
+  <div class="modal-card" style="max-width:440px">
+    <h3>Create a community</h3>
+    <p class="muted-text" style="margin-bottom:14px">You'll be the owner and can invite people straight away.</p>
+    <div class="form-row">
+      <div class="form-group" style="flex:0 0 88px">
+        <label for="wk-c-icon">Icon</label>
+        <input type="text" id="wk-c-icon" value="👥" maxlength="4">
+      </div>
+      <div class="form-group">
+        <label for="wk-c-name">Name</label>
+        <input type="text" id="wk-c-name" placeholder="AI Research Team" maxlength="120">
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="wk-c-desc">Description</label>
+      <input type="text" id="wk-c-desc" placeholder="What this team works on" maxlength="2000">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="wk-c-create">Create</button>
+      <button class="btn" data-close-modal="wk-community-modal">Cancel</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/work.js?v={{ v }}"></script>
+{% endblock %}

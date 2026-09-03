@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Work tasks — ProfSchedule AI{% endblock %}
+
+{# Both directions of shared work on one page, because they are the same
+   question asked twice: what am I carrying, and what am I waiting on other
+   people for. Splitting those into separate pages would mean checking two
+   places to know where a task stands. #}
+{% block content %}
+<div class="work-mode">
+
+  <section class="wk-hero">
+    <div class="wk-hero-text">
+      <h2><span class="wk-hero-icon" aria-hidden="true">✅</span> Work tasks</h2>
+      <p class="muted-text">What you are carrying, and what you have handed out.</p>
+    </div>
+    <div class="wk-hero-tools">
+      <div class="wk-search">
+        <span class="wk-search-icon" aria-hidden="true">🔍</span>
+        <input type="search" id="wk-search" placeholder="Search tasks..."
+               autocomplete="off" aria-label="Search tasks">
+        <button class="wk-search-clear hidden" id="wk-search-clear" aria-label="Clear search">✕</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="card wk-card" data-accent="active">
+    <div class="wk-card-head">
+      <span class="wk-card-icon" data-tone="active" aria-hidden="true">🔥</span>
+      <div class="wk-card-titles"><h3>My active tasks</h3></div>
+    </div>
+    <div id="wk-active"></div>
+    <button class="wk-viewall hidden" id="wk-viewall-active">
+      <span>View all active tasks</span><span class="wk-chev" aria-hidden="true">›</span>
+    </button>
+  </div>
+
+  <div class="card wk-card" data-accent="lab">
+    <div class="wk-card-head">
+      <span class="wk-card-icon" data-tone="lab" aria-hidden="true">📋</span>
+      <div class="wk-card-titles"><h3>Assigned by me</h3></div>
+      <select class="wk-sort" id="wk-created-sort" aria-label="Sort tasks assigned by me">
+        <option value="recent">Recent</option>
+        <option value="progress">Progress</option>
+        <option value="due">Due date</option>
+        <option value="title">Name</option>
+      </select>
+    </div>
+    <div id="wk-created"></div>
+    <button class="wk-viewall hidden" id="wk-viewall-created">
+      <span>View all assigned tasks</span><span class="wk-chev" aria-hidden="true">›</span>
+    </button>
+  </div>
+</div>
+
+{% include "_work_modals.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/work.js?v={{ v }}"></script>
+{% endblock %}

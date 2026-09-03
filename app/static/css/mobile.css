@@ -544,3 +544,21 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   .wk-att-act { min-height: 44px; display: inline-flex; align-items: center; padding: 0 8px; }
   .wk-att-add { min-height: 44px; }
 }
+
+/* --------------------------------------------------------------------------
+   Module switch on a phone
+   -------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  /* The words go, the icons stay. Two labelled halves do not fit beside a
+     refresh, a theme, a bell and a name at 393px -- and the tab bar carries
+     the same switch with its labels intact, so nothing here is the only way
+     to change module. */
+  .mode-switch { margin-right: 6px; padding: 2px; }
+  .mode-opt { padding: 0 9px; min-height: 32px; }
+  .mode-label { display: none; }
+}
+
+@media (max-width: 380px) {
+  /* Past this the bar is genuinely full. The tab bar still has it. */
+  .mode-switch { display: none; }
+}

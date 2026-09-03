@@ -63,13 +63,21 @@ def test_the_dashboard_no_longer_carries_the_detail_dialogs(owner):
     assert 'id="wk-detail-modal"' not in page
 
 
-def test_the_dialogs_the_dashboard_still_needs_are_present(owner):
+def test_the_dialogs_work_still_needs_are_present(owner):
     """Not everything became a page. A confirmation and a short form are
-    answered in one action and genuinely interrupt -- those stay dialogs."""
-    page = owner.get("/work").text
-    for still_modal in ("wk-profile-modal", "wk-community-modal",
-                        "wk-task-modal", "wk-delete-modal"):
-        assert f'id="{still_modal}"' in page, still_modal
+    answered in one action and genuinely interrupt -- those stay dialogs.
+
+    Each now sits on the page whose button opens it, which is why the create
+    form is checked on /work/communities rather than on the overview: a dialog
+    on a page with nothing to open it is markup nobody can reach.
+    """
+    overview = owner.get("/work").text
+    for shared in ("wk-profile-modal", "wk-task-modal", "wk-delete-modal"):
+        assert f'id="{shared}"' in overview, shared
+
+    communities = owner.get("/work/communities").text
+    assert 'id="wk-community-modal"' in communities
+    assert 'id="wk-new-community"' in communities
 
 
 # --------------------------------------------------------------------------

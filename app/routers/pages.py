@@ -27,6 +27,11 @@ def _ctx(request: Request, user: User | None, **extra):
         "user": user,
         "v": ASSET_VERSION,
         "now_year": datetime.now(timezone.utc).year,
+        # Which module this page belongs to. Taken from the path, not from the
+        # user's stored active_profile: the path is where the reader actually
+        # is, and the two disagree the moment somebody follows a link into Work
+        # from a notification.
+        "in_work": request.url.path.startswith("/work"),
         **extra,
     }
 
@@ -68,6 +73,24 @@ def work_page(request: Request, user: User | None = Depends(get_current_user_opt
     if not user:
         return RedirectResponse("/login", status_code=302)
     return templates.TemplateResponse("work.html", _ctx(request, user))
+
+
+@router.get("/work/communities")
+def work_communities_page(
+    request: Request, user: User | None = Depends(get_current_user_optional)
+):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse("work_communities.html", _ctx(request, user))
+
+
+@router.get("/work/tasks")
+def work_tasks_page(
+    request: Request, user: User | None = Depends(get_current_user_optional)
+):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse("work_tasks.html", _ctx(request, user))
 
 
 # A task and a community each get a real URL rather than a dialog over the

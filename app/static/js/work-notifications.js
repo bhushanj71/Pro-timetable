@@ -80,11 +80,13 @@ function setBadges(unread, workUnread = null) {
     badge.textContent = unread > 9 ? "9+" : unread;
     badge.classList.toggle("hidden", unread === 0);
   }
-  // The account button carries the work count, because the switcher it used
-  // to sit on is now folded into that menu -- otherwise pending work would be
-  // invisible from Personal mode.
+  // Everywhere Work is named carries its count: the switch in the top bar,
+  // the tab bar, the sidebar and the account menu. The switch is the important
+  // one -- from Personal mode it is the only thing on screen that can say
+  // something is waiting in the other module.
   if (workUnread !== null) {
-    for (const id of ["ps-work-badge", "um-work-count"]) {
+    for (const id of ["mode-work-count", "bn-work-count", "nav-work-count",
+                      "ps-work-badge", "um-work-count"]) {
       const el = document.getElementById(id);
       if (!el) continue;
       el.textContent = workUnread > 9 ? "9+" : workUnread;
