@@ -31,46 +31,65 @@
   /* The frame a widget's panel sits on. Fainter than the pane, so more of the
      ambient field shows through it -- which is what makes it read as the
      muted outer band rather than a second sheet of the same glass. */
-  --glass-frame: rgba(240, 226, 216, 0.82);
+  --glass-frame: rgba(228, 224, 219, 0.85);
 
   --glass-shadow: 0 6px 24px rgba(76, 52, 42, 0.10), 0 1px 2px rgba(76, 52, 42, 0.05);
   --glass-shadow-lg: 0 24px 60px rgba(76, 52, 42, 0.18), 0 2px 6px rgba(76, 52, 42, 0.07);
 
   /* The ambient field behind the glass. */
-  --amb-1: rgba(224, 120, 93, 0.20);
-  --amb-2: rgba(139, 123, 184, 0.16);
-  --amb-3: rgba(74, 157, 127, 0.14);
-  --amb-4: rgba(217, 160, 91, 0.14);
+  /* Damped. At the old strengths these four washed the page warm enough that
+     it read as cream whatever --bg said -- most of why the background looked
+     yellow rather than like paper. Enough colour is left for the glass to
+     have something to pick up. */
+  --amb-1: rgba(224, 120, 93, 0.12);
+  --amb-2: rgba(139, 123, 184, 0.10);
+  --amb-3: rgba(74, 157, 127, 0.08);
+  --amb-4: rgba(217, 160, 91, 0.07);
 }
 
 /* ---------- Dark ---------- */
 :root[data-theme="dark"] {
-  --glass-bg: rgba(38, 32, 28, 0.72);
-  --glass-bg-strong: rgba(38, 32, 28, 0.88);
-  --glass-bg-faint: rgba(38, 32, 28, 0.55);
+  --glass-bg: rgba(23, 20, 19, 0.74);
+  --glass-bg-strong: rgba(23, 20, 19, 0.90);
+  --glass-bg-faint: rgba(23, 20, 19, 0.58);
 
   --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.14);
   --glass-edge-soft: inset 0 1px 0 rgba(255, 255, 255, 0.09);
   --glass-rim: rgba(255, 255, 255, 0.13);
-    --glass-frame: rgba(10, 8, 7, 0.55);
+  --glass-frame: rgba(3, 2, 2, 0.62);
 
   --glass-shadow: 0 6px 24px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.30);
   --glass-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.58), 0 2px 6px rgba(0, 0, 0, 0.35);
+
+  /* The field was only ever set once, in light, so these same four blooms sat
+     behind the dark theme at full strength -- which is why a near-black
+     palette still came out looking like warm brown. Dark needs far less: a
+     little for the glass to refract, and no more. */
+  --amb-1: rgba(224, 120, 93, 0.09);
+  --amb-2: rgba(139, 123, 184, 0.08);
+  --amb-3: rgba(74, 157, 127, 0.06);
+  --amb-4: rgba(217, 160, 91, 0.05);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --glass-bg: rgba(38, 32, 28, 0.72);
-    --glass-bg-strong: rgba(38, 32, 28, 0.88);
-    --glass-bg-faint: rgba(38, 32, 28, 0.55);
+    --glass-bg: rgba(23, 20, 19, 0.74);
+    --glass-bg-strong: rgba(23, 20, 19, 0.90);
+    --glass-bg-faint: rgba(23, 20, 19, 0.58);
 
     --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.14);
     --glass-edge-soft: inset 0 1px 0 rgba(255, 255, 255, 0.09);
     --glass-rim: rgba(255, 255, 255, 0.13);
-    --glass-frame: rgba(10, 8, 7, 0.55);
+    --glass-frame: rgba(3, 2, 2, 0.62);
 
     --glass-shadow: 0 6px 24px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.30);
     --glass-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.58), 0 2px 6px rgba(0, 0, 0, 0.35);
+
+    /* Damped for dark, as above. */
+    --amb-1: rgba(224, 120, 93, 0.09);
+    --amb-2: rgba(139, 123, 184, 0.08);
+    --amb-3: rgba(74, 157, 127, 0.06);
+    --amb-4: rgba(217, 160, 91, 0.05);
   }
 }
 

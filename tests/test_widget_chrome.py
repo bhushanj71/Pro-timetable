@@ -67,13 +67,60 @@ def test_the_frame_survives_the_glass_material(selector):
     assert "var(--frame) solid var(--glass-frame)" in body, selector
 
 
+def _hex(css: str, token: str, *, occurrence: int = 0) -> str:
+    found = re.findall(rf"{re.escape(token)}:\s*(#[0-9a-fA-F]{{6}})", css)
+    assert found, f"{token} should be a plain hex so it can be compared"
+    return found[occurrence]
+
+
+def _luminance(colour: str) -> float:
+    """WCAG relative luminance, for comparing two swatches."""
+    parts = [int(colour[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    lin = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in parts]
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+
 def test_the_frame_recedes_in_both_themes():
-    """A band that is lighter than its panel reads as a highlight, not a
-    mount. Light steps down from #ffffff; dark has to step down from #201b18
-    rather than reach for the lighter --surface-alt."""
-    assert "--frame-fill: #f4eae3" in STYLE
+    """A band lighter than the panel it holds reads as a highlight, not a
+    mount. Asserted as the relationship rather than as two hex values: the
+    palette is allowed to change, this is not. Dark is the one that catches
+    people out -- there --surface-alt is the *lighter* step, so a frame that
+    reaches for it comes out in front of the panel.
+    """
     theme = (CSS / "theme.css").read_text(encoding="utf-8")
-    assert theme.count("--frame-fill: #17120f") == 2, "dark and system-dark both"
+    for name, css in (("light", STYLE), ("dark", theme)):
+        frame = _luminance(_hex(css, "--frame-fill"))
+        surface = _luminance(_hex(css, "--surface"))
+        assert frame < surface, f"{name}: the frame must sit behind its panel"
+    assert len(re.findall(r"--frame-fill:", theme)) == 2, "dark and system-dark both"
+
+
+def test_the_page_is_neither_white_nor_cream():
+    """It was two points off white and warm with it, so a white card had
+    nothing to sit against and the screen read as cream. The page has to stay
+    clear of both ends, and --text-muted sitting directly on it has to keep
+    its AA contrast -- which is what stops this being taken further down.
+    """
+    page = _hex(STYLE, "--bg")
+    r, g, b = (int(page[i:i + 2], 16) for i in (1, 3, 5))
+    assert r <= 246, "still too close to white to read as a page"
+    assert r - b <= 6, "too warm; that is what made it look cream"
+
+    muted = _luminance(_hex(STYLE, "--text-muted"))
+    bg = _luminance(page)
+    hi, lo = max(muted, bg), min(muted, bg)
+    assert (hi + 0.05) / (lo + 0.05) >= 4.5, "muted text on the page must still meet AA"
+
+
+def test_the_ambient_field_is_damped_for_dark():
+    """It was only ever set in light, so the same four colour blooms sat
+    behind the dark theme at full strength and lifted a near-black palette
+    into warm brown."""
+    light = re.search(r"--amb-1: rgba\([^)]*?([\d.]+)\)", GLASS)
+    darks = re.findall(r"--amb-1: rgba\([^)]*?([\d.]+)\)", GLASS)
+    assert len(darks) == 3, "light, dark, and system-dark"
+    assert all(float(d) < float(light.group(1)) for d in darks[1:]), \
+        "dark needs less of the field than light does"
 
 
 @pytest.mark.parametrize("path", ["/dashboard", "/work", "/timetable"])

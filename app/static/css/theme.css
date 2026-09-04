@@ -10,16 +10,20 @@
    ========================================================================== */
 
 :root[data-theme="dark"] {
-  /* Warm charcoals rather than neutral greys, so the coral still belongs. */
-  --bg: #171311;
-  --bg-tint: #1f1a17;
-  --surface: #201b18;
-  --surface-alt: #262019;
+  /* Near-black, with just enough warmth left that the coral still belongs.
+     These were warm charcoals a good deal lighter than this, which read as
+     brown rather than as dark once the ambient colour field behind them was
+     counted in. That field is damped for dark in glass.css; these carry the
+     rest of the way down. */
+  --bg: #0d0b0a;
+  --bg-tint: #141110;
+  --surface: #171413;
+  --surface-alt: #1d1a18;
   /* Darker than --surface here: a widget's frame should recede in both
      themes, and in the dark palette --surface-alt is the lighter step. */
-  --frame-fill: #17120f;
-  --border: #332b26;
-  --border-strong: #443a33;
+  --frame-fill: #0b0a09;
+  --border: #282320;
+  --border-strong: #38322e;
 
   --text: #f2ebe7;
   --text-soft: #c9bcb4;
@@ -68,15 +72,15 @@
 /* Follow the OS when the professor hasn't chosen explicitly. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #171311;
-    --bg-tint: #1f1a17;
-    --surface: #201b18;
-    --surface-alt: #262019;
-  /* Darker than --surface here: a widget's frame should recede in both
-     themes, and in the dark palette --surface-alt is the lighter step. */
-  --frame-fill: #17120f;
-    --border: #332b26;
-    --border-strong: #443a33;
+    --bg: #0d0b0a;
+    --bg-tint: #141110;
+    --surface: #171413;
+    --surface-alt: #1d1a18;
+    /* Darker than --surface here: a widget's frame should recede in both
+       themes, and in the dark palette --surface-alt is the lighter step. */
+    --frame-fill: #0b0a09;
+    --border: #282320;
+    --border-strong: #38322e;
 
     --text: #f2ebe7;
     --text-soft: #c9bcb4;

@@ -3,18 +3,28 @@
    ========================================================================== */
 
 :root {
-  /* Surfaces */
-  --bg: #fdf9f7;
-  --bg-tint: #fbf3ef;
+  /* Surfaces
+
+     The page is paper, not the sheet lying on it. It used to be #fdf9f7 --
+     two points off white and warm with it, so the cards had nothing to sit
+     against and the whole screen read as cream. It is now a soft grey with
+     only a trace of warmth left, ten points down from white, which is enough
+     for a white card to read as a separate object.
+
+     Not darker than this, though: --text-muted on the page background comes
+     to 4.53:1 here, and AA wants 4.5. A page a couple of points deeper starts
+     failing for every muted line that sits directly on it. */
+  --bg: #f3f1ef;
+  --bg-tint: #eae7e4;
   --surface: #ffffff;
-  --surface-alt: #fefbfa;
-  --border: #f2e7e1;
+  --surface-alt: #faf9f8;
+  --border: #e5e1dd;
   /* The muted band a widget's panel is mounted on. See the Cards section.
      Its own value rather than an alias of --bg-tint: the band has to be a
      visible step down from --surface, and --bg-tint sits close enough to
      white that the frame all but disappeared against a white panel. */
-  --frame-fill: #f4eae3;
-  --border-strong: #e8d8d0;
+  --frame-fill: #e7e3df;
+  --border-strong: #d3cec9;
 
   /* Text */
   --text: #2f2a27;
