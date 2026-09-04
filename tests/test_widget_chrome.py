@@ -159,6 +159,87 @@ def test_the_sweep_stops_when_motion_is_not_wanted():
     assert "::view-transition-new(root) { animation: none; }" in reduced
 
 
+TAP_JS = Path("app/static/js/tap-glow.js").read_text(encoding="utf-8")
+
+
+def test_the_tap_glow_is_a_ring_and_not_a_fill():
+    """Two mask layers subtracted from each other leave the padding ring. With
+    one, the gradient is a filled rectangle sitting over the label of whatever
+    was just pressed."""
+    rule = _rule(STYLE, ".tap-glow")
+    assert rule.count("linear-gradient(#000 0 0)") == 4, "two layers, twice for -webkit-"
+    assert "mask-composite: exclude" in rule
+    assert "-webkit-mask-composite: xor" in rule
+
+
+def test_the_tap_glow_cannot_intercept_the_press_it_is_reporting():
+    rule = _rule(STYLE, ".tap-glow")
+    assert "pointer-events: none" in rule
+    assert "position: fixed" in rule
+    # Above a dialog (200) so a button inside one still shows it, below the
+    # toasts (300) and the route veil (400), which are messages not decoration.
+    z = int(re.search(r"z-index:\s*(\d+)", rule).group(1))
+    assert 200 < z < 300
+
+
+def test_the_turn_is_even():
+    """The fade and the turn want opposite curves. Sharing one ease-out put
+    the ring at 297 degrees a quarter of the way in -- a flick, then a crawl --
+    so they are two animations, and the spin must stay linear."""
+    rule = _rule(STYLE, ".tap-glow")
+    assert "tapGlowFade" in rule and "tapGlowSpin" in rule
+    spin = re.search(r"tapGlowSpin\s+\d+ms\s+(\w+)", rule)
+    assert spin and spin.group(1) == "linear"
+
+
+def test_the_angle_is_a_registered_property():
+    """conic-gradient(from var(--tap-angle)) only animates if the property is
+    registered as an angle. Unregistered it is a string swap and the ring does
+    not turn at all."""
+    block = re.search(r"@property --tap-angle\s*\{(.*?)\}", STYLE, re.S)
+    assert block, "the angle has to be registered"
+    assert 'syntax: "<angle>"' in block.group(1)
+
+
+def test_the_glow_wears_the_applications_own_colours():
+    """The source is an Apple spectrum. A rainbow is the one thing in this
+    palette that would read as belonging to a different program."""
+    rule = _rule(STYLE, ".tap-glow")
+    gradient = re.search(r"background:\s*conic-gradient\((.*?)\);", rule, re.S).group(1)
+    assert "#" not in gradient, "no hard-coded hues; the theme owns these"
+    for token in ("--primary", "--warning", "--success", "--cat-lab"):
+        assert token in gradient
+
+
+def test_every_control_gets_it_without_being_wired_up():
+    """One delegated listener, in the capture phase so components that stop
+    propagation on their own buttons do not silently opt out."""
+    assert "document.addEventListener(\"click\"" in TAP_JS
+    assert "true);" in TAP_JS.split("document.addEventListener(\"click\"")[1][:400]
+    for target in ('"button"', '"label"', '".nav-link"', '".bn-item"', '".icon-btn"'):
+        assert target in TAP_JS
+
+
+def test_a_refused_press_is_not_congratulated():
+    assert "el.disabled" in TAP_JS
+    assert 'aria-disabled' in TAP_JS
+
+
+def test_a_ring_cannot_be_left_on_the_page():
+    """animationend never arrives in a backgrounded tab, and a ring stranded
+    over the page is worse than no ring at all."""
+    assert "SAFETY_MS" in TAP_JS
+    assert "setTimeout" in TAP_JS
+    # Anchored to viewport coordinates, so it stops meaning anything once the
+    # page moves underneath it.
+    for event in ("scroll", "resize", "pagehide"):
+        assert f'"{event}", clear' in TAP_JS or f'"{event}"' in TAP_JS
+
+
+def test_the_glow_is_loaded_everywhere():
+    assert "tap-glow.js" in Path("app/templates/base.html").read_text(encoding="utf-8")
+
+
 def test_the_ambient_field_is_damped_for_dark():
     """It was only ever set in light, so the same four colour blooms sat
     behind the dark theme at full strength and lifted a near-black palette

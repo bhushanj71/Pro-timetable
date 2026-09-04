@@ -2325,3 +2325,91 @@ pre {
    sign-in card's width without every time field wrapping onto its own line.
    Same frame, sized for what it holds. */
 .auth-card.auth-card-wide { max-width: 520px; }
+
+
+/* ==========================================================================
+   Tap glow
+
+   Skiper86's shape: a gradient border that turns, the Apple Intelligence
+   look, here as the feedback for pressing something rather than as a
+   permanent state on one element.
+
+   It is drawn as a ring in an element of its own, placed over the control and
+   removed when it finishes, rather than as a pseudo-element on the control
+   itself. That matters because this fires on every button, tab, chip and
+   label in the application: a ::after on the target would need the target to
+   be positioned, and adding position:relative to several hundred controls
+   would silently re-parent every absolutely-positioned child inside them --
+   the tab bar's badges, the sidebar's navigating spinner. An overlay touches
+   nothing.
+
+   The colours are the application's own -- coral, amber, green, violet --
+   rather than the source's Apple spectrum. A rainbow is the one thing in this
+   palette that would read as belonging to a different program.
+
+   The source also plays a sound on each trigger. That is not carried over:
+   this fires on every press in the app, and a scheduling tool used in a
+   lecture theatre should not chirp each time somebody taps it.
+   ========================================================================== */
+@property --tap-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.tap-glow {
+  position: fixed;
+  /* Above a dialog, so a button inside one still shows it; below the toasts
+     and the route veil, which are messages rather than decoration. */
+  z-index: 250;
+  pointer-events: none;
+  /* The ring thickness. box-sizing is border-box globally, so the padding
+     eats inwards and the outer size stays the measured one. */
+  padding: 3px;
+  background: conic-gradient(
+    from var(--tap-angle, 0deg),
+    var(--primary), var(--warning), var(--success), var(--cat-lab), var(--primary)
+  );
+  /* Two masks, one clipped to the content box, subtracted from the other:
+     what is left is the padding ring. Without this the gradient is a filled
+     rectangle sitting over the label. */
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  filter: blur(3px);
+  opacity: 0;
+  /* Two animations rather than one, because the two halves want opposite
+     curves. The fade should arrive fast and leave slowly; the turn has to be
+     even or it is not read as a turn. Sharing one ease-out put the ring at
+     297 degrees a quarter of the way in -- a flick, then a crawl. */
+  animation: tapGlowFade 620ms linear, tapGlowSpin 620ms linear;
+  will-change: opacity;
+}
+
+/* Shaped here rather than by a timing function. An ease-out on this had the
+   ring down to six percent by the halfway point, so the back half of the turn
+   played to nobody -- the curve was doing the fade twice, once in the stops
+   and once in itself. Linear, and the stops say when. */
+@keyframes tapGlowFade {
+  0%   { opacity: 0; }
+  12%  { opacity: 0.95; }
+  55%  { opacity: 0.78; }
+  100% { opacity: 0; }
+}
+
+@keyframes tapGlowSpin {
+  from { --tap-angle: 0deg; }
+  to   { --tap-angle: 360deg; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The press still needs an answer, so the ring stays and stops turning.
+     Held at one angle rather than mid-rotation. */
+  .tap-glow { animation: tapGlowStill 380ms var(--ease-out); }
+  @keyframes tapGlowStill {
+    0%   { opacity: 0; }
+    25%  { opacity: 0.8; }
+    100% { opacity: 0; }
+  }
+}
