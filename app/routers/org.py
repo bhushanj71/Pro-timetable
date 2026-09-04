@@ -233,5 +233,15 @@ def manage_members(
     if q:
         rows = rows.filter(User.name.ilike(f"%{q.strip()}%"))
 
-    found = rows.order_by(User.name).limit(200).all()
-    return {"members": [og.person_dict(u, with_college=True) for u in found]}
+    LIMIT = 200
+    found = rows.order_by(User.name).limit(LIMIT + 1).all()
+    # One more than the cap is fetched so the caller can be told the list was
+    # cut rather than shown a short list that looks complete. An administrator
+    # who reads "3 members" off a truncated page has been given a wrong answer,
+    # not a partial one.
+    truncated = len(found) > LIMIT
+    return {
+        "members": [og.person_dict(u, with_college=True) for u in found[:LIMIT]],
+        "truncated": truncated,
+        "limit": LIMIT,
+    }

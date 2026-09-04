@@ -311,6 +311,7 @@ async function loadColleges() {
             </div>
             <div class="ad-college-actions">
               <button class="btn btn-sm" data-edit-college="${c.id}">✏️ Edit</button>
+              <button class="btn btn-sm" data-members-college="${c.id}" data-name="${esc(c.name)}">👥 Members</button>
               <button class="btn btn-sm btn-primary" data-manage-depts="${c.id}">Manage →</button>
             </div>
           </div>`).join("")
@@ -340,6 +341,10 @@ async function openDepartments(collegeId) {
               ${archived ? `<span class="wk-chip declined">Archived</span>` : ""}
             </div>
             <div class="ad-dept-actions">
+              ${x.member_count
+                ? `<button class="chip-x" data-members-dept="${x.id}" data-name="${esc(x.name)}"
+                           title="Who is in ${esc(x.name)}" aria-label="View members of ${esc(x.name)}">👥</button>`
+                : ""}
               <button class="chip-x" data-rename-dept="${x.id}" data-name="${esc(x.name)}" title="Rename" aria-label="Rename ${esc(x.name)}">✏️</button>
               <button class="chip-x" data-archive-dept="${x.id}" data-to="${archived ? "active" : "archived"}"
                       title="${archived ? "Restore" : "Archive"}" aria-label="${archived ? "Restore" : "Archive"} ${esc(x.name)}">${archived ? "♻️" : "📦"}</button>
@@ -354,6 +359,114 @@ async function openDepartments(collegeId) {
     box.innerHTML = `<div class="wk-empty">${esc(err.message)}</div>`;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Who is enrolled where
+
+   The same panel for both administrators. A super admin arrives from a college
+   and may then narrow by department; a college admin has the college settled
+   already and arrives to pick the department. Two views would have been the
+   same list written twice, and the department filter is the only difference
+   between the two requests.
+
+   Emails are not here on purpose. This panel answers a question about the
+   organisation -- who is in which department -- and the account details,
+   email included, are in the user table above, where a college admin already
+   sees their own college. Splitting it that way keeps one directory endpoint
+   shared with Work, which has never handed out addresses.
+   -------------------------------------------------------------------------- */
+const MEMBERS = { college: null, name: "" };
+
+async function openMembers(collegeId, collegeName, departmentId) {
+  MEMBERS.college = collegeId;
+  MEMBERS.name = collegeName || "";
+
+  document.getElementById("ad-members-modal").classList.remove("hidden");
+  document.getElementById("ad-members-q").value = "";
+  document.getElementById("ad-members-title").textContent = `👥 ${MEMBERS.name || "Members"}`;
+
+  const sel = document.getElementById("ad-members-dept");
+  sel.innerHTML = `<option value="">All departments</option>`;
+  try {
+    const d = await apiFetch(`/api/org/manage/colleges/${collegeId}/departments`);
+    MEMBERS.name = d.college.name;
+    document.getElementById("ad-members-title").textContent = `👥 ${MEMBERS.name}`;
+    sel.innerHTML =
+      `<option value="">All departments</option>` +
+      d.departments
+        .map((x) => `<option value="${x.id}">${esc(x.name)}${x.status === "archived" ? " (archived)" : ""}</option>`)
+        .join("");
+  } catch (err) {
+    /* The filter is a convenience; the list underneath still answers the
+       question without it, so a failure here does not empty the panel. */
+    showToast(err.message, "error");
+  }
+  sel.value = departmentId || "";
+  await loadMembers();
+}
+
+async function loadMembers() {
+  const box = document.getElementById("ad-members-list");
+  if (!box) return;
+  box.innerHTML = `<div class="wk-empty">Loading…</div>`;
+
+  const deptSel = document.getElementById("ad-members-dept");
+  const deptId = deptSel.value;
+  const deptName = deptId ? deptSel.options[deptSel.selectedIndex].text : "";
+  const q = document.getElementById("ad-members-q").value.trim();
+
+  const params = new URLSearchParams();
+  if (MEMBERS.college) params.set("college_id", MEMBERS.college);
+  if (deptId) params.set("department_id", deptId);
+  if (q) params.set("q", q);
+
+  document.getElementById("ad-members-sub").textContent = deptId
+    ? `Everyone enrolled in ${deptName}.`
+    : `Everyone in ${MEMBERS.name || "this college"}, by department.`;
+
+  try {
+    const d = await apiFetch(`/api/org/manage/members?${params.toString()}`);
+    if (!d.members.length) {
+      /* Which of the two nothings this is changes what to do about it, so it
+         is worth the extra branch. */
+      box.innerHTML = `<div class="wk-empty">${
+        q ? `Nobody matching “${esc(q)}”${deptId ? ` in ${esc(deptName)}` : ""}.`
+          : deptId ? `Nobody is enrolled in ${esc(deptName)} yet.`
+          : "Nobody has joined this college yet."
+      }</div>`;
+      return;
+    }
+
+    box.innerHTML =
+      d.members
+        .map(
+          (m) => `
+        <div class="ad-member">
+          <span class="ad-member-avatar" aria-hidden="true">${esc(m.initial)}</span>
+          <div class="ad-member-main">
+            <div class="ad-member-name">${esc(m.name)}</div>
+            <div class="ad-member-meta">${esc(m.department || "No department")}${
+              m.designation ? ` · ${esc(m.designation)}` : ""
+            }</div>
+          </div>
+        </div>`
+        )
+        .join("") +
+      `<div class="ad-member-count">${d.members.length} ${d.members.length === 1 ? "person" : "people"}${
+        d.truncated ? ` shown — more than ${d.limit}; narrow by department or search` : ""
+      }</div>`;
+  } catch (err) {
+    box.innerHTML = `<div class="wk-empty">${esc(err.message)}</div>`;
+  }
+}
+
+document.getElementById("ad-members-dept")?.addEventListener("change", loadMembers);
+
+let adMemberDebounce;
+document.getElementById("ad-members-q")?.addEventListener("input", () => {
+  clearTimeout(adMemberDebounce);
+  adMemberDebounce = setTimeout(loadMembers, 300);
+});
 
 document.getElementById("ad-add-college")?.addEventListener("click", () => {
   document.getElementById("ad-college-id").value = "";
@@ -401,6 +514,20 @@ document.getElementById("ad-dept-add")?.addEventListener("click", async (e) => {
 document.addEventListener("click", async (e) => {
   const manage = e.target.closest("[data-manage-depts]");
   if (manage) return openDepartments(manage.dataset.manageDepts);
+
+  const byCollege = e.target.closest("[data-members-college]");
+  if (byCollege) {
+    return openMembers(byCollege.dataset.membersCollege, byCollege.dataset.name, "");
+  }
+
+  const byDept = e.target.closest("[data-members-dept]");
+  if (byDept) {
+    /* Opened from inside the departments panel. That one closes rather than
+       stacking a second sheet on top of it: two modals deep, the close button
+       stops meaning anything predictable. */
+    document.getElementById("ad-dept-modal").classList.add("hidden");
+    return openMembers(ORG.college, "", byDept.dataset.membersDept);
+  }
 
   const edit = e.target.closest("[data-edit-college]");
   if (edit) {

@@ -166,6 +166,37 @@
   </div>
 </div>
 
+{# Who is enrolled where.
+
+   One panel serves both administrators, because both are asking the same
+   question with a different filter already applied: a super admin picks the
+   college and may then narrow by department, and a college admin has the
+   college decided for them and picks the department. Building two views would
+   have been the same list twice. #}
+<div id="ad-members-modal" class="modal-backdrop hidden">
+  <div class="modal-card" style="max-width:560px">
+    <button class="sheet-close" data-close-modal="ad-members-modal" aria-label="Close">✕</button>
+    <h3 id="ad-members-title">👥 Members</h3>
+    <p class="muted-text" style="margin:4px 0 14px" id="ad-members-sub"></p>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="ad-members-dept">Department</label>
+        <select id="ad-members-dept"><option value="">All departments</option></select>
+      </div>
+      <div class="form-group">
+        <label for="ad-members-q">Find someone</label>
+        <input type="search" id="ad-members-q" placeholder="Name..." autocomplete="off">
+      </div>
+    </div>
+
+    <div id="ad-members-list"></div>
+    <div class="modal-actions">
+      <button class="btn" data-close-modal="ad-members-modal">Close</button>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 {% block scripts %}
 <script src="/static/js/admin.js?v={{ v }}"></script>

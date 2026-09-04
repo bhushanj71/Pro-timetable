@@ -403,3 +403,96 @@ def test_a_professor_still_has_no_panel(world):
 
 def test_an_anonymous_caller_still_gets_401():
     assert TestClient(app).get("/api/admin/users").status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Browsing who is enrolled where
+#
+# One endpoint serves both administrators: a super admin picks the college and
+# may narrow by department, a college admin has the college settled for them
+# and picks the department.
+# ---------------------------------------------------------------------------
+def _members(client, **params):
+    return client.get("/api/org/manage/members", params=params).json()
+
+
+def test_a_super_admin_picks_the_college_and_gets_its_members(world):
+    first = _members(world["boss"], college_id=world["first"]["id"])["members"]
+    second = _members(world["boss"], college_id=world["second"]["id"])["members"]
+    assert {m["name"] for m in first} == {"Anita", "Ravi"}
+    assert {m["name"] for m in second} == {"Outsider"}
+
+
+def test_a_super_admin_can_narrow_to_one_department(world):
+    college = world["first"]["id"]
+    dept = _departments(world["boss"], college)[0]["id"]
+    rows = _members(world["boss"], college_id=college, department_id=dept)["members"]
+    assert rows, "the department the members joined should not come back empty"
+    assert all(m["department_id"] == dept for m in rows)
+
+
+def test_a_college_admin_gets_their_own_college_without_asking(world):
+    """They have no college to pick, so the endpoint decides for them."""
+    _appoint(world)
+    rows = _members(world["anita"])["members"]
+    assert {m["name"] for m in rows} == {"Anita", "Ravi"}
+
+
+def test_a_college_admin_asking_for_another_college_still_gets_their_own(world):
+    """The filter is the caller's request; the scope is not."""
+    _appoint(world)
+    rows = _members(world["anita"], college_id=world["second"]["id"])["members"]
+    assert {m["name"] for m in rows} == {"Anita", "Ravi"}
+    assert "Outsider" not in {m["name"] for m in rows}
+
+
+def test_a_department_from_another_college_reveals_nobody(world):
+    """The department filter is applied on top of the forced college, so a
+    borrowed id narrows to nothing rather than reaching across."""
+    _appoint(world)
+    other_dept = _departments(world["boss"], world["second"]["id"])[0]["id"]
+    assert _members(world["anita"], department_id=other_dept)["members"] == []
+
+
+def test_a_college_admin_picks_a_department_within_their_college(world):
+    _appoint(world)
+    dept = _departments(world["boss"], world["first"]["id"])[0]["id"]
+    rows = _members(world["anita"], department_id=dept)["members"]
+    assert rows
+    assert all(m["department_id"] == dept for m in rows)
+
+
+def test_a_professor_cannot_browse_members_at_all(world):
+    assert world["ravi"].get("/api/org/manage/members").status_code == 403
+
+
+def test_the_member_list_still_hands_out_no_email(world):
+    """The directory rule Work has always had. Account details, email
+    included, live in the admin user table, which is scoped separately."""
+    _appoint(world)
+    for m in _members(world["anita"])["members"]:
+        assert "email" not in m
+
+
+def test_a_short_list_is_not_reported_as_cut(world):
+    _appoint(world)
+    assert _members(world["anita"])["truncated"] is False
+
+
+def test_a_cut_list_says_so(world, db_session):
+    """An administrator who reads a count off a truncated page has been given
+    a wrong answer, not a partial one."""
+    from app.models import User as U
+
+    college = world["first"]["id"]
+    dept = world["db"].query(U).filter(U.email == "anita@example.com").first().department_id
+    payload = _members(world["boss"], college_id=college)
+    limit = payload["limit"]
+    for i in range(limit):
+        db_session.add(U(name=f"Crowd {i:03d}", email=f"crowd{i}@example.com",
+                         college_id=college, department_id=dept))
+    db_session.commit()
+
+    payload = _members(world["boss"], college_id=college)
+    assert payload["truncated"] is True
+    assert len(payload["members"]) == limit

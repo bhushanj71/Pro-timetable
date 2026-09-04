@@ -139,3 +139,30 @@ def test_a_re_measure_does_not_kill_a_travel_in_flight():
 def test_the_travel_is_skipped_when_motion_is_not_wanted():
     assert "!reducedMotion()" in NAV_PILL_JS
     assert "prefers-reduced-motion: reduce" in STYLE
+
+
+def test_the_page_transition_does_not_capture_fixed_dialogs():
+    """`both` keeps the last keyframe applied for ever, and a filled
+    `transform: none` computes to the identity matrix rather than to none.
+    Any computed transform makes the element the containing block for its
+    position:fixed descendants, which had .content capturing every modal
+    backdrop inside it: `inset: 0` meant the document, not the viewport, so
+    dialogs centred on the middle of the page. On the admin panel that put all
+    five of them below the fold.
+
+    `backwards` still covers the state before the animation starts, which is
+    all the fill was needed for.
+    """
+    mobile = (CSS / "mobile.css").read_text(encoding="utf-8")
+    rule = _rule(mobile, ".content, .landing, .auth-wrap")
+    assert "pageIn" in rule
+    assert "backwards" in rule, "a page transition must not outlive itself as a transform"
+    assert " both;" not in rule
+
+
+def test_the_dialogs_that_were_captured_are_still_inside_the_content_block():
+    """The fix is the fill mode, not moving the markup. If these ever move to
+    the body the rule above stops mattering -- and if a new transform lands on
+    an ancestor it starts mattering again, so keep them found together."""
+    admin = Path("app/templates/admin.html").read_text(encoding="utf-8")
+    assert admin.count('class="modal-backdrop hidden"') == 5

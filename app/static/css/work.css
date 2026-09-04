@@ -934,6 +934,31 @@ button.user-chip .ps-badge { position: absolute; top: -3px; right: -3px; }
    history, and hiding them would make the count above unexplainable. */
 .is-archived .ad-college-name, .is-archived .ad-dept-name { opacity: 0.62; }
 
+/* --- Members of a college or a department ------------------------------- */
+.ad-member {
+  display: flex; align-items: center; gap: 11px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.ad-member:last-of-type { border-bottom: none; }
+.ad-member-avatar {
+  flex: 0 0 auto;
+  width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--primary-soft); color: var(--primary-hover);
+  font-weight: 800; font-size: 0.82rem;
+}
+.ad-member-main { min-width: 0; }
+.ad-member-name { font-weight: 700; font-size: 0.87rem; }
+/* Department first, designation after: the list is usually being read to
+   answer "who is in this department", so that is the line that has to scan. */
+.ad-member-meta { font-size: 0.74rem; color: var(--text-muted); margin-top: 2px; }
+.ad-member-count {
+  margin-top: 12px; padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 0.75rem; color: var(--text-muted);
+}
+
 @media (max-width: 768px) {
   .wk-filter-row { flex-wrap: wrap; }
   .wk-filter-row select { max-width: none; width: 100%; min-height: 44px; }

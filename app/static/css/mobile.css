@@ -10,7 +10,22 @@
 @keyframes pageIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes pageOut { to { opacity: 0; transform: translateY(-6px); } }
 
-.content, .landing, .auth-wrap { animation: pageIn 320ms var(--ease-out) both; }
+/* backwards, not both.
+
+   `both` keeps the final keyframe applied for ever after the animation ends,
+   and a *filled* `transform: none` does not compute to none -- it computes to
+   the identity matrix. Any computed transform other than none makes the
+   element the containing block for its position:fixed descendants, so .content
+   was permanently capturing every modal backdrop inside it: `inset: 0` then
+   meant the whole document rather than the viewport, and a dialog centred
+   itself around the middle of the page instead of the screen. On a long page
+   like the admin panel that put every dialog well below the fold.
+
+   `backwards` still covers the state before the animation starts, which is all
+   the fill was ever needed for. Once it finishes the element goes back to its
+   own style, where the transform really is none. Nothing moves at the join:
+   the last keyframe and the base style are the same picture. */
+.content, .landing, .auth-wrap { animation: pageIn 320ms var(--ease-out) backwards; }
 /* Applied just before navigating so the outgoing page doesn't just vanish. */
 body.is-leaving .content,
 body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
