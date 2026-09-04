@@ -2365,9 +2365,14 @@ pre {
      the toasts and the route veil, which are messages rather than decoration. */
   z-index: 250;
   pointer-events: none;
-  /* How far in from the edge the light reaches. In vmin, so it is the same
-     share of the screen on a phone as on a desktop. */
-  --tap-reach: 20vmin;
+  /* How far in from the edge the light reaches. In vmin, so it claims the
+     same share of a phone screen as of a desktop one -- a fixed pixel reach
+     would be a hairline on one and a wash on the other.
+
+     Cut to a quarter of what it was: at 20vmin the light came a fifth of the
+     way across the screen from every side, which on a page of dense timetable
+     rows is competing with the content rather than framing it. */
+  --tap-reach: 5vmin;
   background: conic-gradient(
     from var(--tap-angle, 0deg),
     var(--primary), var(--warning), var(--success), var(--cat-lab), var(--primary)

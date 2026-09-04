@@ -257,6 +257,17 @@ def test_the_glow_fades_inward_rather_than_ending_at_a_line():
     assert ("0.55", "30") in stops and ("0.16", "62") in stops
 
 
+def test_the_glow_claims_the_same_share_of_any_screen():
+    """The reach is a proportion of the smaller viewport axis, not a pixel
+    count. In pixels the same value is a hairline on a desktop and a wash
+    across a phone, and this sits on both."""
+    rule = _rule(STYLE, ".tap-glow")
+    reach = re.search(r"--tap-reach:\s*([\d.]+)(\w+)", rule)
+    assert reach, "the reach should be one named value the mask reads"
+    assert reach.group(2) == "vmin"
+    assert float(reach.group(1)) <= 8, "a rim around the screen, not a border into it"
+
+
 def test_the_blur_is_not_doing_the_falloffs_work():
     """It softens the colour steps in the wheel. A heavy blur across the whole
     viewport is the expensive part of this, and once the mask owns the shape
