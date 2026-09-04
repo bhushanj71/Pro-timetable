@@ -115,44 +115,22 @@ def test_the_page_is_neither_white_nor_cream():
 MOBILE = (CSS / "mobile.css").read_text(encoding="utf-8")
 
 
-def test_the_page_transition_is_a_staircase():
-    """Five columns, staggered. clip-path can only interpolate between
-    polygons with the same number of points, so this is one twelve-point shape
-    whose five top edges rise at different times -- a stop with the wrong
-    point count would silently snap instead of animating.
-    """
-    block = re.search(r"@keyframes stairReveal\s*\{(.*?)\n\}", MOBILE, re.S)
-    assert block, "the staircase keyframes should still be here"
-    polygons = re.findall(r"clip-path:\s*polygon\((.*?)\)", block.group(1), re.S)
-    assert len(polygons) >= 10, "one stop per corner in the motion"
-    for i, poly in enumerate(polygons):
-        assert len(poly.split(",")) == 12, f"stop {i} has the wrong point count"
-
-
-def test_the_staircase_moves_at_one_speed():
-    """The stops have to be the moments a column starts or stops moving. Each
-    column crosses over 60% of the run beginning 10% after the one before, so
-    the corners are at 0/10/20/30/40 and 60/70/80/90/100. Sampling anywhere
-    else cuts those corners and the columns visibly change speed partway.
-    """
-    block = re.search(r"@keyframes stairReveal\s*\{(.*?)\n\}", MOBILE, re.S).group(1)
-    stops = [int(m) for m in re.findall(r"^\s*(\d+)%\s*\{", block, re.M)]
-    assert stops == [0, 10, 20, 30, 40, 60, 70, 80, 90, 100]
-
-    # And nothing may curve the run, or the stagger baked into those stops is
-    # warped back out again.
-    rule = MOBILE.split("::view-transition-new(root)")[1][:260]
-    assert "stairReveal" in rule and "linear" in rule
-    assert "cubic-bezier" not in rule
+def test_the_page_transition_is_a_plain_cross_fade():
+    """The staircase that lived here is gone. What is left is the fade the
+    application had before it -- and no trace of the clip-path machinery, which
+    would otherwise sit in the stylesheet driving nothing."""
+    assert "@view-transition { navigation: auto; }" in MOBILE
+    assert "stairReveal" not in MOBILE
+    assert "stairSettle" not in MOBILE
+    assert "clip-path" not in MOBILE
+    assert "pageIn" in MOBILE.split("::view-transition-new(root)")[1][:120]
 
 
 def test_the_transitions_are_given_time_to_be_seen():
-    """Every one of these was too quick to read as motion. Guarded as floors
-    rather than exact values so they can still be tuned, but not back down."""
-    stair = int(re.search(r"animation: stairReveal (\d+)ms", MOBILE).group(1))
+    """These were too quick to read as motion. Guarded as floors rather than
+    exact values so they can still be tuned, but not back down."""
     glow = int(re.search(r"animation: tapGlowFade (\d+)ms", STYLE).group(1))
     pill = int(re.search(r"transition: translate (\d+)ms", STYLE).group(1))
-    assert stair >= 800, "a five-column wipe needs longer than half a second"
     assert glow >= 1200, "a full turn of the border needs to be seen as one"
     assert pill >= 560
 
@@ -163,7 +141,6 @@ def test_the_transition_is_the_browsers_and_not_an_overlay_of_ours():
     whatever becomes of the page."""
     assert "@view-transition { navigation: auto; }" in MOBILE
     assert "::view-transition-new(root)" in MOBILE
-    assert "stairReveal" in MOBILE.split("::view-transition-new(root)")[1][:200]
 
 
 def test_the_page_keeps_its_own_entrance_for_browsers_without_the_transition():
@@ -180,11 +157,6 @@ def test_standing_the_entrance_down_does_not_reintroduce_a_transform():
     rule = _rule(MOBILE, ":root.vt-running .content,\n:root.vt-running .landing,\n:root.vt-running .auth-wrap")
     assert "animation: none" in rule
     assert "transform" not in rule
-
-
-def test_the_sweep_stops_when_motion_is_not_wanted():
-    reduced = MOBILE.split("@media (prefers-reduced-motion: reduce)")[1][:400]
-    assert "::view-transition-new(root) { animation: none; }" in reduced
 
 
 TAP_JS = Path("app/static/js/tap-glow.js").read_text(encoding="utf-8")

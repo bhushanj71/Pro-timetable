@@ -39,10 +39,10 @@
       } catch (e) {}
     })();
 
-    /* The staircase between pages is the browser's own cross-document
-       transition. When it runs, the page's own entrance animation would be a
-       second entrance for the same navigation, so it stands down for exactly
-       as long as the browser is driving.
+    /* The page transition between documents is the browser's own. When it
+       runs, the page's own entrance animation would be a second entrance for
+       the same navigation, so it stands down for exactly as long as the
+       browser is driving.
 
        Registered here rather than in app.js because pagereveal fires before
        the new document's first paint -- by the time a deferred script runs it

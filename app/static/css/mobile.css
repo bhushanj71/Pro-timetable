@@ -30,87 +30,27 @@
 body.is-leaving .content,
 body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
 
-/* --------------------------------------------------------------------------
-   The staircase, between pages
+/* Chrome's native cross-document transitions, where available.
 
-   Skiper9's shape: the arriving page is uncovered in columns that land one
-   after another, so the change reads as a sweep across the screen rather than
-   as one flat fade.
-
-   It is the browser's own cross-document transition rather than an overlay of
-   our own, and that is the whole reason it is safe. An element that covers the
-   viewport while a navigation is in flight is a blank screen waiting to happen
-   -- if the request stalls, the script throws, or the tab is backgrounded
-   mid-animation, something has to take the cover off again, and every one of
-   those paths has to work. Here the browser owns the snapshots, ends them on
-   its own schedule, and takes them away whatever happens to the page. It also
-   costs nothing: the animation runs over the load instead of delaying it.
-
-   The stagger is written into the keyframes rather than produced by five
-   separately-delayed animations, because clip-path can only interpolate
-   between polygons with the same number of points -- so it is one shape of
-   twelve points whose five top edges rise at different times. The column
-   boundaries are the even fifths; the y values are the stagger.
-
-   The stops are the moments a column starts or stops moving, not an even
-   sampling of the run. Between two such moments every edge is travelling at a
-   constant rate, so a straight line between them is not an approximation of
-   the motion -- it is the motion. Sampling evenly instead cut the corners off
-   each column's ramp, and those corners showed as small changes of speed
-   partway across.
-
-   Firefox has no cross-document view transitions yet, and neither does older
-   Safari. There the pageIn/pageOut fade below still runs, which is what those
-   browsers were getting before this.
-   -------------------------------------------------------------------------- */
+   This carried a staircase for a while -- the arriving page uncovered in five
+   staggered columns -- and it is back to the plain cross-fade it was before
+   that. Firefox and older Safari never had the transition either way and
+   still get the pageIn/pageOut above. */
 @view-transition { navigation: auto; }
+::view-transition-old(root) { animation: pageOut 170ms var(--ease) both; }
+::view-transition-new(root) { animation: pageIn 300ms var(--ease-out) both; }
 
-@keyframes stairReveal {
-  0%   { clip-path: polygon(0% 100.0%, 20% 100.0%, 20% 100.0%, 40% 100.0%, 40% 100.0%, 60% 100.0%, 60% 100.0%, 80% 100.0%, 80% 100.0%, 100% 100.0%, 100% 100%, 0% 100%); }
-  10%  { clip-path: polygon(0% 83.33%, 20% 83.33%, 20% 100.0%, 40% 100.0%, 40% 100.0%, 60% 100.0%, 60% 100.0%, 80% 100.0%, 80% 100.0%, 100% 100.0%, 100% 100%, 0% 100%); }
-  20%  { clip-path: polygon(0% 66.67%, 20% 66.67%, 20% 83.33%, 40% 83.33%, 40% 100.0%, 60% 100.0%, 60% 100.0%, 80% 100.0%, 80% 100.0%, 100% 100.0%, 100% 100%, 0% 100%); }
-  30%  { clip-path: polygon(0% 50.0%, 20% 50.0%, 20% 66.67%, 40% 66.67%, 40% 83.33%, 60% 83.33%, 60% 100.0%, 80% 100.0%, 80% 100.0%, 100% 100.0%, 100% 100%, 0% 100%); }
-  40%  { clip-path: polygon(0% 33.33%, 20% 33.33%, 20% 50.0%, 40% 50.0%, 40% 66.67%, 60% 66.67%, 60% 83.33%, 80% 83.33%, 80% 100.0%, 100% 100.0%, 100% 100%, 0% 100%); }
-  60%  { clip-path: polygon(0% 0.0%, 20% 0.0%, 20% 16.67%, 40% 16.67%, 40% 33.33%, 60% 33.33%, 60% 50.0%, 80% 50.0%, 80% 66.67%, 100% 66.67%, 100% 100%, 0% 100%); }
-  70%  { clip-path: polygon(0% 0.0%, 20% 0.0%, 20% 0.0%, 40% 0.0%, 40% 16.67%, 60% 16.67%, 60% 33.33%, 80% 33.33%, 80% 50.0%, 100% 50.0%, 100% 100%, 0% 100%); }
-  80%  { clip-path: polygon(0% 0.0%, 20% 0.0%, 20% 0.0%, 40% 0.0%, 40% 0.0%, 60% 0.0%, 60% 16.67%, 80% 16.67%, 80% 33.33%, 100% 33.33%, 100% 100%, 0% 100%); }
-  90%  { clip-path: polygon(0% 0.0%, 20% 0.0%, 20% 0.0%, 40% 0.0%, 40% 0.0%, 60% 0.0%, 60% 0.0%, 80% 0.0%, 80% 16.67%, 100% 16.67%, 100% 100%, 0% 100%); }
-  100% { clip-path: polygon(0% 0.0%, 20% 0.0%, 20% 0.0%, 40% 0.0%, 40% 0.0%, 60% 0.0%, 60% 0.0%, 80% 0.0%, 80% 0.0%, 100% 0.0%, 100% 100%, 0% 100%); }
-}
+/* The document runs pageIn on arrival as well, so without this the fade plays
+   twice for one navigation -- once on the browser's snapshot and once on the
+   live page. That was true before the staircase and would be true again
+   without it, so the suppression stays.
 
-/* The page being left holds still and sinks very slightly, so the columns read
-   as arriving over it rather than as it dissolving underneath. Kept to one
-   percent: the old snapshot shrinking away from the edges uncovers whatever is
-   behind it, and the arriving page has not reached the top of the screen yet. */
-@keyframes stairSettle {
-  from { opacity: 1; transform: scale(1); }
-  to   { opacity: 1; transform: scale(0.99); }
-}
-
-::view-transition-old(root) {
-  animation: stairSettle 900ms var(--ease-out) both;
-}
-::view-transition-new(root) {
-  /* Nearly linear: the stagger is in the keyframes, and a strong curve would
-     bunch all five columns into the same instant and undo it. */
-  animation: stairReveal 900ms linear both;
-  z-index: 1;
-}
-
-/* The document also runs pageIn on arrival. Both at once is two entrances for
-   one navigation, so the page-level one stands down while the browser is
-   driving. `animation: none` and not a transform, which would make .content a
-   containing block for the dialogs inside it. */
+   `animation: none` and deliberately not a transform: a transform here makes
+   .content the containing block for every dialog inside it, which is what put
+   all five admin dialogs below the fold. */
 :root.vt-running .content,
 :root.vt-running .landing,
 :root.vt-running .auth-wrap { animation: none; }
-
-@media (prefers-reduced-motion: reduce) {
-  /* The sweep is the part that was asked to stop. The change of page still
-     needs to register, so it becomes a short cross-fade. */
-  ::view-transition-old(root) { animation: pageOut 120ms var(--ease) both; }
-  ::view-transition-new(root) { animation: none; }
-}
 
 /* Horizontal rails: swipeable rows instead of tall stacks. */
 .h-scroll {
