@@ -184,6 +184,22 @@ def admin_page(request: Request, user: User | None = Depends(get_current_user_op
     return templates.TemplateResponse("admin.html", _ctx(request, user))
 
 
+# Managing people is a place you go, not a question you answer: a filtered
+# table with an edit form, a password reset and a delete behind every row.
+# That was a panel on the admin page and is now a page of its own, reached
+# from the Members button on a college -- so the college you are looking at is
+# in the URL, the browser's back button works, and a filtered list can be
+# linked to rather than re-found.
+@router.get("/admin/members")
+def admin_members_page(request: Request, user: User | None = Depends(get_current_user_optional)):
+    if not user:
+        return RedirectResponse(url="/login")
+    if not admin_scope.is_panel_admin(user):
+        return RedirectResponse(url="/dashboard")
+    # The shell only; every row behind it comes from the API, which scopes.
+    return templates.TemplateResponse("admin_members.html", _ctx(request, user))
+
+
 @router.get("/profile")
 def profile_page(request: Request, user: User | None = Depends(get_current_user_optional)):
     if not user:

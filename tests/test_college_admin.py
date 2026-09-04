@@ -479,6 +479,84 @@ def test_a_short_list_is_not_reported_as_cut(world):
     assert _members(world["anita"])["truncated"] is False
 
 
+def test_managing_people_is_a_page_of_its_own(world):
+    """It was a table on the admin overview and a members dialog above it.
+    Being a real URL is what the back button and a linkable filtered list are
+    built on."""
+    page = world["boss"].get("/admin/members")
+    assert page.status_code == 200
+    body = page.text
+    assert 'id="ad-user-tbody"' in body, "the user table lives here now"
+    assert 'id="ad-members-back"' in body, "and it has a way back"
+
+    overview = world["boss"].get("/admin").text
+    assert 'id="ad-user-tbody"' not in overview, "not in two places at once"
+    assert 'href="/admin/members"' in overview, "but reachable from the overview"
+
+
+def test_the_members_page_is_administrators_only(world):
+    assert world["ravi"].get("/admin/members", follow_redirects=False).status_code in (302, 307)
+    _appoint(world)
+    assert world["anita"].get("/admin/members", follow_redirects=False).status_code == 200
+
+
+def test_a_college_admin_is_not_offered_a_college_to_choose(world):
+    """They have exactly one, and the API decides it for them regardless."""
+    _appoint(world)
+    assert 'id="ad-f-college"' not in world["anita"].get("/admin/members").text
+    assert 'id="ad-f-college"' in world["boss"].get("/admin/members").text
+
+
+def test_a_college_admin_is_not_offered_a_role_to_set(world):
+    """The server refuses is_admin from them, so the form does not ask."""
+    _appoint(world)
+    assert 'id="ad-is-admin"' not in world["anita"].get("/admin/members").text
+    assert 'id="ad-is-admin"' in world["boss"].get("/admin/members").text
+
+
+def _admin_users(client, **params):
+    r = client.get("/api/admin/users", params=params)
+    assert r.status_code == 200, r.text
+    return {u["email"] for u in r.json()}
+
+
+def test_the_table_filters_by_college(world):
+    assert _admin_users(world["boss"], college_id=world["first"]["id"]) == {
+        "anita@example.com", "ravi@example.com"}
+    assert _admin_users(world["boss"], college_id=world["second"]["id"]) == {
+        "outsider@example.com"}
+
+
+def test_the_table_filters_by_department(world):
+    college = world["first"]["id"]
+    dept = _departments(world["boss"], college)[0]["id"]
+    found = _admin_users(world["boss"], college_id=college, department_id=dept)
+    assert found, "the department they joined should not be empty"
+    assert found <= {"anita@example.com", "ravi@example.com"}
+
+
+def test_the_accounts_with_no_college_can_still_be_reached(world):
+    """Most accounts on a young deployment have not chosen a college. No
+    college row would ever list them, so without a way to ask for them they
+    would be beyond management entirely."""
+    assert _admin_users(world["boss"], college_id="none") == {
+        "boss@example.com", "drifter@example.com"}
+
+
+def test_a_filter_cannot_widen_a_college_admins_scope(world):
+    """The filters narrow what is already permitted. Every one of them, tried
+    against another college."""
+    _appoint(world)
+    mine = {"anita@example.com", "ravi@example.com"}
+    other_dept = _departments(world["boss"], world["second"]["id"])[0]["id"]
+
+    assert _admin_users(world["anita"]) == mine
+    assert _admin_users(world["anita"], college_id=world["second"]["id"]) == set()
+    assert _admin_users(world["anita"], department_id=other_dept) == set()
+    # And the sentinel does not become a hole either.
+    assert _admin_users(world["anita"], college_id="none") == set()
+
+
 def test_a_cut_list_says_so(world, db_session):
     """An administrator who reads a count off a truncated page has been given
     a wrong answer, not a partial one."""

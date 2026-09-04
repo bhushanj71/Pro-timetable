@@ -161,8 +161,18 @@ def test_the_page_transition_does_not_capture_fixed_dialogs():
 
 
 def test_the_dialogs_that_were_captured_are_still_inside_the_content_block():
-    """The fix is the fill mode, not moving the markup. If these ever move to
-    the body the rule above stops mattering -- and if a new transform lands on
-    an ancestor it starts mattering again, so keep them found together."""
+    """The fix is the fill mode, not moving the markup. These dialogs live
+    inside the content block, so if a new transform ever lands on an ancestor
+    the rule above starts mattering again -- keep them found together.
+
+    They are split across two templates now: the college and department
+    dialogs stayed on the admin overview, and the user form and password reset
+    followed user management onto its own page.
+    """
     admin = Path("app/templates/admin.html").read_text(encoding="utf-8")
-    assert admin.count('class="modal-backdrop hidden"') == 5
+    members = Path("app/templates/admin_members.html").read_text(encoding="utf-8")
+    assert admin.count('class="modal-backdrop hidden"') == 2
+    assert members.count('class="modal-backdrop hidden"') == 2
+    for name, page in (("admin", admin), ("members", members)):
+        body = page.split("{% block content %}", 1)[1]
+        assert "modal-backdrop" in body, f"{name}: dialogs must stay in the content block"

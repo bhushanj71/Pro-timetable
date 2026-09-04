@@ -111,13 +111,31 @@ def system_stats(db: Session = Depends(get_db), admin: User = Depends(get_panel_
     )
 
 
+# The sentinel for "has not joined a college". A plain empty college_id has to
+# keep meaning "no filter", or the page could never ask for everybody, and on
+# this deployment the accounts with no college are most of them -- so they need
+# a way to be asked for rather than being unreachable.
+NO_COLLEGE = "none"
+
+
 @router.get("/users", response_model=list[AdminUserOut])
 def list_users(
     q: str | None = Query(default=None, description="Search name or email"),
+    college_id: str | None = Query(default=None, description=f"A college id, or '{NO_COLLEGE}'"),
+    department_id: str | None = None,
     db: Session = Depends(get_db),
     admin: User = Depends(get_panel_admin),
 ):
+    # Scope first, filter second. These narrow what the caller may already see;
+    # nothing here can widen it, which is why a college admin asking for
+    # another college's id gets an empty list rather than its members.
     query = scope.scope_users(db.query(User), admin)
+    if college_id == NO_COLLEGE:
+        query = query.filter(User.college_id.is_(None))
+    elif college_id:
+        query = query.filter(User.college_id == college_id)
+    if department_id:
+        query = query.filter(User.department_id == department_id)
     if q:
         like = f"%{q}%"
         query = query.filter((User.name.ilike(like)) | (User.email.ilike(like)))

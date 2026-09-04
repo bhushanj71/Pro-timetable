@@ -6,7 +6,8 @@
    offering an action that is going to be refused, which is a courtesy to the
    person using it, not a control. */
 
-const AD_ROLE = (document.getElementById("ad-head")?.dataset.role) || "college_admin";
+const AD_PAGE = document.getElementById("ad-head") || document.getElementById("ad-members-page");
+const AD_ROLE = AD_PAGE?.dataset.role || "college_admin";
 const AD_IS_SUPER = AD_ROLE === "super_admin";
 
 function escapeHtml(s) {
@@ -90,11 +91,21 @@ function actionCell(u) {
 
 async function loadUsers() {
   const tbody = document.getElementById("ad-user-tbody");
-  const q = document.getElementById("ad-search").value.trim();
+  if (!tbody) return;                     // the admin overview has no table
+
+  const params = new URLSearchParams();
+  const q = document.getElementById("ad-search")?.value.trim();
+  const college = document.getElementById("ad-f-college")?.value ?? MEMBERS.college;
+  const dept = document.getElementById("ad-f-dept")?.value;
+  if (q) params.set("q", q);
+  if (college) params.set("college_id", college);
+  if (dept) params.set("department_id", dept);
+
+  describeScope();
   try {
-    const users = await apiFetch(`/api/admin/users${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+    const users = await apiFetch(`/api/admin/users?${params.toString()}`);
     if (!users.length) {
-      tbody.innerHTML = `<tr><td colspan="8" class="muted-text">No users found.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="muted-text">${emptyReason(q, dept)}</td></tr>`;
       return;
     }
     tbody.innerHTML = users
@@ -125,7 +136,10 @@ function openUserModal(user) {
   document.getElementById("ad-email").value = user?.email || "";
   document.getElementById("ad-department").value = user?.department || "";
   document.getElementById("ad-designation").value = user?.designation || "";
-  document.getElementById("ad-is-admin").value = String(!!user?.is_admin);
+  // Absent for a college admin: the server refuses the field, so the form
+  // does not offer it.
+  const roleSel = document.getElementById("ad-is-admin");
+  if (roleSel) roleSel.value = String(!!user?.is_admin);
   document.getElementById("ad-is-active").value = String(user ? !!user.is_active : true);
   // Password is only set at creation; editing uses the dedicated reset flow.
   document.getElementById("ad-password-group").classList.toggle("hidden", !!user);
@@ -146,7 +160,7 @@ document.getElementById("ad-save")?.addEventListener("click", async () => {
     email: document.getElementById("ad-email").value.trim(),
     department: document.getElementById("ad-department").value.trim() || null,
     designation: document.getElementById("ad-designation").value.trim() || null,
-    is_admin: document.getElementById("ad-is-admin").value === "true",
+    is_admin: document.getElementById("ad-is-admin")?.value === "true",
   };
   if (!base.name || !base.email) {
     showToast("Name and email are required", "error");
@@ -270,8 +284,156 @@ document.getElementById("ad-search")?.addEventListener("input", () => {
   adSearchDebounce = setTimeout(loadUsers, 250);
 });
 
-loadStats();
-loadUsers();
+/* ==========================================================================
+   The members page
+
+   Which college and department are being looked at lives in the URL rather
+   than in a variable, so the browser's back button walks the filters, a
+   narrowed list can be sent to somebody, and a reload lands where it left off
+   instead of at the top.
+   ========================================================================== */
+const MEMBERS = { college: "", name: "", byId: {} };
+
+function currentDeptName() {
+  const sel = document.getElementById("ad-f-dept");
+  return sel && sel.value ? sel.options[sel.selectedIndex].text : "";
+}
+
+/* Which of the several nothings this is changes what to do about it. */
+function emptyReason(q, dept) {
+  if (q) return `Nobody matching “${esc(q)}”${dept ? ` in ${esc(currentDeptName())}` : ""}.`;
+  if (dept) return `Nobody is enrolled in ${esc(currentDeptName())} yet.`;
+  if (MEMBERS.college === NO_COLLEGE) return "Everyone has joined a college.";
+  if (MEMBERS.college) return "Nobody has joined this college yet.";
+  return "No users found.";
+}
+
+function describeScope() {
+  const sub = document.getElementById("ad-members-sub");
+  const title = document.getElementById("ad-members-title");
+  if (!sub || !title) return;
+
+  const dept = currentDeptName();
+
+  /* Each scope carries its own whole sentence rather than a fragment slotted
+     into one template. The three read differently enough -- "in X", "on this
+     deployment", "who have not joined one" -- that composing them produced
+     things like "Everyone in not in a college yet". */
+  let scope;
+  if (MEMBERS.college === NO_COLLEGE) {
+    title.textContent = "Not in a college yet";
+    scope = "Everyone who has not joined a college.";
+  } else if (MEMBERS.name) {
+    title.textContent = MEMBERS.name;
+    scope = `Everyone in ${MEMBERS.name}.`;
+  } else {
+    title.textContent = "Everyone";
+    scope = "Everyone on this deployment.";
+  }
+
+  sub.textContent = dept ? `${dept}, in ${MEMBERS.name || "this college"}.` : scope;
+}
+
+const NO_COLLEGE = "none";
+
+/* The filters are the address. Replace rather than push, so the back button
+   leaves the page instead of unwinding one dropdown at a time. */
+function syncMembersUrl() {
+  const params = new URLSearchParams();
+  if (MEMBERS.college) params.set("college", MEMBERS.college);
+  const dept = document.getElementById("ad-f-dept")?.value;
+  if (dept) params.set("department", dept);
+  const q = params.toString();
+  history.replaceState(null, "", q ? `/admin/members?${q}` : "/admin/members");
+}
+
+async function fillDepartments(collegeId, selected) {
+  const sel = document.getElementById("ad-f-dept");
+  if (!sel) return;
+  sel.innerHTML = `<option value="">All departments</option>`;
+  /* Departments belong to one college, so the filter is meaningless across
+     all of them and for the people who are in none. Disabled and explained
+     beats present and inert. */
+  if (!collegeId || collegeId === NO_COLLEGE) {
+    sel.disabled = true;
+    sel.title = "Pick a college first";
+    return;
+  }
+  sel.disabled = false;
+  sel.title = "";
+  try {
+    const d = await apiFetch(`/api/org/manage/colleges/${collegeId}/departments`);
+    MEMBERS.name = d.college.name;
+    sel.innerHTML =
+      `<option value="">All departments</option>` +
+      d.departments
+        .map((x) => `<option value="${x.id}">${esc(x.name)}${x.status === "archived" ? " (archived)" : ""}</option>`)
+        .join("");
+    if (selected) sel.value = selected;
+  } catch (err) {
+    /* The table below still answers the question without the filter. */
+    showToast(err.message, "error");
+  }
+}
+
+async function initMembersPage() {
+  const page = document.getElementById("ad-members-page");
+  if (!page) return;
+
+  const url = new URLSearchParams(location.search);
+  MEMBERS.college = url.get("college") || "";
+  const wantedDept = url.get("department") || "";
+
+  const collegeSel = document.getElementById("ad-f-college");
+  try {
+    const d = await apiFetch("/api/org/manage/colleges");
+    d.colleges.forEach((c) => (MEMBERS.byId[c.id] = c.name));
+    if (collegeSel) {
+      collegeSel.innerHTML =
+        `<option value="">All colleges</option>` +
+        d.colleges.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("") +
+        /* Most accounts on a young deployment have not chosen a college. With
+           no way to ask for them they would be reachable from no college row
+           at all, which would put them beyond management entirely. */
+        `<option value="${NO_COLLEGE}">Not in a college yet</option>`;
+      collegeSel.value = MEMBERS.college;
+    } else if (d.colleges.length === 1) {
+      /* A college admin has exactly one, and the API scopes to it anyway. */
+      MEMBERS.college = d.colleges[0].id;
+    }
+    MEMBERS.name = MEMBERS.byId[MEMBERS.college] || "";
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+
+  await fillDepartments(MEMBERS.college, wantedDept);
+  await loadUsers();
+
+  collegeSel?.addEventListener("change", async () => {
+    MEMBERS.college = collegeSel.value;
+    MEMBERS.name = MEMBERS.byId[MEMBERS.college] || "";
+    await fillDepartments(MEMBERS.college, "");
+    syncMembersUrl();
+    await loadUsers();
+  });
+
+  document.getElementById("ad-f-dept")?.addEventListener("change", async () => {
+    syncMembersUrl();
+    await loadUsers();
+  });
+}
+
+document.getElementById("ad-members-back")?.addEventListener("click", () => {
+  /* Back to where they came from when that was this app, and to the admin
+     page when it was not -- a fresh tab on a linked URL has nothing behind
+     it, and a dead button is worse than a predictable one. */
+  if (history.length > 1 && document.referrer.includes(location.host)) history.back();
+  else location.href = "/admin";
+});
+
+initMembersPage();
+
+if (document.getElementById("ad-total-users")) loadStats();
 
 
 /* ==========================================================================
@@ -360,114 +522,6 @@ async function openDepartments(collegeId) {
   }
 }
 
-/* --------------------------------------------------------------------------
-   Who is enrolled where
-
-   The same panel for both administrators. A super admin arrives from a college
-   and may then narrow by department; a college admin has the college settled
-   already and arrives to pick the department. Two views would have been the
-   same list written twice, and the department filter is the only difference
-   between the two requests.
-
-   Emails are not here on purpose. This panel answers a question about the
-   organisation -- who is in which department -- and the account details,
-   email included, are in the user table above, where a college admin already
-   sees their own college. Splitting it that way keeps one directory endpoint
-   shared with Work, which has never handed out addresses.
-   -------------------------------------------------------------------------- */
-const MEMBERS = { college: null, name: "" };
-
-async function openMembers(collegeId, collegeName, departmentId) {
-  MEMBERS.college = collegeId;
-  MEMBERS.name = collegeName || "";
-
-  document.getElementById("ad-members-modal").classList.remove("hidden");
-  document.getElementById("ad-members-q").value = "";
-  document.getElementById("ad-members-title").textContent = `👥 ${MEMBERS.name || "Members"}`;
-
-  const sel = document.getElementById("ad-members-dept");
-  sel.innerHTML = `<option value="">All departments</option>`;
-  try {
-    const d = await apiFetch(`/api/org/manage/colleges/${collegeId}/departments`);
-    MEMBERS.name = d.college.name;
-    document.getElementById("ad-members-title").textContent = `👥 ${MEMBERS.name}`;
-    sel.innerHTML =
-      `<option value="">All departments</option>` +
-      d.departments
-        .map((x) => `<option value="${x.id}">${esc(x.name)}${x.status === "archived" ? " (archived)" : ""}</option>`)
-        .join("");
-  } catch (err) {
-    /* The filter is a convenience; the list underneath still answers the
-       question without it, so a failure here does not empty the panel. */
-    showToast(err.message, "error");
-  }
-  sel.value = departmentId || "";
-  await loadMembers();
-}
-
-async function loadMembers() {
-  const box = document.getElementById("ad-members-list");
-  if (!box) return;
-  box.innerHTML = `<div class="wk-empty">Loading…</div>`;
-
-  const deptSel = document.getElementById("ad-members-dept");
-  const deptId = deptSel.value;
-  const deptName = deptId ? deptSel.options[deptSel.selectedIndex].text : "";
-  const q = document.getElementById("ad-members-q").value.trim();
-
-  const params = new URLSearchParams();
-  if (MEMBERS.college) params.set("college_id", MEMBERS.college);
-  if (deptId) params.set("department_id", deptId);
-  if (q) params.set("q", q);
-
-  document.getElementById("ad-members-sub").textContent = deptId
-    ? `Everyone enrolled in ${deptName}.`
-    : `Everyone in ${MEMBERS.name || "this college"}, by department.`;
-
-  try {
-    const d = await apiFetch(`/api/org/manage/members?${params.toString()}`);
-    if (!d.members.length) {
-      /* Which of the two nothings this is changes what to do about it, so it
-         is worth the extra branch. */
-      box.innerHTML = `<div class="wk-empty">${
-        q ? `Nobody matching “${esc(q)}”${deptId ? ` in ${esc(deptName)}` : ""}.`
-          : deptId ? `Nobody is enrolled in ${esc(deptName)} yet.`
-          : "Nobody has joined this college yet."
-      }</div>`;
-      return;
-    }
-
-    box.innerHTML =
-      d.members
-        .map(
-          (m) => `
-        <div class="ad-member">
-          <span class="ad-member-avatar" aria-hidden="true">${esc(m.initial)}</span>
-          <div class="ad-member-main">
-            <div class="ad-member-name">${esc(m.name)}</div>
-            <div class="ad-member-meta">${esc(m.department || "No department")}${
-              m.designation ? ` · ${esc(m.designation)}` : ""
-            }</div>
-          </div>
-        </div>`
-        )
-        .join("") +
-      `<div class="ad-member-count">${d.members.length} ${d.members.length === 1 ? "person" : "people"}${
-        d.truncated ? ` shown — more than ${d.limit}; narrow by department or search` : ""
-      }</div>`;
-  } catch (err) {
-    box.innerHTML = `<div class="wk-empty">${esc(err.message)}</div>`;
-  }
-}
-
-document.getElementById("ad-members-dept")?.addEventListener("change", loadMembers);
-
-let adMemberDebounce;
-document.getElementById("ad-members-q")?.addEventListener("input", () => {
-  clearTimeout(adMemberDebounce);
-  adMemberDebounce = setTimeout(loadMembers, 300);
-});
-
 document.getElementById("ad-add-college")?.addEventListener("click", () => {
   document.getElementById("ad-college-id").value = "";
   document.getElementById("ad-college-name").value = "";
@@ -515,18 +569,22 @@ document.addEventListener("click", async (e) => {
   const manage = e.target.closest("[data-manage-depts]");
   if (manage) return openDepartments(manage.dataset.manageDepts);
 
+  /* Both of these go to a page rather than opening a sheet. The filter lands
+     in the URL, so the list can be linked to and the browser's own back
+     button is the way out -- which is also what stopped the departments panel
+     having to close itself to avoid stacking two dialogs. */
   const byCollege = e.target.closest("[data-members-college]");
   if (byCollege) {
-    return openMembers(byCollege.dataset.membersCollege, byCollege.dataset.name, "");
+    location.href = `/admin/members?college=${encodeURIComponent(byCollege.dataset.membersCollege)}`;
+    return;
   }
 
   const byDept = e.target.closest("[data-members-dept]");
   if (byDept) {
-    /* Opened from inside the departments panel. That one closes rather than
-       stacking a second sheet on top of it: two modals deep, the close button
-       stops meaning anything predictable. */
-    document.getElementById("ad-dept-modal").classList.add("hidden");
-    return openMembers(ORG.college, "", byDept.dataset.membersDept);
+    location.href =
+      `/admin/members?college=${encodeURIComponent(ORG.college)}` +
+      `&department=${encodeURIComponent(byDept.dataset.membersDept)}`;
+    return;
   }
 
   const edit = e.target.closest("[data-edit-college]");
@@ -583,4 +641,4 @@ document.querySelectorAll("[data-close-modal]").forEach((b) =>
   b.addEventListener("click", () =>
     document.getElementById(b.dataset.closeModal)?.classList.add("hidden")));
 
-loadColleges();
+if (document.getElementById("ad-college-list")) loadColleges();
