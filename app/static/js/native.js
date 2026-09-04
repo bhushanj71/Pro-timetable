@@ -43,7 +43,7 @@
           window.matchMedia("(prefers-color-scheme: dark)").matches);
       StatusBar.setStyle({ style: dark ? "DARK" : "LIGHT" }).catch(() => {});
       if (Cap.getPlatform() === "android") {
-        StatusBar.setBackgroundColor({ color: dark ? "#171311" : "#FDF9F7" }).catch(() => {});
+        StatusBar.setBackgroundColor({ color: dark ? "#0d0b0a" : "#F3F1EF" }).catch(() => {});
       }
     };
     paint();

@@ -45,7 +45,7 @@ function applyTheme(choice, { animate = false } = {}) {
 
   // Keep the browser/OS chrome in step with the page.
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", resolvedTheme() === "dark" ? "#171311" : "#e0785d");
+  if (meta) meta.setAttribute("content", resolvedTheme() === "dark" ? "#0d0b0a" : "#e0785d");
 
   updateThemeButton();
   renderThemeMenu();

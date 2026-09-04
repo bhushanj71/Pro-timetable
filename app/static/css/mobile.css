@@ -30,10 +30,97 @@
 body.is-leaving .content,
 body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
 
-/* Chrome's native cross-document transitions, where available. */
+/* --------------------------------------------------------------------------
+   The staircase, between pages
+
+   Skiper9's shape: the arriving page is uncovered in columns that land one
+   after another, so the change reads as a sweep across the screen rather than
+   as one flat fade.
+
+   It is the browser's own cross-document transition rather than an overlay of
+   our own, and that is the whole reason it is safe. An element that covers the
+   viewport while a navigation is in flight is a blank screen waiting to happen
+   -- if the request stalls, the script throws, or the tab is backgrounded
+   mid-animation, something has to take the cover off again, and every one of
+   those paths has to work. Here the browser owns the snapshots, ends them on
+   its own schedule, and takes them away whatever happens to the page. It also
+   costs nothing: the animation runs over the load instead of delaying it.
+
+   The stagger is written into the keyframes rather than produced by five
+   separately-delayed animations, because clip-path can only interpolate
+   between polygons with the same number of points -- so it is one shape of
+   twelve points whose five top edges rise at different times. The column
+   boundaries are the even fifths; the y values are the stagger.
+
+   Firefox has no cross-document view transitions yet, and neither does older
+   Safari. There the pageIn/pageOut fade below still runs, which is what those
+   browsers were getting before this.
+   -------------------------------------------------------------------------- */
 @view-transition { navigation: auto; }
-::view-transition-old(root) { animation: pageOut 170ms var(--ease) both; }
-::view-transition-new(root) { animation: pageIn 300ms var(--ease-out) both; }
+
+@keyframes stairReveal {
+  /* Each column takes 60% of the run and starts 10% after the one before, so
+     the last is still moving when the first has arrived. */
+  0% {
+    clip-path: polygon(0% 100%, 20% 100%, 20% 100%, 40% 100%, 40% 100%,
+                       60% 100%, 60% 100%, 80% 100%, 80% 100%, 100% 100%,
+                       100% 100%, 0% 100%);
+  }
+  25% {
+    clip-path: polygon(0% 58.3%, 20% 58.3%, 20% 75%, 40% 75%, 40% 91.7%,
+                       60% 91.7%, 60% 100%, 80% 100%, 80% 100%, 100% 100%,
+                       100% 100%, 0% 100%);
+  }
+  50% {
+    clip-path: polygon(0% 16.7%, 20% 16.7%, 20% 33.3%, 40% 33.3%, 40% 50%,
+                       60% 50%, 60% 66.7%, 80% 66.7%, 80% 83.3%, 100% 83.3%,
+                       100% 100%, 0% 100%);
+  }
+  75% {
+    clip-path: polygon(0% 0%, 20% 0%, 20% 0%, 40% 0%, 40% 8.3%,
+                       60% 8.3%, 60% 25%, 80% 25%, 80% 41.7%, 100% 41.7%,
+                       100% 100%, 0% 100%);
+  }
+  100% {
+    clip-path: polygon(0% 0%, 20% 0%, 20% 0%, 40% 0%, 40% 0%,
+                       60% 0%, 60% 0%, 80% 0%, 80% 0%, 100% 0%,
+                       100% 100%, 0% 100%);
+  }
+}
+
+/* The page being left holds still and sinks very slightly, so the columns read
+   as arriving over it rather than as it dissolving underneath. Kept to one
+   percent: the old snapshot shrinking away from the edges uncovers whatever is
+   behind it, and the arriving page has not reached the top of the screen yet. */
+@keyframes stairSettle {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 1; transform: scale(0.99); }
+}
+
+::view-transition-old(root) {
+  animation: stairSettle 520ms var(--ease-out) both;
+}
+::view-transition-new(root) {
+  /* Nearly linear: the stagger is in the keyframes, and a strong curve would
+     bunch all five columns into the same instant and undo it. */
+  animation: stairReveal 520ms cubic-bezier(0.62, 0, 0.38, 1) both;
+  z-index: 1;
+}
+
+/* The document also runs pageIn on arrival. Both at once is two entrances for
+   one navigation, so the page-level one stands down while the browser is
+   driving. `animation: none` and not a transform, which would make .content a
+   containing block for the dialogs inside it. */
+:root.vt-running .content,
+:root.vt-running .landing,
+:root.vt-running .auth-wrap { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* The sweep is the part that was asked to stop. The change of page still
+     needs to register, so it becomes a short cross-fade. */
+  ::view-transition-old(root) { animation: pageOut 120ms var(--ease) both; }
+  ::view-transition-new(root) { animation: none; }
+}
 
 /* Horizontal rails: swipeable rows instead of tall stacks. */
 .h-scroll {

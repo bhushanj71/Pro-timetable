@@ -35,9 +35,26 @@
         var dark = c === "dark" || (c === "system" &&
           window.matchMedia("(prefers-color-scheme: dark)").matches);
         var m = document.querySelector('meta[name="theme-color"]');
-        if (m) m.setAttribute("content", dark ? "#171311" : "#e0785d");
+        if (m) m.setAttribute("content", dark ? "#0d0b0a" : "#e0785d");
       } catch (e) {}
     })();
+
+    /* The staircase between pages is the browser's own cross-document
+       transition. When it runs, the page's own entrance animation would be a
+       second entrance for the same navigation, so it stands down for exactly
+       as long as the browser is driving.
+
+       Registered here rather than in app.js because pagereveal fires before
+       the new document's first paint -- by the time a deferred script runs it
+       has already been and gone. Nothing depends on this: without it both
+       animations simply play, which is what happened before. */
+    window.addEventListener("pagereveal", function (e) {
+      if (!e.viewTransition) return;
+      var root = document.documentElement;
+      root.classList.add("vt-running");
+      var off = function () { root.classList.remove("vt-running"); };
+      e.viewTransition.finished.then(off, off);
+    });
   </script>
 </head>
 <body class="app-shell" data-profile="{{ 'work' if request.url.path == '/work' else 'personal' }}">

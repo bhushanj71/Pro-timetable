@@ -112,6 +112,53 @@ def test_the_page_is_neither_white_nor_cream():
     assert (hi + 0.05) / (lo + 0.05) >= 4.5, "muted text on the page must still meet AA"
 
 
+MOBILE = (CSS / "mobile.css").read_text(encoding="utf-8")
+
+
+def test_the_page_transition_is_a_staircase():
+    """Five columns, staggered. clip-path can only interpolate between
+    polygons with the same number of points, so this is one twelve-point shape
+    whose five top edges rise at different times -- a stop with the wrong
+    point count would silently snap instead of animating.
+    """
+    block = re.search(r"@keyframes stairReveal\s*\{(.*?)\n\}", MOBILE, re.S)
+    assert block, "the staircase keyframes should still be here"
+    polygons = re.findall(r"clip-path:\s*polygon\((.*?)\)", block.group(1), re.S)
+    assert len(polygons) == 5, "five stops"
+    for i, poly in enumerate(polygons):
+        assert len(poly.split(",")) == 12, f"stop {i} has the wrong point count"
+
+
+def test_the_transition_is_the_browsers_and_not_an_overlay_of_ours():
+    """An element of ours covering the viewport during a navigation is a blank
+    screen waiting to happen. The browser owns these snapshots and removes them
+    whatever becomes of the page."""
+    assert "@view-transition { navigation: auto; }" in MOBILE
+    assert "::view-transition-new(root)" in MOBILE
+    assert "stairReveal" in MOBILE.split("::view-transition-new(root)")[1][:200]
+
+
+def test_the_page_keeps_its_own_entrance_for_browsers_without_the_transition():
+    """Firefox has no cross-document view transitions. If the browser skips
+    the transition, vt-running is never set and pageIn still runs -- so the
+    fallback must not have been deleted along the way."""
+    assert "pageIn" in _rule(MOBILE, ".content, .landing, .auth-wrap")
+
+
+def test_standing_the_entrance_down_does_not_reintroduce_a_transform():
+    """The suppression has to be `animation: none`. Anything that leaves a
+    transform on .content makes it the containing block for the dialogs inside
+    it, which is the bug fixed above."""
+    rule = _rule(MOBILE, ":root.vt-running .content,\n:root.vt-running .landing,\n:root.vt-running .auth-wrap")
+    assert "animation: none" in rule
+    assert "transform" not in rule
+
+
+def test_the_sweep_stops_when_motion_is_not_wanted():
+    reduced = MOBILE.split("@media (prefers-reduced-motion: reduce)")[1][:400]
+    assert "::view-transition-new(root) { animation: none; }" in reduced
+
+
 def test_the_ambient_field_is_damped_for_dark():
     """It was only ever set in light, so the same four colour blooms sat
     behind the dark theme at full strength and lifted a near-black palette
