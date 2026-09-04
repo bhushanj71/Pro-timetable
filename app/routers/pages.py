@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.deps import get_current_user_optional
 from app.models import User
+from app.services import admin_scope
 
 router = APIRouter(tags=["pages"])
 # Absolute path so the templates resolve regardless of working directory.
@@ -174,9 +175,11 @@ def tasks_page(request: Request, user: User | None = Depends(get_current_user_op
 def admin_page(request: Request, user: User | None = Depends(get_current_user_optional)):
     if not user:
         return RedirectResponse(url="/login")
-    if not user.is_admin:
+    if not admin_scope.is_panel_admin(user):
         # Non-admins get sent home rather than shown a page they can't use;
-        # the API behind it enforces the real 403.
+        # the API behind it enforces the real 403. A college administrator is
+        # let through to the same page -- what differs is what the endpoints
+        # behind it will return, not which template renders.
         return RedirectResponse(url="/dashboard")
     return templates.TemplateResponse("admin.html", _ctx(request, user))
 

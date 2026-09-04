@@ -1,4 +1,13 @@
-/* Admin control panel: system stats and full user management. */
+/* Admin control panel: statistics and user management.
+
+   The same page serves a super admin and a college admin. Nothing here is a
+   permission check -- the server scopes every response and refuses every
+   out-of-scope write on its own. What this file does is stop the panel
+   offering an action that is going to be refused, which is a courtesy to the
+   person using it, not a control. */
+
+const AD_ROLE = (document.getElementById("ad-head")?.dataset.role) || "college_admin";
+const AD_IS_SUPER = AD_ROLE === "super_admin";
 
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) =>
@@ -23,9 +32,60 @@ async function loadStats() {
       const el = document.getElementById(id);
       if (el) el.textContent = v;
     });
+    /* "Total Users" is a true statement for a super admin and a false one for
+       a college admin, who is being shown their college. The honest label is
+       carried on the element rather than swapped by id, so a new tile gets
+       the behaviour by adding an attribute. */
+    if (!AD_IS_SUPER) {
+      document.querySelectorAll("[data-scoped]").forEach((el) => {
+        el.textContent = el.dataset.scoped;
+      });
+    }
   } catch (err) {
     showToast(err.message || "Could not load stats", "error");
   }
+}
+
+/* Three roles, not two. A college admin shown as "Professor" is the panel
+   hiding the thing an administrator most needs to see: who else has power. */
+function roleCell(u) {
+  if (u.is_admin) return `<span class="pill priority-urgent">Super Admin</span>`;
+  if (u.admin_college_id) {
+    return `<span class="pill priority-high" title="Administers ${escapeHtml(u.admin_college || "a college")}">College Admin</span>`;
+  }
+  return `<span class="pill priority-medium">Professor</span>`;
+}
+
+function actionCell(u) {
+  const email = escapeHtml(u.email);
+  /* Visible but not editable: another administrator, seen by a college admin.
+     Saying why beats three buttons that return 403. */
+  if (!u.manageable) {
+    return `<span class="muted-text">Managed by a super admin</span>`;
+  }
+
+  let html =
+    `<button class="btn btn-sm" data-act="edit" data-id="${u.id}">Edit</button>` +
+    `<button class="btn btn-sm" data-act="pw" data-id="${u.id}" data-email="${email}">Reset PW</button>`;
+
+  /* Appointing is a super admin's act, so the control only exists for one. */
+  if (AD_IS_SUPER && !u.is_admin) {
+    if (u.admin_college_id) {
+      html += `<button class="btn btn-sm" data-act="revoke-ca" data-id="${u.id}"` +
+              ` data-name="${escapeHtml(u.name)}" data-college="${escapeHtml(u.admin_college || "")}">Stand down</button>`;
+    } else if (u.college_id) {
+      html += `<button class="btn btn-sm" data-act="grant-ca" data-id="${u.id}"` +
+              ` data-college-id="${u.college_id}" data-name="${escapeHtml(u.name)}"` +
+              ` data-college="${escapeHtml(u.college || "")}">Make college admin</button>`;
+    } else {
+      /* No college means nothing to put them in charge of. Explaining that in
+         place is more use than a button that returns 400. */
+      html += `<span class="muted-text" title="They have not chosen a college yet">No college</span>`;
+    }
+  }
+
+  html += `<button class="btn btn-sm btn-danger" data-act="del" data-id="${u.id}" data-email="${email}">Delete</button>`;
+  return html;
 }
 
 async function loadUsers() {
@@ -44,15 +104,11 @@ async function loadUsers() {
         <td ><strong>${escapeHtml(u.name)}</strong></td>
         <td >${escapeHtml(u.email)}</td>
         <td >${escapeHtml(u.department || "—")}</td>
-        <td ><span class="pill ${u.is_admin ? "priority-urgent" : "priority-medium"}">${u.is_admin ? "Admin" : "Professor"}</span></td>
+        <td >${roleCell(u)}</td>
         <td ><span class="pill ${u.is_active ? "priority-low" : "priority-high"}">${u.is_active ? "Active" : "Disabled"}</span></td>
         <td >${u.event_count}</td>
         <td >${u.last_login_at ? fmtDate(u.last_login_at) : "Never"}</td>
-        <td style="padding:8px;white-space:nowrap">
-          <button class="btn btn-sm" data-act="edit" data-id="${u.id}">Edit</button>
-          <button class="btn btn-sm" data-act="pw" data-id="${u.id}" data-email="${escapeHtml(u.email)}">Reset PW</button>
-          <button class="btn btn-sm btn-danger" data-act="del" data-id="${u.id}" data-email="${escapeHtml(u.email)}">Delete</button>
-        </td>
+        <td style="padding:8px;white-space:nowrap">${actionCell(u)}</td>
       </tr>`
       )
       .join("");
@@ -159,6 +215,42 @@ document.getElementById("ad-user-tbody")?.addEventListener("click", async (e) =>
     document.getElementById("ad-pw-user-id").value = id;
     document.getElementById("ad-pw-target").textContent = `Setting a new password for ${email}`;
     document.getElementById("ad-pw-modal").classList.remove("hidden");
+  } else if (act === "grant-ca") {
+    /* Spelled out, because this is a grant of power rather than an edit: the
+       confirm names the person, the college, and the limits of what they are
+       being given. */
+    const { name, college, collegeId } = btn.dataset;
+    if (!confirm(
+      "Make " + name + " an administrator of " + college + "?\n\n" +
+      "They will get the admin panel for " + college + " only: its members, " +
+      "its departments and its figures. They will not see other colleges, " +
+      "change anyone's administrator rights, or appoint anybody."
+    )) return;
+    try {
+      await apiFetch(`/api/admin/users/${id}/college-admin`, {
+        method: "POST", body: { college_id: collegeId },
+      });
+      showToast(name + " now administers " + college, "success");
+      loadUsers();
+      loadStats();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  } else if (act === "revoke-ca") {
+    const { name, college } = btn.dataset;
+    if (!confirm(
+      "Stand " + name + " down as administrator of " + college + "?\n\n" +
+      "Their account and their place in the college are untouched — only " +
+      "the admin panel goes away."
+    )) return;
+    try {
+      await apiFetch(`/api/admin/users/${id}/college-admin`, { method: "DELETE" });
+      showToast(name + " is no longer a college admin", "success");
+      loadUsers();
+      loadStats();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
   } else if (act === "del") {
     if (!confirm(`Delete ${email}?\n\nThis permanently removes their events, tasks, reminders, and AI history. This cannot be undone.`)) return;
     try {

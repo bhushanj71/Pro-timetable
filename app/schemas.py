@@ -122,6 +122,18 @@ class AdminUserOut(UTCModel):
     last_login_at: Optional[datetime] = None
     event_count: int = 0
     task_count: int = 0
+    # Set when this account administers a college. Two fields because the
+    # panel needs to name the college and the id is what it acts on.
+    # The college they belong to, by id. The panel needs it to appoint them:
+    # an administrator runs the college they are a member of, so the id it
+    # sends has to be this one.
+    college_id: Optional[str] = None
+    admin_college_id: Optional[str] = None
+    admin_college: Optional[str] = None
+    # Whether the administrator who asked may change this row. The server
+    # enforces it regardless; this only keeps the panel from offering buttons
+    # that are going to be refused.
+    manageable: bool = True
 
     model_config = {"from_attributes": True}
 

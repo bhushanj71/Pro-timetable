@@ -2,20 +2,33 @@
 {% block title %}Admin — ProfSchedule AI{% endblock %}
 {% block content %}
 
-<div class="section-title">
-  <h2>🛡️ Admin Control Panel</h2>
+{# The panel is the same page for both administrators; what differs is what
+   the endpoints behind it return. The scope is stated once, at the top, so a
+   college administrator is never left wondering whether a short user list
+   means "nobody else" or "nobody else you can see". #}
+<div class="section-title" id="ad-head"
+     data-role="{{ 'super_admin' if user.is_admin else 'college_admin' }}"
+     data-college="{{ user.college or '' }}">
+  <h2>🛡️ {% if user.is_admin %}Admin Control Panel{% else %}College Admin{% endif %}</h2>
   <button class="btn btn-primary" id="ad-new-user-btn">+ New User</button>
 </div>
 
+{% if not user.is_admin %}
+<div class="guide-note" style="margin-bottom:18px">
+  You administer <strong>{{ user.college or 'your college' }}</strong>. Everything below —
+  the figures, the people and the departments — is that college only.
+</div>
+{% endif %}
+
 <div class="grid grid-4" style="margin-bottom:18px">
-  <div class="card stat-tile"><div class="value" id="ad-total-users">–</div><div class="label">Total Users</div></div>
+  <div class="card stat-tile"><div class="value" id="ad-total-users">–</div><div class="label" data-scoped="Members">Total Users</div></div>
   <div class="card stat-tile"><div class="value" id="ad-active-users">–</div><div class="label">Active</div></div>
   <div class="card stat-tile"><div class="value" id="ad-total-events">–</div><div class="label">Events</div></div>
   <div class="card stat-tile"><div class="value" id="ad-pending-reminders">–</div><div class="label">Pending Reminders</div></div>
 </div>
 
 <div class="grid grid-4" style="margin-bottom:18px">
-  <div class="card stat-tile"><div class="value" id="ad-admin-users">–</div><div class="label">Admins</div></div>
+  <div class="card stat-tile"><div class="value" id="ad-admin-users">–</div><div class="label" data-scoped="Administrators">Admins</div></div>
   <div class="card stat-tile"><div class="value" id="ad-total-tasks">–</div><div class="label">Tasks</div></div>
   <div class="card stat-tile"><div class="value" id="ad-ai-convos">–</div><div class="label">AI Prompts</div></div>
   <div class="card stat-tile"><div class="value" id="ad-new-users">–</div><div class="label">New This Week</div></div>

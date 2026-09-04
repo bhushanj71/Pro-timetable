@@ -100,7 +100,9 @@
       <a class="nav-link {% if request.url.path == '/profile' %}active{% endif %}" href="/profile">
         <span class="nav-ico">👤</span> Profile
       </a>
-      {% if user.is_admin %}
+      {# Either kind of administrator. A college admin with a panel and no way
+         to reach it but the address bar has not been given anything. #}
+      {% if user.is_admin or user.admin_college_id %}
       <a class="nav-link {% if request.url.path == '/admin' %}active{% endif %}" href="/admin">
         <span class="nav-ico">🛡️</span> Admin
       </a>

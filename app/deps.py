@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import User
 from app.security import decode_access_token
+from app.services import admin_scope
 
 COOKIE_NAME = "access_token"
 
@@ -44,8 +45,26 @@ def get_current_user(
 
 def get_current_admin(user: User = Depends(get_current_user)) -> User:
     """Gate admin-only endpoints. Deliberately a separate dependency so a
-    missing decorator can never silently expose an admin route."""
+    missing decorator can never silently expose an admin route.
+
+    Still means super admin, and still guards the platform-level acts:
+    appointing a college administrator, and anything that reaches across
+    colleges. Routes a college administrator may also use take
+    `get_panel_admin` and scope themselves through app.services.admin_scope.
+    """
     if not user.is_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Administrator access required")
+    return user
+
+
+def get_panel_admin(user: User = Depends(get_current_user)) -> User:
+    """Gate the admin panel for either kind of administrator.
+
+    This only says someone has *a* panel. It says nothing about whose records
+    they may read or write, so every route using it must narrow itself through
+    admin_scope -- the dependency opens the door, the scope decides the room.
+    """
+    if not admin_scope.is_panel_admin(user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Administrator access required")
     return user
 
