@@ -163,48 +163,91 @@ TAP_JS = Path("app/static/js/tap-glow.js").read_text(encoding="utf-8")
 LANDING = (CSS / "landing.css").read_text(encoding="utf-8")
 
 
+def _supports_blocks(css: str, feature: str) -> list[str]:
+    """Every @supports block for a feature, brace-matched so nested rules come
+    with them. A list and not one block: style.css has two of these -- the
+    hero parallax and the card reveal -- and taking the first silently tested
+    the wrong one."""
+    out, at = [], 0
+    needle = "@supports (" + feature + ")"
+    while True:
+        start = css.find(needle, at)
+        if start == -1:
+            break
+        open_at = css.index("{", start)
+        depth, i = 0, open_at
+        while i < len(css):
+            if css[i] == "{":
+                depth += 1
+            elif css[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    out.append(css[open_at + 1:i])
+                    at = i
+                    break
+            i += 1
+        else:
+            raise AssertionError("unbalanced @supports block")
+    assert out, f"@supports ({feature}) should guard this"
+    return out
+
+
 def _supports_block(css: str, feature: str) -> str:
-    """The body of an @supports block, brace-matched so nested rules come with
-    it -- the whole point here is what is *inside* the guard."""
-    start = css.find("@supports (" + feature + ")")
-    assert start != -1, f"@supports ({feature}) should guard this"
-    open_at = css.index("{", start)
-    depth, i = 0, open_at
-    while i < len(css):
-        if css[i] == "{":
-            depth += 1
-        elif css[i] == "}":
-            depth -= 1
-            if depth == 0:
-                return css[open_at + 1:i]
-        i += 1
-    raise AssertionError("unbalanced @supports block")
+    return "\n".join(_supports_blocks(css, feature))
 
 
-def test_the_scroll_reveal_cannot_hide_the_page_it_decorates():
+WORK = (CSS / "work.css").read_text(encoding="utf-8")
+
+# Every surface the reveal was asked for, and the file its rule lives in.
+REVEALED = {
+    ".lp-feature": LANDING, ".lp-step": LANDING,     # before login
+    ".qa-card": STYLE, ".stat-card": STYLE,          # the dashboard
+    ".wk-community": WORK, ".wk-task": WORK,         # communities and tasks
+}
+
+
+@pytest.mark.parametrize("selector", sorted(REVEALED))
+def test_the_scroll_reveal_cannot_hide_what_it_decorates(selector):
     """It starts at opacity 0. If the rule applied where the timeline is not
-    supported -- Firefox, older Safari -- the entire feature grid would be
-    permanently invisible, so the guard is load-bearing, not politeness."""
-    guarded = _supports_block(LANDING, "animation-timeline: view()")
-    assert "opacity: 0" in guarded, "the reveal lives inside the guard"
-    assert "opacity: 0" not in LANDING.replace(guarded, ""), "and nowhere outside it"
-    assert ".lp-feature" in guarded and ".lp-step" in guarded
+    supported -- Firefox, older Safari -- these would be permanently blank,
+    and that is the task list and the week's figures, not decoration. The
+    guard is load-bearing, not politeness."""
+    css = REVEALED[selector]
+    guarded = _supports_block(css, "animation-timeline: view()")
+    assert selector in guarded, f"{selector} must be inside the guard"
+    # Every reveal declared in this file has to be inside one of those blocks.
+    assert css.count("animation: revealUp") == guarded.count("animation: revealUp")
 
 
-def test_the_scroll_reveal_stops_when_motion_is_not_wanted():
-    guarded = _supports_block(LANDING, "animation-timeline: view()")
+@pytest.mark.parametrize("selector", sorted(REVEALED))
+def test_the_scroll_reveal_stops_when_motion_is_not_wanted(selector):
+    guarded = _supports_block(REVEALED[selector], "animation-timeline: view()")
     assert "prefers-reduced-motion: no-preference" in guarded
 
 
+def test_the_reveal_is_one_keyframe_for_every_surface():
+    """Six selectors across three stylesheets, one definition. The distance is
+    a custom property because a row is not a card: the rise that reads as a
+    stat tile settling is the same row arriving from off its own list."""
+    assert STYLE.count("@keyframes revealUp") == 1
+    for css in (LANDING, STYLE, WORK):
+        assert "animation: revealUp" in css
+    assert "@keyframes" not in _supports_block(LANDING, "animation-timeline: view()")
+    assert "--reveal-rise: 14px" in WORK, "rows travel less than cards"
+
+
 def test_the_reveal_does_not_steal_the_hover():
-    """A filled animation holds its last value for good. On transform it would
-    win every subsequent hover, and these cards lift on hover -- so the reveal
-    moves `translate` and leaves transform alone."""
-    guarded = _supports_block(LANDING, "animation-timeline: view()")
-    reveal = guarded[guarded.index("@keyframes lpReveal"):]
-    assert "translate:" in reveal
-    assert "transform:" not in reveal
-    assert "transform: translateY(-4px)" in LANDING, "the hover lift is still there"
+    """A filled animation holds its last value for good. Every one of these
+    lifts or slides on hover, so on transform the reveal would quietly win
+    every hover from then on -- it moves `translate` instead."""
+    keyframes = re.search(r"@keyframes revealUp\s*\{(.*?)\n\}", STYLE, re.S).group(1)
+    assert "translate:" in keyframes
+    assert "transform:" not in keyframes
+    # And the hovers it must not break are all still there.
+    for css, hover in ((LANDING, "transform: translateY(-4px)"),
+                       (STYLE, "transform: translateY(-3px)"),
+                       (WORK, "transform: translateX(2px)")):
+        assert hover in css
 
 
 def test_nothing_fixed_lives_inside_a_revealed_card():

@@ -2479,3 +2479,44 @@ pre {
     }
   }
 }
+
+
+/* ==========================================================================
+   Cards and rows arriving as you reach them
+
+   The scroll reveal from the landing page, brought inside the application: the
+   quick actions and the week's figures on the dashboard, and -- in work.css,
+   next to their own styles -- the community and task rows.
+
+   One keyframe for all of them, with the distance a custom property, because
+   a row is not a card. Twenty-six pixels under a stat tile reads as it
+   settling into place; the same under a fifty-pixel task row is the row
+   arriving from off its own list.
+
+   `translate` and not `transform`. Every one of these lifts or slides on
+   hover, and a filled animation holds its final value for good -- on transform
+   it would quietly win every hover from then on.
+
+   Everything is inside @supports, and that is load-bearing rather than
+   polite. The reveal starts at opacity 0: if the rule applied where the
+   timeline is not supported -- Firefox, older Safari -- the task list, the
+   community list and the week's figures would all be permanently blank.
+   ========================================================================== */
+@keyframes revealUp {
+  from { opacity: 0; translate: 0 var(--reveal-rise, 26px); }
+  to   { opacity: 1; translate: 0 0; }
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .qa-card,
+    .stat-card {
+      animation: revealUp linear both;
+      animation-timeline: view();
+      /* Starts as it clears the fold, done before it reaches the middle of
+         the screen. A reveal still moving at eye level reads as a page that
+         has not finished loading. */
+      animation-range: entry 4% cover 42%;
+    }
+  }
+}

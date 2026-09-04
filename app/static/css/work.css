@@ -1397,3 +1397,28 @@ button.user-chip .ps-badge { position: absolute; top: -3px; right: -3px; }
 @media (prefers-reduced-motion: reduce) {
   .aslider-fill, .aslider-thumb { transition: none; }
 }
+
+
+/* --------------------------------------------------------------------------
+   Community and task rows arriving as you reach them
+
+   The same reveal as the dashboard's cards, defined in style.css. A shorter
+   rise, because these are rows: a card can afford to travel further than the
+   thing it is a row of.
+
+   These lists are built by work.js after the page loads, which needs no
+   handling -- a view() timeline applies to an element whenever it comes to
+   exist, and one inserted already on screen is simply past the end of its own
+   range and therefore fully visible.
+   -------------------------------------------------------------------------- */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .wk-community,
+    .wk-task {
+      --reveal-rise: 14px;
+      animation: revealUp linear both;
+      animation-timeline: view();
+      animation-range: entry 4% cover 40%;
+    }
+  }
+}
