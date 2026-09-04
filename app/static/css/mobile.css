@@ -98,31 +98,53 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   /* ------------------------------------------------------------------
      Shell: bottom tab bar replaces the drawer for primary navigation
      ------------------------------------------------------------------ */
-  /* Clear the tab bar. The bar's own height grows by the home-indicator
-     inset (34px on recent iPhones, similar for Android gesture bars), so a
-     fixed reservation is short by exactly that much and the last element on
-     a long page ends up under the bar. Reserve the inset here too. */
-  .content { padding-bottom: calc(84px + var(--safe-bottom)); }
+  /* Clear the tab bar: what it stands off the bottom, plus its height, plus
+     room to breathe. Built from the same two tokens the bar itself is placed
+     with, so the reservation cannot drift away from the thing being reserved
+     for. */
+  .content {
+    padding-bottom: calc(20px + var(--bottom-nav-h) + var(--bottom-nav-gap));
+  }
 
   /* One source of truth: anything that has to sit clear of the tab bar reads
-     this rather than guessing. */
-  :root { --bottom-nav-h: 64px; --topbar-h: 65px; }
+     these rather than guessing.
 
+     The gap is how far the floating bar sits off the bottom of the screen. It
+     reaches 16px into the home-indicator inset rather than clearing all of it
+     -- sitting the full 34px up left a visible band of dead bar under the
+     icons -- but never comes closer than 8px to the edge, which is what keeps
+     it off a phone that has no inset to spend. */
+  :root {
+    --bottom-nav-h: 60px;
+    --bottom-nav-gap: max(8px, calc(var(--safe-bottom) - 16px));
+    --topbar-h: 65px;
+  }
+
+  /* A rounded bar floating clear of the edges, rather than one bolted across
+     the bottom of the screen.
+
+     Bolted down, it had to be padded away from the home indicator from the
+     inside, which left a band of empty bar below the icons and a hard square
+     corner against a screen that has none. Floating, the inset becomes the
+     gap underneath it and the corners can follow the phone's own.
+
+     The radius is roughly the screen's own less the distance the bar is inset
+     from it, which is what makes the two curves read as concentric rather
+     than as one corner inside another. */
   .bottom-nav {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 70;
+    position: fixed; z-index: 70;
+    left: calc(10px + var(--safe-left));
+    right: calc(10px + var(--safe-right));
+    bottom: var(--bottom-nav-gap);
     display: flex; justify-content: space-around; align-items: stretch;
     background: rgba(255, 255, 255, 0.94);
     backdrop-filter: blur(14px);
-    border-top: 1px solid var(--border);
-    /* Three sides, not one. The home indicator takes the bottom, and on a
-       screen with rounded corners the curve cuts into the ends of anything
-       spanning the full width -- which in portrait is the first and last tab.
-       The bar's background still runs edge to edge; it is the items inside it
-       that move in. */
-    padding-bottom: var(--safe-bottom);
-    padding-left: var(--safe-left);
-    padding-right: var(--safe-right);
-    box-shadow: 0 -2px 14px rgba(76, 52, 42, 0.06);
+    border: 1px solid var(--border);
+    border-radius: 26px;
+    /* So the travelling pill and the active-tab marker cannot square off the
+       corners the bar just gained. */
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(76, 52, 42, 0.16), 0 2px 8px rgba(76, 52, 42, 0.07);
   }
   .bn-item {
     flex: 1;
@@ -344,7 +366,7 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
      adds -- so a fixed 82px sat a toast behind the bar on any phone with one.
      The sides move in for the curved corners in landscape. */
   .toast-container {
-    bottom: calc(18px + var(--bottom-nav-h, 64px) + var(--safe-bottom));
+    bottom: calc(14px + var(--bottom-nav-h) + var(--bottom-nav-gap));
     left: calc(15px + var(--safe-left));
     right: calc(15px + var(--safe-right));
   }
@@ -511,12 +533,9 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
      bar's contents sit under the clock and the notch. */
   padding-top: calc(10px + var(--safe-top));
 }
-.is-native .bottom-nav {
-  padding-bottom: calc(var(--safe-bottom) + 4px);
-}
-.is-native .content {
-  padding-bottom: calc(84px + var(--safe-bottom));
-}
+/* The bar floats and the content reserves for it from the shared tokens, both
+   of which already read the same insets the native shell reports -- so there
+   is nothing left for this to override. */
 /* The notification sheet hangs off the top bar, which just got taller. */
 .is-native .popover {
   top: calc(var(--topbar-h, 65px) + var(--safe-top));

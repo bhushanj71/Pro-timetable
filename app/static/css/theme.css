@@ -129,11 +129,11 @@
 }
 :root[data-theme="dark"] .bottom-nav,
 :root:not([data-theme="light"]) .bottom-nav {
-  background: rgba(32, 27, 24, 0.94);
+  background: rgba(23, 20, 19, 0.94);
 }
 :root[data-theme="dark"] .lp-nav,
 :root:not([data-theme="light"]) .lp-nav {
-  background: rgba(23, 19, 17, 0.82);
+  background: rgba(13, 11, 10, 0.82);
 }
 :root[data-theme="dark"] .loading-overlay,
 :root:not([data-theme="light"]) .loading-overlay {

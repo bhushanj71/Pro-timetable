@@ -334,20 +334,39 @@ def test_the_safe_area_is_read_in_one_place():
         assert not outside, f"safe-area read directly: {outside}"
 
 
-def test_the_tab_bar_clears_all_three_edges_it_touches():
-    """The home indicator takes the bottom; on a rounded screen the corners cut
-    into the ends of anything spanning the full width, which in portrait is the
-    first and last tab."""
+def test_the_tab_bar_floats_clear_of_every_edge_it_used_to_touch():
+    """Bolted across the bottom it had to be padded away from the home
+    indicator from the inside, which left a band of empty bar under the icons
+    and a square corner against a screen that has none. Floating, the inset
+    becomes the gap underneath and the corners can follow the phone's."""
     rule = _rule(MOBILE, ".bottom-nav")
-    for side in ("bottom", "left", "right"):
-        assert f"padding-{side}: var(--safe-{side})" in rule
+    assert "bottom: var(--bottom-nav-gap)" in rule
+    assert "left: calc(10px + var(--safe-left))" in rule
+    assert "right: calc(10px + var(--safe-right))" in rule
+    assert re.search(r"border-radius:\s*\d+px", rule), "and it is not square any more"
+    # It no longer touches an edge, so a top-only border has nothing to sit on.
+    assert "border-top:" not in rule
+    assert "border-top:" not in _rule(GLASS, ".bottom-nav")
 
 
-def test_a_toast_is_not_left_behind_the_tab_bar():
-    """It was pinned at a fixed 82px, which cleared a 64px bar and nothing
-    else -- and the bar grows by the home indicator."""
-    mobile_toast = _rule(MOBILE, ".toast-container")
-    assert "--bottom-nav-h" in mobile_toast and "--safe-bottom" in mobile_toast
+def test_the_bar_reaches_into_the_inset_without_landing_on_the_edge():
+    """Clearing the whole 34px left dead bar under the icons; clearing none of
+    it puts the tabs under the home indicator. It spends all but 16px of the
+    inset, and never comes closer than 8px to a screen that has none to
+    spend."""
+    gap = re.search(r"--bottom-nav-gap:\s*([^;]+);", MOBILE).group(1)
+    assert "max(" in gap, "a floor, so a phone with no inset still floats"
+    assert "8px" in gap and "var(--safe-bottom)" in gap
+
+
+def test_nothing_reserves_room_for_the_bar_by_guessing():
+    """The page and the toasts both have to clear it. Built from the same two
+    tokens the bar is placed with, the reservation cannot drift away from the
+    thing being reserved for -- which is how a toast came to be pinned at a
+    fixed 82px against a bar that grows."""
+    for rule in (_rule(MOBILE, ".content"), _rule(MOBILE, ".toast-container")):
+        assert "var(--bottom-nav-h)" in rule
+        assert "var(--bottom-nav-gap)" in rule
     assert "bottom: 82px" not in MOBILE
 
 

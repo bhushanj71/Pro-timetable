@@ -183,8 +183,10 @@ body.app-shell::before {
 
 .bottom-nav {
   background: var(--glass-bg-strong);
-  border-top: 1px solid var(--glass-rim);
-  box-shadow: 0 -6px 24px rgba(76, 52, 42, 0.10), var(--glass-edge);
+  /* All round: it floats clear of the screen edge, so there is no edge for a
+     top border alone to sit against. */
+  border: 1px solid var(--glass-rim);
+  box-shadow: 0 12px 32px rgba(76, 52, 42, 0.16), 0 2px 8px rgba(76, 52, 42, 0.08), var(--glass-edge);
 }
 
 .icon-btn,
