@@ -300,6 +300,57 @@ def test_the_glow_fades_inward_rather_than_ending_at_a_line():
     assert ("0.55", "30") in stops and ("0.16", "62") in stops
 
 
+@pytest.mark.parametrize("template", ["base.html", "landing.html"])
+def test_the_page_is_allowed_to_reach_the_edges_of_the_screen(template):
+    """viewport-fit=cover is what makes env(safe-area-inset-*) report anything
+    at all. Without it every safe-area rule in these stylesheets is inert --
+    which is how the tab bar came to sit under an iPhone's home indicator with
+    a dozen rules written to stop exactly that."""
+    html = Path("app/templates") / template
+    meta = re.search(r'<meta name="viewport" content="([^"]+)"', html.read_text(encoding="utf-8"))
+    assert meta, f"{template} should declare a viewport"
+    assert "viewport-fit=cover" in meta.group(1)
+
+
+def test_the_safe_area_is_read_from_the_screen_and_not_from_itself():
+    """The tokens have to come from env(). Defining one in terms of itself is
+    a cycle, and a cycle makes it resolve to nothing -- which silently voids
+    every calc() built on it, because a shorthand with an invalid var falls
+    all the way back to zero rather than to the previous rule."""
+    block = re.search(r":root \{(.*?)\n\}", STYLE, re.S).group(1)
+    for side in ("top", "right", "bottom", "left"):
+        line = re.search(rf"--safe-{side}:\s*([^;]+);", block)
+        assert line, f"--safe-{side} should be defined at :root"
+        assert line.group(1).startswith("env(safe-area-inset-" + side)
+
+
+def test_the_safe_area_is_read_in_one_place():
+    """env() cannot be overridden, so a layout built directly on it can only be
+    checked on the device. Through a token the same layout can be put under a
+    simulated iPhone and measured, which is how this was verified."""
+    for css in (STYLE, MOBILE, WORK, LANDING):
+        outside = [m for m in re.findall(r"env\(safe-area-inset-\w+[^)]*\)", css)
+                   if "--safe-" not in css[max(0, css.find(m) - 40):css.find(m)]]
+        assert not outside, f"safe-area read directly: {outside}"
+
+
+def test_the_tab_bar_clears_all_three_edges_it_touches():
+    """The home indicator takes the bottom; on a rounded screen the corners cut
+    into the ends of anything spanning the full width, which in portrait is the
+    first and last tab."""
+    rule = _rule(MOBILE, ".bottom-nav")
+    for side in ("bottom", "left", "right"):
+        assert f"padding-{side}: var(--safe-{side})" in rule
+
+
+def test_a_toast_is_not_left_behind_the_tab_bar():
+    """It was pinned at a fixed 82px, which cleared a 64px bar and nothing
+    else -- and the bar grows by the home indicator."""
+    mobile_toast = _rule(MOBILE, ".toast-container")
+    assert "--bottom-nav-h" in mobile_toast and "--safe-bottom" in mobile_toast
+    assert "bottom: 82px" not in MOBILE
+
+
 def test_the_glow_claims_the_same_share_of_any_screen():
     """The reach is a proportion of the smaller viewport axis, not a pixel
     count. In pixels the same value is a hairline on a desktop and a wash

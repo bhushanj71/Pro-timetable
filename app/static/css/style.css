@@ -24,6 +24,23 @@
      visible step down from --surface, and --bg-tint sits close enough to
      white that the frame all but disappeared against a white panel. */
   --frame-fill: #e7e3df;
+
+  /* The screen's own cut-outs: the notch, the home indicator, and the
+     rounded corners that eat the ends of anything pinned to an edge.
+
+     Named here rather than calling env() at each site, because these are read
+     from a dozen places and env() cannot be overridden -- which makes a layout
+     built directly on it impossible to check anywhere but on the device. Held
+     as tokens, the same layout can be put under a simulated iPhone and
+     measured.
+
+     They are zero unless the viewport meta says viewport-fit=cover. It did
+     not for a long time, so every one of these sites was quietly doing
+     nothing. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
   --border-strong: #d3cec9;
 
   /* Text */
@@ -1162,7 +1179,7 @@ input, select, textarea, button { font-size: inherit; }
    Toasts, popovers
    ========================================================================== */
 .toast-container {
-  position: fixed; bottom: 22px; right: 22px; z-index: 300;
+  position: fixed; bottom: calc(22px + var(--safe-bottom)); right: calc(22px + var(--safe-right)); z-index: 300;
   display: flex; flex-direction: column; gap: 10px;
 }
 .toast {
@@ -1323,7 +1340,13 @@ input, select, textarea, button { font-size: inherit; }
   .hero-greet { font-size: 1.32rem; }
   .ai-input-row { padding: 5px 5px 5px 15px; }
   .btn-ask { padding: 10px 15px; }
-  .toast-container { left: 15px; right: 15px; bottom: 15px; }
+  /* Sides only. mobile.css places the bottom, because it loads after this
+     and a second rule here setting it is how the hardcoded value there went
+     unnoticed. */
+  .toast-container {
+    left: calc(15px + var(--safe-left));
+    right: calc(15px + var(--safe-right));
+  }
   .toast { max-width: none; }
   .popover { width: min(330px, calc(100vw - 30px)); right: 15px; }
   .form-row { flex-direction: column; gap: 0; }

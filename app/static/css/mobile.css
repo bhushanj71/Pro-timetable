@@ -102,7 +102,7 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
      inset (34px on recent iPhones, similar for Android gesture bars), so a
      fixed reservation is short by exactly that much and the last element on
      a long page ends up under the bar. Reserve the inset here too. */
-  .content { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  .content { padding-bottom: calc(84px + var(--safe-bottom)); }
 
   /* One source of truth: anything that has to sit clear of the tab bar reads
      this rather than guessing. */
@@ -114,7 +114,14 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
     background: rgba(255, 255, 255, 0.94);
     backdrop-filter: blur(14px);
     border-top: 1px solid var(--border);
-    padding-bottom: env(safe-area-inset-bottom);
+    /* Three sides, not one. The home indicator takes the bottom, and on a
+       screen with rounded corners the curve cuts into the ends of anything
+       spanning the full width -- which in portrait is the first and last tab.
+       The bar's background still runs edge to edge; it is the items inside it
+       that move in. */
+    padding-bottom: var(--safe-bottom);
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
     box-shadow: 0 -2px 14px rgba(76, 52, 42, 0.06);
   }
   .bn-item {
@@ -165,12 +172,23 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   }
 
   /* The drawer now only holds secondary items, reached via "More". */
-  .sidebar { padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)); }
+  .sidebar { padding-bottom: calc(90px + var(--safe-bottom)); }
 
   /* ------------------------------------------------------------------
      Topbar: tighter, search collapses to an icon
      ------------------------------------------------------------------ */
-  .topbar { padding: 10px 15px; gap: 8px; }
+  /* Turning on viewport-fit=cover moved the top of the page under the status
+     bar and the notch as well as freeing the bottom, so the bar that sits
+     there has to come down by the same amount. In a browser tab the inset is
+     zero and this is exactly what it was. */
+  .topbar {
+    padding: calc(10px + var(--safe-top)) calc(15px + var(--safe-right)) 10px calc(15px + var(--safe-left));
+    gap: 8px;
+  }
+  .content {
+    padding-left: calc(15px + var(--safe-left));
+    padding-right: calc(15px + var(--safe-right));
+  }
   /* 32px wide against a 44px minimum: this is the control that opens the
      account menu and the Personal/Work switch, so it is the last one that
      should need a second tap. */
@@ -322,7 +340,14 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
 
   .modal-actions .btn { flex: 1; min-width: 44%; }
 
-  .toast-container { bottom: 82px; left: 15px; right: 15px; }
+  /* Clear of the tab bar, which is 64px plus whatever the home indicator
+     adds -- so a fixed 82px sat a toast behind the bar on any phone with one.
+     The sides move in for the curved corners in landscape. */
+  .toast-container {
+    bottom: calc(18px + var(--bottom-nav-h, 64px) + var(--safe-bottom));
+    left: calc(15px + var(--safe-left));
+    right: calc(15px + var(--safe-right));
+  }
 }
 
 @keyframes sheetDown { from { transform: translateY(-100%); } to { transform: none; } }
@@ -484,17 +509,17 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
 .is-native .topbar {
   /* iOS draws the status bar over the top of the web view. Without this the
      bar's contents sit under the clock and the notch. */
-  padding-top: calc(10px + env(safe-area-inset-top, 0px));
+  padding-top: calc(10px + var(--safe-top));
 }
 .is-native .bottom-nav {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4px);
+  padding-bottom: calc(var(--safe-bottom) + 4px);
 }
 .is-native .content {
-  padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(84px + var(--safe-bottom));
 }
 /* The notification sheet hangs off the top bar, which just got taller. */
 .is-native .popover {
-  top: calc(var(--topbar-h, 65px) + env(safe-area-inset-top, 0px));
+  top: calc(var(--topbar-h, 65px) + var(--safe-top));
 }
 
 /* A field focused behind the keyboard cannot be read while it is typed in. */
@@ -504,7 +529,7 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
 /* Offline, said once, out of the way of the thing being read. */
 .native-offline {
   position: fixed; left: 0; right: 0;
-  top: calc(env(safe-area-inset-top, 0px));
+  top: calc(var(--safe-top));
   z-index: 300;
   padding: 7px 14px;
   background: var(--warning, #d9a05b);
@@ -525,7 +550,7 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
 /* The landing page has its own bar, so the safe-area padding applied to
    .topbar never reached it. On iOS that put the logo under the clock. */
 .is-native .lp-nav {
-  padding-top: calc(14px + env(safe-area-inset-top, 0px));
+  padding-top: calc(14px + var(--safe-top));
 }
 
 /* --------------------------------------------------------------------------
@@ -537,7 +562,7 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
      everything below it, and this scrolls with the card it belongs to. */
   .wk-detail-bar {
     position: sticky;
-    top: calc(var(--topbar-h, 65px) + env(safe-area-inset-top, 0px));
+    top: calc(var(--topbar-h, 65px) + var(--safe-top));
     z-index: 5;
     margin: 0 -4px 12px;
     padding: 6px 4px;
