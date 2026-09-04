@@ -213,10 +213,12 @@
     .lp-step {
       animation: lpReveal linear both;
       animation-timeline: view();
-      /* Begins as the card clears the fold and is done well before the middle
-         of the screen. A reveal still running at eye level reads as a page
-         that has not finished loading. */
-      animation-range: entry 12% cover 26%;
+      /* Begins as the card clears the fold and finishes before it reaches the
+         middle of the screen. The first range was a quarter of that and the
+         cards effectively popped; over a longer run they drift up into place
+         at reading speed. Still done before eye level, because a reveal still
+         moving where you are reading reads as a page that has not loaded. */
+      animation-range: entry 4% cover 42%;
     }
 
     /* `translate` rather than `transform`, so the hover lift above keeps

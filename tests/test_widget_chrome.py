@@ -124,9 +124,37 @@ def test_the_page_transition_is_a_staircase():
     block = re.search(r"@keyframes stairReveal\s*\{(.*?)\n\}", MOBILE, re.S)
     assert block, "the staircase keyframes should still be here"
     polygons = re.findall(r"clip-path:\s*polygon\((.*?)\)", block.group(1), re.S)
-    assert len(polygons) == 5, "five stops"
+    assert len(polygons) >= 10, "one stop per corner in the motion"
     for i, poly in enumerate(polygons):
         assert len(poly.split(",")) == 12, f"stop {i} has the wrong point count"
+
+
+def test_the_staircase_moves_at_one_speed():
+    """The stops have to be the moments a column starts or stops moving. Each
+    column crosses over 60% of the run beginning 10% after the one before, so
+    the corners are at 0/10/20/30/40 and 60/70/80/90/100. Sampling anywhere
+    else cuts those corners and the columns visibly change speed partway.
+    """
+    block = re.search(r"@keyframes stairReveal\s*\{(.*?)\n\}", MOBILE, re.S).group(1)
+    stops = [int(m) for m in re.findall(r"^\s*(\d+)%\s*\{", block, re.M)]
+    assert stops == [0, 10, 20, 30, 40, 60, 70, 80, 90, 100]
+
+    # And nothing may curve the run, or the stagger baked into those stops is
+    # warped back out again.
+    rule = MOBILE.split("::view-transition-new(root)")[1][:260]
+    assert "stairReveal" in rule and "linear" in rule
+    assert "cubic-bezier" not in rule
+
+
+def test_the_transitions_are_given_time_to_be_seen():
+    """Every one of these was too quick to read as motion. Guarded as floors
+    rather than exact values so they can still be tuned, but not back down."""
+    stair = int(re.search(r"animation: stairReveal (\d+)ms", MOBILE).group(1))
+    glow = int(re.search(r"animation: tapGlowFade (\d+)ms", STYLE).group(1))
+    pill = int(re.search(r"transition: translate (\d+)ms", STYLE).group(1))
+    assert stair >= 800, "a five-column wipe needs longer than half a second"
+    assert glow >= 1200, "a full turn of the border needs to be seen as one"
+    assert pill >= 560
 
 
 def test_the_transition_is_the_browsers_and_not_an_overlay_of_ours():
@@ -298,15 +326,23 @@ def test_a_refused_press_is_not_congratulated():
     assert 'aria-disabled' in TAP_JS
 
 
-def test_a_ring_cannot_be_left_on_the_page():
-    """animationend never arrives in a backgrounded tab, and a ring stranded
-    over the page is worse than no ring at all."""
+def test_a_glow_cannot_be_left_on_the_page():
+    """animationend never arrives in a backgrounded tab, and a lit edge
+    stranded over the page is worse than no glow at all."""
     assert "SAFETY_MS" in TAP_JS
     assert "setTimeout" in TAP_JS
-    # Anchored to viewport coordinates, so it stops meaning anything once the
-    # page moves underneath it.
-    for event in ("scroll", "resize", "pagehide"):
-        assert f'"{event}", clear' in TAP_JS or f'"{event}"' in TAP_JS
+    assert '"pagehide", clear' in TAP_JS
+
+
+def test_the_glow_frames_the_page_and_not_the_control():
+    """Skiper86 is a border around the screen. Hugging each control instead
+    meant measuring a rectangle, following it, and giving up when the page
+    scrolled -- none of which a viewport frame has to do, which is why there is
+    no geometry left in this file."""
+    rule = _rule(STYLE, ".tap-glow")
+    assert "inset: 0" in rule
+    assert "getBoundingClientRect" not in TAP_JS, "no geometry to keep"
+    assert '"scroll"' not in TAP_JS, "and nothing to invalidate on scroll"
 
 
 def test_the_glow_is_loaded_everywhere():

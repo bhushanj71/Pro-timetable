@@ -2,24 +2,25 @@
    Tap glow
 
    One listener for the whole application: press anything that behaves like a
-   control and a gradient ring turns once around it and fades.
+   control and the edge of the page lights and turns once.
 
    Delegated from the document in the capture phase, so it does not matter how
    many components stop propagation on their own buttons -- and nothing has to
    be wired up per control, which is the only way "every button in the app"
    stays true as pages are added.
 
-   The ring is its own element over the control rather than a pseudo-element
-   on it. Styling ::after on the target would mean giving every control
-   position:relative, and that quietly re-parents any absolutely-positioned
-   child it has -- the tab bar's badges, the navigating spinner in the
-   sidebar. This touches nothing that already exists.
+   The glow frames the viewport rather than the control that was pressed. That
+   is what Skiper86 actually is, and it also means this file has no geometry
+   to keep: nothing to measure, nothing to re-measure when the page scrolls or
+   the window changes, and no way for the effect to end up somewhere the
+   control no longer is.
    ========================================================================== */
 (function () {
   "use strict";
 
   /* Things that answer a press. Anything that only looks like text is left
-     out: a ring around a paragraph reads as a fault, not as feedback. */
+     out: lighting the screen because somebody selected a paragraph reads as a
+     fault, not as feedback. */
   var TARGETS = [
     "button",
     ".btn",
@@ -37,57 +38,40 @@
     '[role="button"]'
   ].join(",");
 
-  var RING = 3;          // must match the padding in .tap-glow
-  var SAFETY_MS = 1200;  // longer than the animation, shorter than a nuisance
+  /* Comfortably past the 1400ms animation. */
+  var SAFETY_MS = 2000;
 
-  /* One at a time. Holding the pointer down on a repeat-clicked control would
-     otherwise stack rings that all fade on their own schedule. */
+  /* One at a time. A held-down or repeatedly-pressed control would otherwise
+     stack frames that each fade on their own schedule, and four of them at
+     once is four times the opacity. */
   var live = null;
+  var timer = null;
 
   function clear() {
+    if (timer) { clearTimeout(timer); timer = null; }
     if (!live) return;
     var node = live;
     live = null;
     if (node.parentNode) node.parentNode.removeChild(node);
   }
 
-  /* The ring sits three pixels outside the control, so its corners are three
-     pixels rounder. Only worth adjusting when the radius is a single length;
-     anything shaped (a card with two square corners) is copied as it stands. */
-  function ringRadius(radius) {
-    var single = /^(\d+(?:\.\d+)?)px$/.exec(radius || "");
-    if (single) return (parseFloat(single[1]) + RING) + "px";
-    return radius && radius !== "0px" ? radius : "10px";
-  }
-
-  function glow(el) {
-    var r = el.getBoundingClientRect();
-    /* Nothing to draw around: a control that is hidden, collapsed, or has
-       just been removed by the very click being handled. */
-    if (!r.width || !r.height) return;
-
+  function glow() {
     clear();
 
-    var ring = document.createElement("span");
-    ring.className = "tap-glow";
-    ring.setAttribute("aria-hidden", "true");
-    ring.style.left = (r.left - RING) + "px";
-    ring.style.top = (r.top - RING) + "px";
-    ring.style.width = (r.width + RING * 2) + "px";
-    ring.style.height = (r.height + RING * 2) + "px";
-    ring.style.borderRadius = ringRadius(getComputedStyle(el).borderRadius);
+    var frame = document.createElement("div");
+    frame.className = "tap-glow";
+    frame.setAttribute("aria-hidden", "true");
+    document.body.appendChild(frame);
+    live = frame;
 
-    document.body.appendChild(ring);
-    live = ring;
-
-    ring.addEventListener("animationend", function () {
-      if (live === ring) clear();
+    frame.addEventListener("animationend", function () {
+      if (live === frame) clear();
     }, { once: true });
 
-    /* animationend never arrives in a backgrounded tab, and a ring left over
-       the page is worse than no ring at all. */
-    setTimeout(function () {
-      if (live === ring) clear();
+    /* animationend never arrives in a backgrounded tab, and a lit edge left
+       over the page is worse than no glow at all. */
+    timer = setTimeout(function () {
+      if (live === frame) clear();
     }, SAFETY_MS);
   }
 
@@ -96,12 +80,8 @@
     if (!el) return;
     /* A refused press should not be congratulated. */
     if (el.disabled || el.getAttribute("aria-disabled") === "true") return;
-    glow(el);
+    glow();
   }, true);
 
-  /* A ring is anchored to viewport coordinates, so once the page moves it is
-     no longer around anything. Cheaper to drop it than to chase the control. */
-  window.addEventListener("scroll", clear, { passive: true, capture: true });
-  window.addEventListener("resize", clear);
   window.addEventListener("pagehide", clear);
 })();

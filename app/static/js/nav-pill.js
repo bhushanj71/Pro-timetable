@@ -22,7 +22,9 @@
 (function () {
   "use strict";
 
-  var SPRING_MS = 460;
+  /* Mirrors the transition in the stylesheet; the arriving class is worn
+     for exactly as long as the pill is travelling. */
+  var SPRING_MS = 620;
 
   function reducedMotion() {
     return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;

@@ -52,6 +52,13 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
    twelve points whose five top edges rise at different times. The column
    boundaries are the even fifths; the y values are the stagger.
 
+   The stops are the moments a column starts or stops moving, not an even
+   sampling of the run. Between two such moments every edge is travelling at a
+   constant rate, so a straight line between them is not an approximation of
+   the motion -- it is the motion. Sampling evenly instead cut the corners off
+   each column's ramp, and those corners showed as small changes of speed
+   partway across.
+
    Firefox has no cross-document view transitions yet, and neither does older
    Safari. There the pageIn/pageOut fade below still runs, which is what those
    browsers were getting before this.
@@ -59,33 +66,16 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
 @view-transition { navigation: auto; }
 
 @keyframes stairReveal {
-  /* Each column takes 60% of the run and starts 10% after the one before, so
-     the last is still moving when the first has arrived. */
-  0% {
-    clip-path: polygon(0% 100%, 20% 100%, 20% 100%, 40% 100%, 40% 100%,
-                       60% 100%, 60% 100%, 80% 100%, 80% 100%, 100% 100%,
-                       100% 100%, 0% 100%);
-  }
-  25% {
-    clip-path: polygon(0% 58.3%, 20% 58.3%, 20% 75%, 40% 75%, 40% 91.7%,
-                       60% 91.7%, 60% 100%, 80% 100%, 80% 100%, 100% 100%,
-                       100% 100%, 0% 100%);
-  }
-  50% {
-    clip-path: polygon(0% 16.7%, 20% 16.7%, 20% 33.3%, 40% 33.3%, 40% 50%,
-                       60% 50%, 60% 66.7%, 80% 66.7%, 80% 83.3%, 100% 83.3%,
-                       100% 100%, 0% 100%);
-  }
-  75% {
-    clip-path: polygon(0% 0%, 20% 0%, 20% 0%, 40% 0%, 40% 8.3%,
-                       60% 8.3%, 60% 25%, 80% 25%, 80% 41.7%, 100% 41.7%,
-                       100% 100%, 0% 100%);
-  }
-  100% {
-    clip-path: polygon(0% 0%, 20% 0%, 20% 0%, 40% 0%, 40% 0%,
-                       60% 0%, 60% 0%, 80% 0%, 80% 0%, 100% 0%,
-                       100% 100%, 0% 100%);
-  }
+  0%   { clip-path: polygon(0% 100.0%, 20% 100.0%, 20% 100.0%, 40% 100.0%, 40% 100.0%, 60% 100.0%, 60% 100.0%, 80% 100.0%, 80% 100.0%, 100% 100.0%, 100% 100%, 0% 100%); }
+  10%  { clip-path: polygon(0% 83.33%, 20% 83.33%, 20% 100.0%, 40% 100.0%, 40% 100.0%, 60% 100.0%, 60% 100.0%, 80% 100.0%, 80% 100.0%, 100% 100.0%, 100% 100%, 0% 100%); }
+  20%  { clip-path: polygon(0% 66.67%, 20% 66.67%, 20% 83.33%, 40% 83.33%, 40% 100.0%, 60% 100.0%, 60% 100.0%, 80% 100.0%, 80% 100.0%, 100% 100.0%, 100% 100%, 0% 100%); }
+  30%  { clip-path: polygon(0% 50.0%, 20% 50.0%, 20% 66.67%, 40% 66.67%, 40% 83.33%, 60% 83.33%, 60% 100.0%, 80% 100.0%, 80% 100.0%, 100% 100.0%, 100% 100%, 0% 100%); }
+  40%  { clip-path: polygon(0% 33.33%, 20% 33.33%, 20% 50.0%, 40% 50.0%, 40% 66.67%, 60% 66.67%, 60% 83.33%, 80% 83.33%, 80% 100.0%, 100% 100.0%, 100% 100%, 0% 100%); }
+  60%  { clip-path: polygon(0% 0.0%, 20% 0.0%, 20% 16.67%, 40% 16.67%, 40% 33.33%, 60% 33.33%, 60% 50.0%, 80% 50.0%, 80% 66.67%, 100% 66.67%, 100% 100%, 0% 100%); }
+  70%  { clip-path: polygon(0% 0.0%, 20% 0.0%, 20% 0.0%, 40% 0.0%, 40% 16.67%, 60% 16.67%, 60% 33.33%, 80% 33.33%, 80% 50.0%, 100% 50.0%, 100% 100%, 0% 100%); }
+  80%  { clip-path: polygon(0% 0.0%, 20% 0.0%, 20% 0.0%, 40% 0.0%, 40% 0.0%, 60% 0.0%, 60% 16.67%, 80% 16.67%, 80% 33.33%, 100% 33.33%, 100% 100%, 0% 100%); }
+  90%  { clip-path: polygon(0% 0.0%, 20% 0.0%, 20% 0.0%, 40% 0.0%, 40% 0.0%, 60% 0.0%, 60% 0.0%, 80% 0.0%, 80% 16.67%, 100% 16.67%, 100% 100%, 0% 100%); }
+  100% { clip-path: polygon(0% 0.0%, 20% 0.0%, 20% 0.0%, 40% 0.0%, 40% 0.0%, 60% 0.0%, 60% 0.0%, 80% 0.0%, 80% 0.0%, 100% 0.0%, 100% 100%, 0% 100%); }
 }
 
 /* The page being left holds still and sinks very slightly, so the columns read
@@ -98,12 +88,12 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
 }
 
 ::view-transition-old(root) {
-  animation: stairSettle 520ms var(--ease-out) both;
+  animation: stairSettle 900ms var(--ease-out) both;
 }
 ::view-transition-new(root) {
   /* Nearly linear: the stagger is in the keyframes, and a strong curve would
      bunch all five columns into the same instant and undo it. */
-  animation: stairReveal 520ms cubic-bezier(0.62, 0, 0.38, 1) both;
+  animation: stairReveal 900ms linear both;
   z-index: 1;
 }
 
