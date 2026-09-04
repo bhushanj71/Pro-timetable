@@ -185,3 +185,46 @@
   .lp-cta-row .btn { width: 100%; justify-content: center; }
   .lp-phone { width: 100%; max-width: 292px; }
 }
+
+
+/* ==========================================================================
+   Cards arriving as you reach them
+
+   Skiper104's shape: a grid whose cards are not simply there when you scroll
+   to them, they arrive. Eight features and three steps, each keyed to its own
+   position in the viewport rather than to a shared timer, so the arrival
+   tracks the reader instead of running once on load and being over before
+   anyone has scrolled that far.
+
+   Driven by the scroll timeline rather than by an observer in JavaScript.
+   Nothing to subscribe to, nothing to unsubscribe, and it runs off the main
+   thread -- which matters because it is eleven elements on the page a first
+   visitor sees before anything else has loaded.
+
+   Everything is inside @supports, and that is not politeness. A reveal starts
+   at opacity 0: if the timeline were unsupported and the rule still applied,
+   the whole feature grid would be permanently invisible. Where the browser
+   cannot drive this -- Firefox, older Safari -- the cards are simply already
+   there, which is what a visitor got before.
+   ========================================================================== */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .lp-feature,
+    .lp-step {
+      animation: lpReveal linear both;
+      animation-timeline: view();
+      /* Begins as the card clears the fold and is done well before the middle
+         of the screen. A reveal still running at eye level reads as a page
+         that has not finished loading. */
+      animation-range: entry 12% cover 26%;
+    }
+
+    /* `translate` rather than `transform`, so the hover lift above keeps
+       working. An animation on transform holds its final value for good and
+       would quietly win every hover afterwards. */
+    @keyframes lpReveal {
+      from { opacity: 0; translate: 0 26px; }
+      to   { opacity: 1; translate: 0 0; }
+    }
+  }
+}

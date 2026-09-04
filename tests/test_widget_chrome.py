@@ -160,6 +160,79 @@ def test_the_sweep_stops_when_motion_is_not_wanted():
 
 
 TAP_JS = Path("app/static/js/tap-glow.js").read_text(encoding="utf-8")
+LANDING = (CSS / "landing.css").read_text(encoding="utf-8")
+
+
+def _supports_block(css: str, feature: str) -> str:
+    """The body of an @supports block, brace-matched so nested rules come with
+    it -- the whole point here is what is *inside* the guard."""
+    start = css.find("@supports (" + feature + ")")
+    assert start != -1, f"@supports ({feature}) should guard this"
+    open_at = css.index("{", start)
+    depth, i = 0, open_at
+    while i < len(css):
+        if css[i] == "{":
+            depth += 1
+        elif css[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return css[open_at + 1:i]
+        i += 1
+    raise AssertionError("unbalanced @supports block")
+
+
+def test_the_scroll_reveal_cannot_hide_the_page_it_decorates():
+    """It starts at opacity 0. If the rule applied where the timeline is not
+    supported -- Firefox, older Safari -- the entire feature grid would be
+    permanently invisible, so the guard is load-bearing, not politeness."""
+    guarded = _supports_block(LANDING, "animation-timeline: view()")
+    assert "opacity: 0" in guarded, "the reveal lives inside the guard"
+    assert "opacity: 0" not in LANDING.replace(guarded, ""), "and nowhere outside it"
+    assert ".lp-feature" in guarded and ".lp-step" in guarded
+
+
+def test_the_scroll_reveal_stops_when_motion_is_not_wanted():
+    guarded = _supports_block(LANDING, "animation-timeline: view()")
+    assert "prefers-reduced-motion: no-preference" in guarded
+
+
+def test_the_reveal_does_not_steal_the_hover():
+    """A filled animation holds its last value for good. On transform it would
+    win every subsequent hover, and these cards lift on hover -- so the reveal
+    moves `translate` and leaves transform alone."""
+    guarded = _supports_block(LANDING, "animation-timeline: view()")
+    reveal = guarded[guarded.index("@keyframes lpReveal"):]
+    assert "translate:" in reveal
+    assert "transform:" not in reveal
+    assert "transform: translateY(-4px)" in LANDING, "the hover lift is still there"
+
+
+def test_nothing_fixed_lives_inside_a_revealed_card():
+    """The reveal leaves a `translate` on the card for good, and that makes it
+    the containing block for any position:fixed descendant -- the same trap
+    that put every admin dialog below the fold."""
+    landing_html = Path("app/templates/landing.html").read_text(encoding="utf-8")
+    for chunk in re.findall(r'<div class="lp-(?:feature|step)".*?</div>\s*</div>', landing_html, re.S):
+        assert "modal-backdrop" not in chunk
+
+
+def test_the_field_behind_the_app_moves_with_the_document():
+    """The parallax rides the document's own scroller: the field is fixed to
+    the viewport, not to any panel inside it."""
+    guarded = _supports_block(GLASS, "animation-timeline: scroll()")
+    assert "body.app-shell::before" in guarded
+    assert "animation-timeline: scroll(root block)" in guarded
+    assert "prefers-reduced-motion: no-preference" in guarded
+
+
+def test_the_two_hero_arcs_move_at_different_rates():
+    """Together they read as one object sliding. Apart, as two at different
+    depths -- which is the entire point of a parallax."""
+    guarded = _supports_block(STYLE, "animation-timeline: view()")
+    near = re.search(r"@keyframes heroArcDrift\s*\{.*?to\s*\{\s*translate:\s*0\s+(\d+)px", guarded, re.S)
+    far = re.search(r"@keyframes heroArcDriftFar\s*\{.*?to\s*\{\s*translate:\s*0\s+(\d+)px", guarded, re.S)
+    assert near and far, "both arcs should have their own keyframes"
+    assert int(near.group(1)) != int(far.group(1))
 
 
 def test_the_tap_glow_is_a_ring_and_not_a_fill():

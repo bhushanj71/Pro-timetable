@@ -2413,3 +2413,45 @@ pre {
     100% { opacity: 0; }
   }
 }
+
+
+/* ==========================================================================
+   Parallax on the dashboard hero
+
+   The same effect as the ambient field, given somewhere it is plainly visible.
+   The hero already carries two decorative arcs; on a page that scrolls they
+   now drift against it, so the greeting sits in front of something rather than
+   on top of a picture of something.
+
+   view() and not scroll(): the arcs should move while the hero is on screen
+   and be still otherwise, which is a question about this element's position in
+   the viewport rather than about the document's total scroll.
+
+   The hero clips its overflow, so the arcs cannot escape it however far they
+   travel.
+   ========================================================================== */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .hero::before,
+    .hero::after {
+      animation: heroArcDrift linear both;
+      animation-timeline: view();
+      animation-range: cover 0% cover 100%;
+    }
+
+    /* The two arcs move at different rates. Moving together they would read as
+       one object sliding; apart, they read as two at different depths, which
+       is the whole point of a parallax. */
+    @keyframes heroArcDrift {
+      from { translate: 0 -26px; }
+      to   { translate: 0 26px; }
+    }
+    .hero::after {
+      animation-name: heroArcDriftFar;
+    }
+    @keyframes heroArcDriftFar {
+      from { translate: 0 -12px; }
+      to   { translate: 0 12px; }
+    }
+  }
+}

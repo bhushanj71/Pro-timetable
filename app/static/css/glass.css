@@ -262,3 +262,36 @@ body.app-shell::before {
   }
   body.app-shell::before { filter: blur(36px); }
 }
+
+
+/* ==========================================================================
+   Parallax on the field behind everything
+
+   Skiper55's shape: something behind the content moving at a fraction of the
+   scroll, so the page reads as having depth rather than as one flat sheet.
+
+   The source parallaxes an image. This application has no hero photographs to
+   move -- it is a timetable -- but it does have a layer that plays exactly
+   that part: the ambient field these panels are translucent against. It is on
+   every page behind the login, which is where this was asked for, and moving
+   it costs nothing that content can notice, because nothing is written on it.
+
+   A fraction of the distance, not all of it. The field is inset far past the
+   viewport on every side, so it can drift this far and still have no visible
+   edge to run out of.
+   ========================================================================== */
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    body.app-shell::before {
+      animation: ambientParallax linear both;
+      /* The document's own scroller: the field is fixed to the viewport, not
+         to any panel inside it. */
+      animation-timeline: scroll(root block);
+    }
+
+    @keyframes ambientParallax {
+      from { translate: 0 0; }
+      to   { translate: 0 -11vmax; }
+    }
+  }
+}
