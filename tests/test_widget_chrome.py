@@ -263,14 +263,35 @@ def test_the_two_hero_arcs_move_at_different_rates():
     assert int(near.group(1)) != int(far.group(1))
 
 
-def test_the_tap_glow_is_a_ring_and_not_a_fill():
-    """Two mask layers subtracted from each other leave the padding ring. With
-    one, the gradient is a filled rectangle sitting over the label of whatever
-    was just pressed."""
+def test_the_glow_fades_inward_rather_than_ending_at_a_line():
+    """One gradient per edge, added together, so the light is solid where it
+    meets the screen and thins to nothing on the way in.
+
+    The mask is the only thing keeping this from being a sheet of colour over
+    the entire page, so a layer that fails to parse is not a lost effect -- it
+    is an unreadable application. And the falloff has to be in the mask: a
+    band still has an inner edge however heavily it is blurred.
+    """
     rule = _rule(STYLE, ".tap-glow")
-    assert rule.count("linear-gradient(#000 0 0)") == 4, "two layers, twice for -webkit-"
-    assert "mask-composite: exclude" in rule
-    assert "-webkit-mask-composite: xor" in rule
+    for direction in ("to bottom", "to top", "to right", "to left"):
+        assert rule.count(f"linear-gradient({direction},") == 2, \
+            f"{direction} edge, once for mask and once for -webkit-mask"
+    assert "mask-composite: add" in rule
+    assert "-webkit-mask-composite: source-over" in rule
+    assert "padding:" not in rule, "the band is gone; the gradient is the falloff"
+
+    # Curved, not a straight ramp: most of the brightness in the first third.
+    stops = re.findall(r"rgba\(0,0,0,([\d.]+)\) (\d+)%", rule)
+    assert ("0.55", "30") in stops and ("0.16", "62") in stops
+
+
+def test_the_blur_is_not_doing_the_falloffs_work():
+    """It softens the colour steps in the wheel. A heavy blur across the whole
+    viewport is the expensive part of this, and once the mask owns the shape
+    there is nothing for a big one to add."""
+    rule = _rule(STYLE, ".tap-glow")
+    blur = int(re.search(r"filter: blur\((\d+)px\)", rule).group(1))
+    assert blur <= 8
 
 
 def test_the_tap_glow_cannot_intercept_the_press_it_is_reporting():

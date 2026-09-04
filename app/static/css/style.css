@@ -426,7 +426,7 @@ input, select, textarea, button { font-size: inherit; }
   z-index: 55;
   transition: box-shadow var(--t) var(--ease), background var(--t) var(--ease);
 }
-.topbar.is-stuck { background: rgba(253, 249, 247, 0.86); backdrop-filter: blur(12px); box-shadow: var(--shadow-sm); }
+.topbar.is-stuck { background: rgba(243, 241, 239, 0.86); backdrop-filter: blur(12px); box-shadow: var(--shadow-sm); }
 
 .topbar-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; position: relative; }
 /* No search field remains, so the topbar's only job is to hold the
@@ -2365,21 +2365,39 @@ pre {
      the toasts and the route veil, which are messages rather than decoration. */
   z-index: 250;
   pointer-events: none;
-  /* The band of colour around the edge. Wide, because it is softened by a
-     blur most of the way across and a thin one would disappear entirely. */
-  padding: 18px;
+  /* How far in from the edge the light reaches. In vmin, so it is the same
+     share of the screen on a phone as on a desktop. */
+  --tap-reach: 20vmin;
   background: conic-gradient(
     from var(--tap-angle, 0deg),
     var(--primary), var(--warning), var(--success), var(--cat-lab), var(--primary)
   );
-  /* Two masks, one clipped to the content box, subtracted from the other:
-     what is left is the padding band. Without this the gradient is a filled
-     sheet over the entire page. */
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  filter: blur(14px);
+  /* One gradient per edge, added together: solid where it meets the edge of
+     the screen and thinning to nothing on the way in. The falloff is the mask
+     rather than a blur over a hard-edged band -- a band still has an inner
+     edge however much it is blurred, and that edge is the line this was asked
+     to lose. Where the four overlap in the corners the alpha adds, which is
+     what lights the corners.
+
+     The stops curve rather than ramping straight: over half the brightness is
+     spent in the first third and the rest is a long tail, so it reads as
+     something glowing at the edge instead of a gradient painted near it. */
+  -webkit-mask:
+    linear-gradient(to bottom, #000 0, rgba(0,0,0,0.55) 30%, rgba(0,0,0,0.16) 62%, transparent 100%) top / 100% var(--tap-reach) no-repeat,
+    linear-gradient(to top, #000 0, rgba(0,0,0,0.55) 30%, rgba(0,0,0,0.16) 62%, transparent 100%) bottom / 100% var(--tap-reach) no-repeat,
+    linear-gradient(to right, #000 0, rgba(0,0,0,0.55) 30%, rgba(0,0,0,0.16) 62%, transparent 100%) left / var(--tap-reach) 100% no-repeat,
+    linear-gradient(to left, #000 0, rgba(0,0,0,0.55) 30%, rgba(0,0,0,0.16) 62%, transparent 100%) right / var(--tap-reach) 100% no-repeat;
+  -webkit-mask-composite: source-over;
+  mask:
+    linear-gradient(to bottom, #000 0, rgba(0,0,0,0.55) 30%, rgba(0,0,0,0.16) 62%, transparent 100%) top / 100% var(--tap-reach) no-repeat,
+    linear-gradient(to top, #000 0, rgba(0,0,0,0.55) 30%, rgba(0,0,0,0.16) 62%, transparent 100%) bottom / 100% var(--tap-reach) no-repeat,
+    linear-gradient(to right, #000 0, rgba(0,0,0,0.55) 30%, rgba(0,0,0,0.16) 62%, transparent 100%) left / var(--tap-reach) 100% no-repeat,
+    linear-gradient(to left, #000 0, rgba(0,0,0,0.55) 30%, rgba(0,0,0,0.16) 62%, transparent 100%) right / var(--tap-reach) 100% no-repeat;
+  mask-composite: add;
+  /* Only to soften the colour steps in the wheel, now that the mask owns the
+     falloff. A heavy blur across the whole viewport was the expensive part of
+     this and it is no longer doing the work. */
+  filter: blur(7px);
   opacity: 0;
   /* Two animations, because the two halves want opposite curves. The fade
      should arrive quickly and leave slowly; the turn has to be even or it is
