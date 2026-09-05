@@ -50,6 +50,19 @@ class Settings(BaseSettings):
     AI_MODEL: str = "gpt-4o-mini"
     AI_BASE_URL: Optional[str] = None  # override for OpenAI-compatible endpoints
 
+    # Retrieval runs on the same provider as chat -- one key, one endpoint, one
+    # thing to rotate. Named separately because a chat model cannot embed and
+    # an embedding model cannot chat, and hosts retire the two on their own
+    # schedules: the chat model configured here died on 2026-08-26 while the
+    # key itself stayed perfectly valid, and the application went on answering
+    # from its rule-based fallback without anything saying so.
+    AI_EMBED_MODEL: str = "nvidia/llama-nemotron-embed-vl-1b-v2"
+
+    # How many tool calls one agent request may make before it must answer with
+    # what it has. A loop that can call tools without limit is a loop that can
+    # bill without limit.
+    AI_AGENT_MAX_STEPS: int = 6
+
     # Reminders / cron
     CRON_SECRET: Optional[str] = None  # shared secret to protect the cron endpoint
 

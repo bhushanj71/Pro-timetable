@@ -359,6 +359,34 @@ def _clean_title(text: str) -> str:
 LAST_PROVIDER_ERROR: dict = {"at": None, "error": None}
 
 
+def _loads_json(text: str) -> dict:
+    """Parse a model's JSON, allowing for the wrapping they add.
+
+    Even asked for JSON and nothing else, models fence their reply or open
+    with a sentence. Failing on that would drop an answer that was correct
+    apart from its packaging, so the first balanced object in the text is
+    taken."""
+    text = (text or "").strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```[a-zA-Z]*\s*", "", text)
+        text = re.sub(r"\s*```$", "", text).strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        if start == -1:
+            raise
+        depth = 0
+        for k in range(start, len(text)):
+            if text[k] == "{":
+                depth += 1
+            elif text[k] == "}":
+                depth -= 1
+                if depth == 0:
+                    return json.loads(text[start:k + 1])
+        raise
+
+
 class AIServiceError(Exception):
     pass
 
@@ -464,33 +492,135 @@ class AIService:
         raw = self._fallback_rule_based(prompt, user_context)
         return AIExtractionResult.model_validate(raw)
 
+    # ------------------------------------------------------------------
+    # The primitives everything else is built on
+    #
+    # Three calls -- generate, generate_structured, embed -- so the agent, the
+    # retrieval layer and the existing extractor all reach the provider through
+    # one place. Changing model or vendor is then an edit here and in the
+    # settings, not a search through the application.
+    # ------------------------------------------------------------------
+    def _post(self, path: str, body: dict, *, timeout: int = 60) -> dict:
+        if not self.is_configured:
+            raise AIServiceError("No AI provider is configured.")
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        with httpx.Client(timeout=timeout) as client:
+            resp = client.post(f"{self.base_url}{path}", json=body, headers=headers)
+            resp.raise_for_status()
+            return resp.json()
+
+    def _chat(self, messages: list[dict], *, temperature: float = 0.1,
+              max_tokens: int | None = None, schema: dict | None = None) -> str:
+        """One chat completion, returning the message text.
+
+        The response_format negotiation is the part worth explaining. Providers
+        disagree about it: some accept {"type": "json_object"}, some require a
+        full json_schema, some reject the field outright. Hard-coding one is
+        how this application came to answer from its rule-based fallback while
+        looking perfectly configured -- so the strictest form the caller asked
+        for is tried first, and a refusal that names response_format is retried
+        one step weaker.
+
+        Only that refusal is retried. A dead model, a bad key or a rate limit
+        is a real failure and is raised.
+        """
+        body = {"model": self.model, "messages": messages, "temperature": temperature}
+        if max_tokens:
+            body["max_tokens"] = max_tokens
+
+        attempts: list[dict | None] = [None]
+        if schema is not None:
+            attempts = [
+                {"type": "json_schema",
+                 "json_schema": {"name": "result", "schema": schema, "strict": True}},
+                {"type": "json_object"},
+                None,
+            ]
+
+        last_error = None
+        for fmt in attempts:
+            payload = dict(body)
+            if fmt is not None:
+                payload["response_format"] = fmt
+            try:
+                data = self._post("/chat/completions", payload)
+            except httpx.HTTPStatusError as exc:
+                detail = (exc.response.text or "")[:400]
+                if exc.response.status_code == 400 and "response_format" in detail:
+                    last_error = exc
+                    logger.info("Provider refused a response_format; trying a weaker one")
+                    continue
+                raise
+            try:
+                return data["choices"][0]["message"]["content"]
+            except (KeyError, IndexError) as exc:
+                raise AIServiceError("Unexpected AI provider response shape") from exc
+
+        raise AIServiceError(f"Provider rejected every response_format: {last_error}")
+
+    def generate(self, prompt: str, *, system: str | None = None,
+                 temperature: float = 0.2, max_tokens: int | None = 600) -> str:
+        """Free text, for answers that are prose rather than decisions."""
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        return self._chat(messages, temperature=temperature, max_tokens=max_tokens)
+
+    def generate_structured(self, prompt: str, schema: dict, *, system: str | None = None,
+                            temperature: float = 0.0, max_tokens: int | None = 900) -> dict:
+        """A decision, as JSON matching a schema.
+
+        Everything the agent decides comes through here rather than as prose
+        something downstream has to interpret: which tool to call, what a
+        document breaks into, what a plan proposes. An answer in a shape the
+        caller declared can be checked; an answer in prose can only be guessed
+        at.
+        """
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        text = self._chat(messages, temperature=temperature, max_tokens=max_tokens, schema=schema)
+        return _loads_json(text)
+
+    def embed(self, texts: list[str], *, kind: str = "passage") -> list[list[float]]:
+        """Vectors for retrieval.
+
+        A different model from chat, named separately in the settings, because
+        a chat model cannot embed and hosts retire the two on their own
+        schedules.
+
+        `kind` separates the thing being stored from the thing being asked:
+        providers offering asymmetric retrieval need the distinction, and those
+        that do not ignore it.
+        """
+        if not texts:
+            return []
+        data = self._post("/embeddings", {
+            "model": settings.AI_EMBED_MODEL,
+            "input": texts,
+            "input_type": "passage" if kind == "passage" else "query",
+        })
+        try:
+            rows = sorted(data["data"], key=lambda r: r.get("index", 0))
+            return [r["embedding"] for r in rows]
+        except (KeyError, TypeError) as exc:
+            raise AIServiceError("Unexpected embedding response shape") from exc
+
     def _call_llm(self, prompt: str, user_context: dict) -> dict:
         context_line = (
             f"Context: today is {user_context.get('today')} "
             f"({user_context.get('weekday')}), timezone is {user_context.get('timezone')}."
         )
-        body = {
-            "model": self.model,
-            "messages": [
+        text = self._chat(
+            [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": f"{context_line}\n\nRequest: {prompt}"},
             ],
-            "temperature": 0.1,
-            "response_format": {"type": "json_object"},
-        }
-        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-
-        with httpx.Client(timeout=60) as client:
-            resp = client.post(f"{self.base_url}/chat/completions", json=body, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
-
-        try:
-            content = data["choices"][0]["message"]["content"]
-        except (KeyError, IndexError) as exc:
-            raise AIServiceError("Unexpected AI provider response shape") from exc
-
-        return json.loads(content)
+            temperature=0.1,
+        )
+        return _loads_json(text)
 
     # ------------------------------------------------------------------
     # Rule-based fallback (no LLM key configured)
