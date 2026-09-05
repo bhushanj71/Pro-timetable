@@ -214,3 +214,58 @@
 @media (prefers-reduced-motion: reduce) {
   :root.theme-animating * { transition: none !important; }
 }
+
+
+/* ==========================================================================
+   The theme toggle
+
+   Skiper26. The incoming palette is revealed by a circle growing out of the
+   button that was pressed, rather than the page cross-fading into it, so the
+   change reads as coming from the control rather than happening to the page.
+
+   Scoped under .vt-theme, and that scope is the whole reason this works:
+   mobile.css already animates ::view-transition-old/new(root) for page
+   navigation, and a same-document transition uses the same pseudo-elements.
+   Unscoped, pressing the toggle would slide the page sideways like a link.
+   ========================================================================== */
+:root.vt-theme::view-transition-old(root) {
+  /* Held still underneath. It is the thing being covered up, and animating
+     it as well would have two pictures moving against each other. */
+  animation: none;
+  z-index: 0;
+}
+
+:root.vt-theme::view-transition-new(root) {
+  animation: themeReveal 700ms var(--ease-out) both;
+  z-index: 1;
+}
+
+@keyframes themeReveal {
+  from {
+    clip-path: circle(0 at var(--vt-x, 50%) var(--vt-y, 50%));
+    /* The blur is what stops the leading edge reading as a hard circle drawn
+       over the page. It clears before the circle stops, so the palette is
+       sharp by the time anyone looks at it. */
+    filter: blur(8px);
+  }
+  60% { filter: blur(4px); }
+  to {
+    clip-path: circle(var(--vt-r, 150vmax) at var(--vt-x, 50%) var(--vt-y, 50%));
+    filter: blur(0);
+  }
+}
+
+/* The glyph turns, not the button: the button has a background and a border
+   and turning those would be visible as a wobble. */
+.theme-toggle .tt-ico {
+  display: inline-block;
+  transition: rotate 500ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The palette still changes -- that is the point of the control -- it just
+     arrives rather than sweeping in. applyTheme keeps its own short cross-fade
+     for this case, so the change is still visible and not a jump-cut. */
+  :root.vt-theme::view-transition-new(root) { animation: none; }
+  .theme-toggle .tt-ico { transition: none; }
+}

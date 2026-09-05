@@ -48,7 +48,7 @@ function applyTheme(choice, { animate = false } = {}) {
   if (meta) meta.setAttribute("content", resolvedTheme() === "dark" ? "#0d0b0a" : "#e0785d");
 
   updateThemeButton();
-  renderThemeMenu();
+  renderAppearance();
 }
 
 function updateThemeButton() {
@@ -58,7 +58,11 @@ function updateThemeButton() {
   // Show what you'd get, not the abstract setting: "system" displays the
   // icon for whichever theme is actually active.
   const shown = choice === "system" ? resolvedTheme() : choice;
-  btn.textContent = shown === "dark" ? "🌙" : "☀️";
+  // The glyph, not the button: writing to btn.textContent would delete the
+  // span that the rotation is applied to, and the turn would stop working
+  // after the first press.
+  const ico = document.getElementById("theme-icon");
+  if (ico) ico.textContent = shown === "dark" ? "🌙" : "☀️";
   btn.setAttribute("aria-label", `Theme: ${choice}`);
   btn.title = `Theme: ${choice}`;
 }
@@ -90,17 +94,17 @@ function applyFont(size) {
   if (out) out.textContent = FONT_LABEL[value];
 }
 
-function renderThemeMenu() {
-  const menu = document.getElementById("theme-menu");
-  if (!menu) return;
+function renderAppearance() {
+  const box = document.getElementById("um-appearance");
+  if (!box) return;
   const choice = storedTheme();
   const font = storedFont();
-  menu.innerHTML =
-    THEMES.map(
-      (t) => `<button class="theme-option ${t.id === choice ? "active" : ""}" data-theme-choice="${t.id}">
-              <span>${t.icon}</span> ${t.label} <span class="tick">✓</span>
-            </button>`
-    ).join("") +
+  box.innerHTML =
+    `<button class="um-item${choice === "system" ? " active" : ""}"
+             id="um-system-theme" role="menuitem">
+       <span aria-hidden="true">💻</span> Match system
+       <span class="um-tick">✓</span>
+     </button>` +
     `<div class="font-size-row">
        <div class="font-size-head">
          <span>Text size</span>
@@ -117,34 +121,73 @@ function renderThemeMenu() {
      </div>`;
 }
 
-document.getElementById("theme-menu")?.addEventListener("input", (e) => {
+document.getElementById("um-appearance")?.addEventListener("input", (e) => {
   if (e.target.id !== "font-size-range") return;
   applyFont(FONT_STEPS[Number(e.target.value)]);
 });
 
+document.getElementById("um-appearance")?.addEventListener("click", (e) => {
+  if (!e.target.closest("#um-system-theme")) return;
+  applyTheme("system", { animate: true });
+});
+
 applyFont(storedFont());
+
+/* ---------------- The toggle ----------------
+
+   Skiper26's move: the incoming palette is revealed by a circle growing out
+   of the button that was pressed, instead of the page cross-fading into it,
+   so the change reads as coming from the control rather than happening to
+   the page. The icon turns half a circle with it.
+
+   A press now commits to light or dark. "Follow the system" cannot be one of
+   two states, so it moved into the account menu rather than being dropped. */
+
+/* Half a turn per press, and cumulative: resetting to zero between presses
+   would leave the glyph upside down every other time. */
+let spin = 0;
+
+function turnIcon() {
+  const ico = document.getElementById("theme-icon");
+  if (!ico) return;
+  spin += 180;
+  // The standalone property, so it cannot overwrite a transform if this
+  // button is ever given one.
+  ico.style.rotate = spin + "deg";
+}
+
+function revealFrom(el) {
+  const box = el.getBoundingClientRect();
+  const x = box.left + box.width / 2;
+  const y = box.top + box.height / 2;
+  // The circle starts at the button and has to reach the furthest corner of
+  // the window, or the old palette is left showing in a corner.
+  const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+  const root = document.documentElement;
+  root.style.setProperty("--vt-x", `${x}px`);
+  root.style.setProperty("--vt-y", `${y}px`);
+  root.style.setProperty("--vt-r", `${r}px`);
+}
 
 document.getElementById("theme-btn")?.addEventListener("click", (e) => {
   e.stopPropagation();
-  const menu = document.getElementById("theme-menu");
-  if (!menu) return;
-  renderThemeMenu();
-  menu.classList.toggle("hidden");
-});
+  const next = resolvedTheme() === "dark" ? "light" : "dark";
+  turnIcon();
 
-document.getElementById("theme-menu")?.addEventListener("click", (e) => {
-  const opt = e.target.closest("[data-theme-choice]");
-  if (!opt) return;
-  applyTheme(opt.dataset.themeChoice, { animate: true });
-  document.getElementById("theme-menu").classList.add("hidden");
-});
-
-document.addEventListener("click", (e) => {
-  const menu = document.getElementById("theme-menu");
-  const btn = document.getElementById("theme-btn");
-  if (menu && !menu.classList.contains("hidden") && !menu.contains(e.target) && !btn?.contains(e.target)) {
-    menu.classList.add("hidden");
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (still || !document.startViewTransition) {
+    // Every browser gets the theme; not every browser gets the circle.
+    applyTheme(next, { animate: true });
+    return;
   }
+
+  revealFrom(e.currentTarget);
+  const root = document.documentElement;
+  root.classList.add("vt-theme");
+  const vt = document.startViewTransition(() => applyTheme(next));
+  // finally, not then: a transition the browser abandons must still take the
+  // class off, or every later page navigation animates as a circle.
+  vt.finished.finally(() => root.classList.remove("vt-theme"));
 });
 
 // Track the OS preference while set to "system".
@@ -153,4 +196,4 @@ window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () 
 });
 
 updateThemeButton();
-renderThemeMenu();
+renderAppearance();
