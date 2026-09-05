@@ -694,6 +694,43 @@ input, select, textarea, button { font-size: inherit; }
   transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
 }
 .stat-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+
+/* The admin summary tiles.
+   
+   These carried no rules of their own -- not .stat-tile, not .value, not
+   .label. The box came from .card and both lines fell back to plain block
+   defaults, so a count and its caption sat flush left at the same size, which
+   reads as two lines of text rather than as a figure.
+   
+   Centred both ways rather than only across. The grid stretches every tile to
+   the tallest in its row, and a caption that wraps to two lines on a narrow
+   screen makes one of them taller than the rest -- so content pinned to the
+   top of the box would sit at a different height in each tile of the row. */
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 3px;
+}
+.stat-tile .value {
+  font-size: 1.7rem;
+  font-weight: 800;
+  line-height: 1.1;
+  /* Tabular figures so a column of counts lines up and does not shuffle
+     sideways as the numbers change width. */
+  font-variant-numeric: tabular-nums;
+}
+.stat-tile .label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  /* The captions are labels, not sentences: "Pending Reminders" wrapping mid
+     phrase is what makes a row of tiles look ragged. */
+  text-wrap: balance;
+}
+
 .stat-top { display: flex; align-items: flex-start; gap: 13px; }
 .stat-ico {
   width: 44px; height: 44px; border-radius: 13px;
@@ -2218,8 +2255,24 @@ pre {
 }
 
 /* A container waiting on its first render. Centred, with room to breathe, so
-   the animation is not jammed against the top of an empty card. */
-.is-loading-block {
+   the animation is not jammed against the top of an empty card.
+
+   Scoped to while the loader is actually inside it, which it was not before.
+   Nothing removes the class once the content arrives -- app.js says "whatever
+   renders into the container replaces it", and that is true of the contents
+   and false of the class -- so a column-centring flex box with 26px of
+   padding went on applying to real rows for the life of the page.
+
+   On the admin page that shrink-wrapped the college row to its own content,
+   which left it floating in the middle of a card whose heading is hard left,
+   and cancelled the margin-left:auto that is supposed to push Edit, Members
+   and Manage out to the right edge -- there is no free space to push into in
+   a box that has shrunk to fit. The same class sits on the reminders and
+   tasks lists, so they had it too.
+
+   Doing it here rather than removing the class in each renderer: there are
+   three of those today and the next one would have to remember. */
+.is-loading-block:has(.loader) {
   display: flex;
   flex-direction: column;
   align-items: center;
