@@ -375,6 +375,9 @@
   <script src="/static/js/mobile.js?v={{ v }}"></script>
   <script src="/static/js/nav-pill.js?v={{ v }}"></script>
   <script src="/static/js/tap-glow.js?v={{ v }}"></script>
+  <!-- After app.js: it wraps apiFetch and showRouteVeil, which are
+       declared there. -->
+  <script src="/static/js/busy.js?v={{ v }}"></script>
   {% if user %}
   <script src="/static/js/pwa.js?v={{ v }}"></script>
   <script src="/static/js/push.js?v={{ v }}"></script>

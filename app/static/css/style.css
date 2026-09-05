@@ -437,13 +437,15 @@ input, select, textarea, button { font-size: inherit; }
   align-items: center;
   gap: 16px;
   padding: 16px 26px;
+  /* Opaque: the page scrolls under this, and anything readable through it
+     puts two lines of text in the same strip of screen. */
   background: var(--bg);
   position: sticky;
   top: 0;
   z-index: 55;
   transition: box-shadow var(--t) var(--ease), background var(--t) var(--ease);
 }
-.topbar.is-stuck { background: rgba(243, 241, 239, 0.86); backdrop-filter: blur(12px); box-shadow: var(--shadow-sm); }
+.topbar.is-stuck { box-shadow: var(--shadow-sm); }
 
 .topbar-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; position: relative; }
 /* No search field remains, so the topbar's only job is to hold the
@@ -2542,4 +2544,57 @@ pre {
       animation-range: entry 4% cover 42%;
     }
   }
+}
+
+
+/* ==========================================================================
+   The busy pill
+
+   Shown when something pressed has not finished in a moment. It is the
+   application's own loader at a small size, in a pill at the top of the
+   screen -- deliberately not a veil over the page: at a threshold this short
+   it appears for a great many ordinary actions, and something that covers the
+   screen that often stops being progress and becomes an interruption.
+
+   The route veil still exists for the case it was built for. When a
+   navigation is slow enough to earn it, it replaces this rather than stacking
+   on it: quiet at first, explicit only when the wait is real.
+   ========================================================================== */
+.busy-pill {
+  position: fixed;
+  /* Below the top bar, not over it. At the safe-area inset alone it landed on
+     the bar's own controls, which is the one place on the screen already
+     spoken for. */
+  top: calc(var(--safe-top) + var(--topbar-h, 66px) + 10px);
+  left: 50%;
+  translate: -50% 0;
+  /* Above the page and the toasts it might sit near, below the route veil
+     that supersedes it. */
+  z-index: 310;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 15px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--glass-bg-strong, var(--surface));
+  -webkit-backdrop-filter: var(--glass-blur-sm, blur(12px));
+  backdrop-filter: var(--glass-blur-sm, blur(12px));
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  /* It reports; it is not a target. */
+  pointer-events: none;
+  animation: busyPillIn 220ms var(--ease-out) both;
+}
+
+/* Smaller than loader-sm: this sits in a pill beside nothing, and the fifteen
+   ellipses are a wide shape at any size. */
+.busy-pill .loader { --loader-size: 12px; }
+
+@keyframes busyPillIn {
+  from { opacity: 0; translate: -50% -8px; }
+  to   { opacity: 1; translate: -50% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .busy-pill { animation: none; }
 }

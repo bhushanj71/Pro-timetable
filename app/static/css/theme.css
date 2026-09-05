@@ -123,10 +123,10 @@
 /* --------------------------------------------------------------------------
    Surfaces that hard-coded a light value
    -------------------------------------------------------------------------- */
-:root[data-theme="dark"] .topbar.is-stuck,
-:root:not([data-theme="light"]) .topbar.is-stuck {
-  background: rgba(23, 19, 17, 0.86);
-}
+/* The bar is opaque at rest now and glass.css gives it the theme's own pane
+   colour, so there is nothing here to correct. It used to hard-code a light
+   value; the replacement then went stale against the repainted palette, which
+   is the argument for not naming a colour here twice. */
 :root[data-theme="dark"] .bottom-nav,
 :root:not([data-theme="light"]) .bottom-nav {
   background: rgba(23, 20, 19, 0.94);

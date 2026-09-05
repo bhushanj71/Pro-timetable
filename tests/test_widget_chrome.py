@@ -370,6 +370,58 @@ def test_nothing_reserves_room_for_the_bar_by_guessing():
     assert "bottom: 82px" not in MOBILE
 
 
+BUSY_JS = Path("app/static/js/busy.js").read_text(encoding="utf-8")
+
+
+def test_the_page_cannot_be_read_through_the_bar_it_scrolls_under():
+    """At the faint alpha a heading passing beneath the top bar stayed legible
+    through it -- two lines of text in the same strip of screen, which is what
+    reads as the bar and the page overlapping. Blur smears text; it does not
+    hide it. The faint value was right when nothing moved behind this bar."""
+    rule = _rule(GLASS, ".topbar")
+    assert "var(--glass-bg-strong)" in rule
+    assert "glass-bg-faint" not in rule
+    # Once the bar is opaque at rest, all is-stuck has left to say is that
+    # there is something above it -- a shadow, not a colour.
+    stuck = _rule(GLASS, ".topbar.is-stuck")
+    assert "background" not in stuck
+    assert "background" not in _rule(STYLE, ".topbar.is-stuck")
+
+
+def test_a_slow_press_is_reported_and_a_quick_one_is_not():
+    """The threshold is short, so the hard part is silence: opening a dialog or
+    ticking a filter finishes inside the frame and must leave the screen
+    alone. The timer only produces anything if something is genuinely
+    outstanding when it fires."""
+    assert "THRESHOLD_MS = 30" in BUSY_JS
+    assert "if (pill || !pending())" in BUSY_JS, "nothing outstanding, nothing shown"
+    assert "navigating || inFlight > 0" in BUSY_JS
+
+
+def test_the_busy_pill_counts_work_where_all_of_it_passes():
+    """Every request in the application goes through the one helper, so
+    wrapping it is the whole of the accounting -- and it has to be wrapped
+    after app.js declares it."""
+    assert 'window.apiFetch = function ()' in BUSY_JS
+    base = Path("app/templates/base.html").read_text(encoding="utf-8")
+    assert base.index("app.js") < base.index("busy.js")
+
+
+def test_the_veil_supersedes_the_pill_rather_than_stacking_on_it():
+    """They say the same thing, one at greater length. Quiet at first,
+    explicit only when the wait is real."""
+    assert 'window.showRouteVeil = function ()' in BUSY_JS
+    assert 'document.getElementById("route-veil")' in BUSY_JS
+
+
+def test_the_busy_pill_does_not_land_on_the_bar_it_reports_under():
+    """At the safe-area inset alone it sat on the top bar's own controls,
+    which is the one strip of screen already spoken for."""
+    rule = _rule(STYLE, ".busy-pill")
+    assert "var(--topbar-h" in rule and "var(--safe-top)" in rule
+    assert "pointer-events: none" in rule, "it reports; it is not a target"
+
+
 def test_the_glow_claims_the_same_share_of_any_screen():
     """The reach is a proportion of the smaller viewport axis, not a pixel
     count. In pixels the same value is a hairline on a desktop and a wash

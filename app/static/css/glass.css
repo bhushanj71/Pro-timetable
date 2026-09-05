@@ -152,13 +152,23 @@ body.app-shell::before {
   box-shadow: var(--glass-edge-soft);
 }
 
+/* Strong, not faint, and at rest rather than only once scrolled.
+
+   The page scrolls underneath this bar, and at the faint alpha a heading
+   passing beneath stayed legible through it -- two lines of text occupying
+   the same strip of screen, which is what reads as the bar and the page
+   overlapping. Blur alone does not fix that: it smears the text without
+   hiding it.
+
+   The faint value was right when this bar had nothing moving behind it. It no
+   longer does, so the only thing left for is-stuck to say is that there is
+   something above -- which is a shadow, not a colour. */
 .topbar {
-  background: var(--glass-bg-faint);
+  background: var(--glass-bg-strong);
   border-bottom: 1px solid var(--glass-rim);
 }
 
 .topbar.is-stuck {
-  background: var(--glass-bg-strong);
   box-shadow: var(--glass-shadow), var(--glass-edge-soft);
 }
 
