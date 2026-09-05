@@ -414,12 +414,27 @@ def test_the_veil_supersedes_the_pill_rather_than_stacking_on_it():
     assert 'document.getElementById("route-veil")' in BUSY_JS
 
 
-def test_the_busy_pill_does_not_land_on_the_bar_it_reports_under():
-    """At the safe-area inset alone it sat on the top bar's own controls,
-    which is the one strip of screen already spoken for."""
-    rule = _rule(STYLE, ".busy-pill")
-    assert "var(--topbar-h" in rule and "var(--safe-top)" in rule
-    assert "pointer-events: none" in rule, "it reports; it is not a target"
+def test_the_busy_veil_softens_the_page_rather_than_covering_it():
+    """The page is still there while it waits: what was being read is where it
+    was, and comes back into focus rather than reappearing. The route veil
+    paints over the page instead, which is right for one about to be replaced
+    and wrong for a wait about to end."""
+    rule = _rule(STYLE, ".busy-veil")
+    # Anchored to the start of a line: an unanchored check is satisfied by the
+    # -webkit- prefixed copy alone, so dropping the standard property would
+    # have gone unnoticed.
+    assert re.search(r"^\s*backdrop-filter: blur\(", rule, re.M)
+    assert re.search(r"^\s*-webkit-backdrop-filter: blur\(", rule, re.M)
+    assert "inset: 0" in rule
+    # Centred, both ways.
+    assert "align-items: center" in rule and "justify-content: center" in rule
+
+
+def test_the_busy_veil_cannot_lock_anyone_out():
+    """A veil that takes the pointer is only as safe as the code that removes
+    it. Nothing here should be able to make the application unusable -- if it
+    ever outlived its work, the worst it may do is look wrong."""
+    assert "pointer-events: none" in _rule(STYLE, ".busy-veil")
 
 
 def test_the_glow_claims_the_same_share_of_any_screen():

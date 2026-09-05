@@ -2,7 +2,7 @@
    "Something is happening"
 
    Press a control and, if what it started has not finished in a moment, the
-   loader appears at the top of the screen.
+   page goes soft and the loader appears in the middle of it.
 
    The threshold is short, so the hard part is not showing it -- it is not
    showing it for the many presses that finish instantly. Opening a dialog,
@@ -48,19 +48,17 @@
 
   function show() {
     if (pill || !pending()) return;
-    /* The route veil says the same thing at greater length. Two of them at
-       once is one too many. */
+    /* The route veil says the same thing at greater length, and paints over
+       the page rather than softening it. Two at once is one too many. */
     if (document.getElementById("route-veil")) return;
 
     pill = document.createElement("div");
-    pill.className = "busy-pill";
+    pill.className = "busy-veil";
+    /* The helper stacks the label under the animation, which is what a
+       centred veil wants. */
     pill.innerHTML = typeof loaderMarkup === "function"
       ? loaderMarkup("", "Loading")
       : '<span role="status" aria-live="polite">Loading</span>';
-    /* The helper stacks its label under the animation, which is right in a
-       veil and wrong in a pill -- it made this as tall as it was wide. The
-       class that lays the two out in a row already exists. */
-    pill.firstElementChild?.classList.add("loader-inline");
     document.body.appendChild(pill);
   }
 

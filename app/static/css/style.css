@@ -2548,53 +2548,57 @@ pre {
 
 
 /* ==========================================================================
-   The busy pill
+   The busy veil
 
-   Shown when something pressed has not finished in a moment. It is the
-   application's own loader at a small size, in a pill at the top of the
-   screen -- deliberately not a veil over the page: at a threshold this short
-   it appears for a great many ordinary actions, and something that covers the
-   screen that often stops being progress and becomes an interruption.
+   Shown when something pressed has not finished in a moment: the page behind
+   it goes soft and the application's own loader sits in the middle of it.
 
-   The route veil still exists for the case it was built for. When a
-   navigation is slow enough to earn it, it replaces this rather than stacking
-   on it: quiet at first, explicit only when the wait is real.
+   Blurred rather than covered. The page is still there -- what was being read
+   is where it was, and comes back into focus rather than reappearing -- and
+   at a threshold this short that difference is the whole feel of it. The
+   route veil paints over the page instead, which is right for a page that is
+   about to be replaced and wrong for a wait that is about to end.
+
+   It does not take the pointer. A veil that blocks input is only as safe as
+   the code that removes it, and there is no failure here that should be able
+   to lock somebody out of the application -- if it ever outlived its work,
+   the worst it can do is look wrong.
    ========================================================================== */
-.busy-pill {
+.busy-veil {
   position: fixed;
-  /* Below the top bar, not over it. At the safe-area inset alone it landed on
-     the bar's own controls, which is the one place on the screen already
-     spoken for. */
-  top: calc(var(--safe-top) + var(--topbar-h, 66px) + 10px);
-  left: 50%;
-  translate: -50% 0;
-  /* Above the page and the toasts it might sit near, below the route veil
-     that supersedes it. */
+  inset: 0;
+  /* Over the page and the toasts near it, under the route veil that
+     supersedes it. */
   z-index: 310;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 9px;
-  padding: 7px 15px;
-  border-radius: var(--radius-pill, 999px);
-  background: var(--glass-bg-strong, var(--surface));
-  -webkit-backdrop-filter: var(--glass-blur-sm, blur(12px));
-  backdrop-filter: var(--glass-blur-sm, blur(12px));
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-md);
-  /* It reports; it is not a target. */
+  justify-content: center;
+  gap: 14px;
+
+  -webkit-backdrop-filter: blur(9px) saturate(0.92);
+  backdrop-filter: blur(9px) saturate(0.92);
+  /* A wash of the page's own colour, so the softening reads as the page
+     receding rather than as a grey sheet over it. The flat value first for
+     anything without color-mix. */
+  background: rgba(0, 0, 0, 0.16);
+  background: color-mix(in srgb, var(--bg) 42%, transparent);
+
   pointer-events: none;
-  animation: busyPillIn 220ms var(--ease-out) both;
+  animation: busyVeilIn 200ms var(--ease-out) both;
 }
 
-/* Smaller than loader-sm: this sits in a pill beside nothing, and the fifteen
-   ellipses are a wide shape at any size. */
-.busy-pill .loader { --loader-size: 12px; }
+.busy-veil .loader-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+}
 
-@keyframes busyPillIn {
-  from { opacity: 0; translate: -50% -8px; }
-  to   { opacity: 1; translate: -50% 0; }
+@keyframes busyVeilIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .busy-pill { animation: none; }
+  .busy-veil { animation: none; }
 }
