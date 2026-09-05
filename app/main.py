@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import get_settings
 from app.database import engine, init_db
 from app.routers import (
+    ai_agent,
     admin,
     ai,
     analytics,
@@ -196,6 +197,7 @@ app.include_router(reminders.router)
 app.include_router(tasks.router)
 app.include_router(timetable.router)
 app.include_router(ai.router)
+app.include_router(ai_agent.router)
 app.include_router(analytics.router)
 app.include_router(export.router)
 app.include_router(cron.router)
