@@ -65,6 +65,14 @@ document.getElementById("register-form")?.addEventListener("submit", async (e) =
     return;
   }
 
+  // required on the input already refuses an empty submit, so this only
+  // catches the case where the box has been removed or disabled -- in which
+  // case the server refuses too, and this is the message that explains why.
+  if (!document.getElementById("accept-terms")?.checked) {
+    errorEl.textContent = "Please agree to the terms to create an account.";
+    return;
+  }
+
   // After every validation gate above, so the veil never covers a form the
   // user still has to correct.
   showRouteVeil("Creating your account…", "Setting up your timetable.");
@@ -81,6 +89,7 @@ document.getElementById("register-form")?.addEventListener("submit", async (e) =
         lunch_start: document.getElementById("lunch-start").value || "13:00",
         lunch_end: document.getElementById("lunch-end").value || "13:30",
         working_days: days.join(","),
+        accepted_terms: true,
       },
     });
     window.location.href = "/dashboard";

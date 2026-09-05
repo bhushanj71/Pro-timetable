@@ -317,11 +317,11 @@ def test_search_combines_its_filters(auth_client):
 
 
 def test_search_is_scoped_to_the_professors_own_schedule(client):
-    client.post("/api/auth/register", json={"name": "A", "email": "s_a@example.com", "password": "password123"})
+    client.post("/api/auth/register", json={"name": "A", "email": "s_a@example.com", "password": "password123", "accepted_terms": True})
     _mk(client, "Private lecture", faculty="Prof. Secret")
     client.post("/api/auth/logout")
 
-    client.post("/api/auth/register", json={"name": "B", "email": "s_b@example.com", "password": "password123"})
+    client.post("/api/auth/register", json={"name": "B", "email": "s_b@example.com", "password": "password123", "accepted_terms": True})
     assert client.get("/api/events/search?faculty=Secret").json()["count"] == 0
 
 
@@ -417,11 +417,11 @@ def test_a_lead_longer_than_the_time_left_is_refused(auth_client):
 
 
 def test_reminder_endpoints_are_scoped_to_the_owner(client):
-    client.post("/api/auth/register", json={"name": "A", "email": "rem_a@example.com", "password": "password123"})
+    client.post("/api/auth/register", json={"name": "A", "email": "rem_a@example.com", "password": "password123", "accepted_terms": True})
     ev = _mk(client, "Private Lecture", hours_ahead=48)
     client.post("/api/auth/logout")
 
-    client.post("/api/auth/register", json={"name": "B", "email": "rem_b@example.com", "password": "password123"})
+    client.post("/api/auth/register", json={"name": "B", "email": "rem_b@example.com", "password": "password123", "accepted_terms": True})
     assert client.get(f"/api/events/{ev['id']}/reminders").status_code == 404
     assert client.post(f"/api/events/{ev['id']}/reminders", json={"minutes_before": 15}).status_code == 404
 

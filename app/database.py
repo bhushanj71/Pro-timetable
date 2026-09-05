@@ -207,6 +207,8 @@ _ADDITIVE_COLUMNS = {
         ("google_calendar_id", "VARCHAR(255)"),
         ("google_sync_enabled", "BOOLEAN DEFAULT 0 NOT NULL"),
         ("onboarding_completed", "BOOLEAN DEFAULT 0 NOT NULL"),
+        ("terms_accepted_at", "TIMESTAMP"),
+        ("terms_version", "VARCHAR(32)"),
         ("active_profile", "VARCHAR(16) DEFAULT 'personal' NOT NULL"),
         ("notify_work_responses", "BOOLEAN DEFAULT 1 NOT NULL"),
         ("notify_work_progress", "BOOLEAN DEFAULT 1 NOT NULL"),

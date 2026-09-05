@@ -118,7 +118,7 @@ def two_professors(client):
     for email, title in (("a@example.com", "Mine"), ("b@example.com", "Theirs")):
         c = TestClient(app)
         c.post("/api/auth/register", json={"name": email[0].upper(), "email": email,
-                                           "password": "password123"})
+                                           "password": "password123", "accepted_terms": True})
         user = db.query(User).filter(User.email == email).first()
         start = datetime.now(timezone.utc) + timedelta(hours=2)
         db.add(Event(user_id=user.id, title=title, event_type="lecture",

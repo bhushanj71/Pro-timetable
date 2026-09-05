@@ -4,15 +4,46 @@ the JSON API via fetch/HTMX so these views stay thin.
 """
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
+from app import terms as terms_policy
 from app.deps import get_current_user_optional
 from app.models import User
 from app.services import admin_scope
 
-router = APIRouter(tags=["pages"])
+# Pages a professor can still reach while they owe an answer about the terms.
+# The terms themselves, obviously -- being unable to read what you are being
+# asked to agree to would be a closed loop -- and the ways in and out.
+TERMS_EXEMPT = frozenset({
+    "/", "/login", "/register", "/terms", "/terms/accept",
+    "/robots.txt", "/sitemap.xml",
+})
+
+
+def terms_gate(request: Request,
+               user: User | None = Depends(get_current_user_optional)) -> None:
+    """Send anyone who has not agreed to the terms to the page that asks.
+
+    A dependency on the router rather than a line in each of fifteen handlers,
+    because the failure mode of the second is a page somebody forgets to add
+    it to -- and a consent gate with one way round it is decoration.
+
+    It costs nothing: FastAPI caches a dependency's result within a request,
+    so the user resolved here is the same object the handler already asked
+    for, not a second query.
+    """
+    if request.url.path in TERMS_EXEMPT:
+        return
+    if terms_policy.needs_acceptance(user):
+        raise HTTPException(
+            status.HTTP_307_TEMPORARY_REDIRECT,
+            headers={"Location": "/terms/accept"},
+        )
+
+
+router = APIRouter(tags=["pages"], dependencies=[Depends(terms_gate)])
 # Absolute path so the templates resolve regardless of working directory.
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 
@@ -248,6 +279,41 @@ def admin_members_page(request: Request, user: User | None = Depends(get_current
     return templates.TemplateResponse("admin_members.html", _ctx(request, user))
 
 
+# ---------------------------------------------------------------------------
+# The terms, and the one place they are asked for
+# ---------------------------------------------------------------------------
+@router.get("/terms")
+def terms_page(request: Request, user: User | None = Depends(get_current_user_optional)):
+    """Public on purpose: terms you need an account to read are not terms you
+    can agree to before making one."""
+    return templates.TemplateResponse(
+        "terms.html",
+        _ctx(request, user,
+             terms_version=terms_policy.TERMS_VERSION,
+             # Not the referer. That is attacker-controlled and this value is
+             # rendered as a link; "back" is worth less than an open redirect
+             # costs.
+             back_to="/dashboard" if user else "/"),
+    )
+
+
+@router.get("/terms/accept")
+def terms_accept_page(request: Request,
+                      user: User | None = Depends(get_current_user_optional)):
+    """Asked only of accounts that never saw the sign-up form -- Google
+    sign-in creates one from the sign-in page."""
+    if not user:
+        return RedirectResponse(url="/login")
+    if not terms_policy.needs_acceptance(user):
+        # Already answered. Coming back to the question would suggest the
+        # answer had not been recorded.
+        return RedirectResponse(url="/dashboard")
+    return templates.TemplateResponse(
+        "terms_accept.html",
+        _ctx(request, user, terms_version=terms_policy.TERMS_VERSION),
+    )
+
+
 @router.get("/profile")
 def profile_page(request: Request, user: User | None = Depends(get_current_user_optional)):
     if not user:
@@ -271,6 +337,7 @@ def robots(request: Request):
         "Allow: /$",
         "Allow: /login",
         "Allow: /register",
+        "Allow: /terms",
         "Disallow: /api/",
         "Disallow: /dashboard",
         "Disallow: /timetable",
@@ -293,7 +360,8 @@ def sitemap(request: Request):
     urls = "".join(
         f"<url><loc>{site}{path}</loc><changefreq>weekly</changefreq>"
         f"<priority>{priority}</priority></url>"
-        for path, priority in (("/", "1.0"), ("/login", "0.5"), ("/register", "0.8"))
+        for path, priority in (("/", "1.0"), ("/login", "0.5"), ("/register", "0.8"),
+                              ("/terms", "0.3"))
     )
     xml = ('<?xml version="1.0" encoding="UTF-8"?>'
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'

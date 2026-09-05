@@ -16,7 +16,7 @@ def _make_admin(client, db_session, email="admin@example.com", password="adminpa
     Promotion has to bypass the API on purpose: there is no self-service way
     to become an admin, which is the property the rest of these tests rely on.
     """
-    client.post("/api/auth/register", json={"name": "Admin", "email": email, "password": password})
+    client.post("/api/auth/register", json={"name": "Admin", "email": email, "password": password, "accepted_terms": True})
     user = db_session.query(User).filter(User.email == email).first()
     user.is_admin = True
     db_session.commit()
@@ -128,7 +128,7 @@ def test_bootstrap_creates_admin_when_password_given(client, db_session):
 
 
 def test_bootstrap_promotes_existing_account(client, db_session):
-    client.post("/api/auth/register", json={"name": "Prof", "email": "promote@example.com", "password": "password123"})
+    client.post("/api/auth/register", json={"name": "Prof", "email": "promote@example.com", "password": "password123", "accepted_terms": True})
     assert client.get("/api/admin/stats").status_code == 403, "should not be admin yet"
 
     _bootstrap(db_session, "promote@example.com")

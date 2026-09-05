@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Before you start — ProfSchedule AI{% endblock %}
+{% block auth_content %}
+{# Signing up through the form agrees on the way in. This is for the accounts
+   that never saw the form: Google sign-in can start from the sign-in page and
+   creates an account there, so the agreement has to be asked for afterwards
+   or not at all.
+
+   A page rather than a dialog over the app. A dialog invites dismissing, and
+   there is nothing underneath here worth glimpsing yet. #}
+<div class="auth-wrap">
+  <div class="auth-card">
+   <div class="auth-panel">
+
+    <div class="auth-brand">
+      <img src="/static/logo.svg?v={{ v }}" alt="ProfSchedule AI" class="brand-logo brand-logo-lg"
+           onerror="this.classList.add('is-missing')">
+      <div>
+        <div class="brand-name">ProfSchedule <span>AI</span></div>
+        <div class="brand-tag">Plan &middot; Teach &middot; Inspire</div>
+      </div>
+    </div>
+
+    <h1 style="margin-top:18px">Before you start</h1>
+    <div class="subtitle">Welcome, {{ user.name }}. Two things worth knowing.</div>
+
+    <div class="terms-summary">
+      <p><strong>The AI assistant can be wrong.</strong> It drafts and answers;
+      it does not know. Check anything that concerns a class, an exam or a
+      deadline against your own timetable before relying on it. Nothing is
+      changed without you confirming it first.</p>
+
+      <p><strong>What you type goes to an AI provider.</strong> Your question,
+      and the parts of your schedule needed to answer it, are sent to a
+      third-party model. Please don't type anything confidential into it. Every
+      other part of ProfSchedule works without the assistant.</p>
+    </div>
+
+    <p class="muted-text">
+      The full <a href="/terms">terms of use and AI disclaimer</a> set out how
+      your data is handled, what the assistant can and cannot do, and what this
+      application does not promise.
+    </p>
+
+    <form id="terms-accept-form">
+      <label class="terms-agree">
+        <input type="checkbox" id="terms-agree" required>
+        <span>I have read and agree to the
+          <a href="/terms" target="_blank" rel="noopener">terms of use and AI disclaimer</a>.</span>
+      </label>
+      <div id="terms-error" class="form-error hidden"></div>
+      <button type="submit" class="btn btn-primary btn-block" id="terms-continue">
+        Agree and continue
+      </button>
+    </form>
+
+    {# The way out, for somebody who does not want to agree. An account they
+       cannot use and cannot leave is a trap. #}
+    <p class="muted-text" style="text-align:center;margin-top:14px">
+      Would rather not?
+      {# A button, not a link: signing out is a POST, and a link here would
+         look like a way out while doing nothing at all. #}
+      <button type="button" class="link-button" id="terms-decline">Sign out</button>.
+    </p>
+
+   </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/terms.js?v={{ v }}"></script>
+{% endblock %}

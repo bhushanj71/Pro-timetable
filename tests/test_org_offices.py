@@ -18,7 +18,7 @@ def admin_client(client, db_session):
     self-service route to becoming an administrator."""
     client.post("/api/auth/register",
                 json={"name": "Admin", "email": "offices-admin@example.com",
-                      "password": "adminpass123"})
+                      "password": "adminpass123", "accepted_terms": True})
     user = db_session.query(User).filter(User.email == "offices-admin@example.com").first()
     user.is_admin = True
     db_session.commit()

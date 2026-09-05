@@ -87,7 +87,7 @@ def test_system_prompt_is_never_echoed(auth_client):
 
 def test_login_is_rate_limited(client):
     client.post("/api/auth/register", json={
-        "name": "Throttle", "email": "throttle@example.com", "password": "password123"})
+        "name": "Throttle", "email": "throttle@example.com", "password": "password123", "accepted_terms": True})
     client.post("/api/auth/logout")
 
     codes = [
@@ -102,7 +102,7 @@ def test_login_is_rate_limited(client):
 def test_throttle_is_per_account_not_global(client):
     """One account being attacked must not lock out a colleague."""
     for email in ("a_thr@example.com", "b_thr@example.com"):
-        client.post("/api/auth/register", json={"name": "X", "email": email, "password": "password123"})
+        client.post("/api/auth/register", json={"name": "X", "email": email, "password": "password123", "accepted_terms": True})
         client.post("/api/auth/logout")
 
     for _ in range(6):
@@ -114,7 +114,7 @@ def test_throttle_is_per_account_not_global(client):
 
 def test_login_does_not_reveal_whether_an_account_exists(client):
     client.post("/api/auth/register", json={
-        "name": "Known", "email": "known@example.com", "password": "password123"})
+        "name": "Known", "email": "known@example.com", "password": "password123", "accepted_terms": True})
     client.post("/api/auth/logout")
 
     missing = client.post("/api/auth/login", json={"email": "nobody@example.com", "password": "x" * 12})

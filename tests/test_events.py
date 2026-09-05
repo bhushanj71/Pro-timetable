@@ -118,11 +118,11 @@ def test_bulk_delete_by_subject_leaves_others(auth_client):
 
 
 def test_bulk_delete_does_not_touch_other_users(client):
-    client.post("/api/auth/register", json={"name": "A", "email": "bulk_a@example.com", "password": "password123"})
+    client.post("/api/auth/register", json={"name": "A", "email": "bulk_a@example.com", "password": "password123", "accepted_terms": True})
     _seed(client, "A's class", "2026-10-07T09:00:00Z", "2026-10-07T10:00:00Z")
     client.post("/api/auth/logout")
 
-    client.post("/api/auth/register", json={"name": "B", "email": "bulk_b@example.com", "password": "password123"})
+    client.post("/api/auth/register", json={"name": "B", "email": "bulk_b@example.com", "password": "password123", "accepted_terms": True})
     _seed(client, "B's class", "2026-10-08T09:00:00Z", "2026-10-08T10:00:00Z")
     client.request("DELETE", "/api/events?confirm=true&scope=all")
     assert client.get("/api/events").json() == []

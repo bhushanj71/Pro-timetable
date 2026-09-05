@@ -279,7 +279,23 @@ app.include_router(pages.router)
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    """Answer the exception, including the headers it was raised with.
+
+    This rebuilt every HTTPException as a bare JSON body and dropped
+    exc.headers on the floor, which quietly cost more than it looks: the rate
+    limiter raises 429 with a Retry-After, and without it the answer is "slow
+    down" with no indication of by how much. A redirect raised this way lost
+    its Location entirely, which is not a redirect at all.
+    """
+    headers = dict(exc.headers or {})
+    location = headers.pop("Location", None) or headers.pop("location", None)
+    if location and 300 <= exc.status_code < 400:
+        # A redirect is a redirect however it was raised. A JSON body
+        # describing one helps nobody and confuses a browser following it.
+        return RedirectResponse(location, status_code=exc.status_code,
+                                headers=headers or None)
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail},
+                        headers=headers or None)
 
 
 @app.exception_handler(RequestValidationError)

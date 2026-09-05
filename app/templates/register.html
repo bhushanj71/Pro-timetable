@@ -101,6 +101,21 @@
         </div>
       </div>
 
+      {# The disclaimer in the two lines that actually change how somebody
+         uses this, with the full terms a click away. A tick-box next to a
+         bare link is a tick-box nobody reads; the point of saying it here is
+         that it is read once, at the only moment it is unavoidable. #}
+      <div class="terms-consent">
+        <label class="terms-agree">
+          <input type="checkbox" id="accept-terms" required>
+          <span>I agree to the
+            <a href="/terms" target="_blank" rel="noopener">terms of use</a>, and I
+            understand that the AI assistant can be wrong, that I should check
+            anything that matters against my own timetable, and that what I type
+            into it is sent to a third-party AI provider.</span>
+        </label>
+      </div>
+
       <button type="submit" class="btn btn-primary btn-block">Create Account</button>
       <div id="register-error" class="form-error"></div>
     </form>

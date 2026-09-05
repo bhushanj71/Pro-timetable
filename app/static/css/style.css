@@ -2796,3 +2796,96 @@ pre {
   .page-wipe { display: none; }
 }
 }
+
+
+/* ==========================================================================
+   The terms, and agreeing to them
+
+   Two places: a long page somebody reads once, and a line beside a checkbox
+   they read at the only moment it is unavoidable.
+   ========================================================================== */
+.terms-panel {
+  /* Wider than the sign-in card it shares a shell with. Auth forms want a
+     narrow column; prose read once wants a line length that does not force a
+     return every six words. */
+  max-width: 62ch;
+}
+
+.terms-body {
+  margin-top: 18px;
+  text-align: left;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--text);
+}
+.terms-body h2 {
+  margin: 22px 0 8px;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.terms-body h2:first-child { margin-top: 4px; }
+.terms-body p { margin: 0 0 10px; }
+.terms-body strong { font-weight: 700; }
+
+.terms-summary {
+  margin: 16px 0 10px;
+  padding: 14px 16px;
+  text-align: left;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+}
+.terms-summary p { margin: 0 0 10px; }
+.terms-summary p:last-child { margin-bottom: 0; }
+
+.terms-consent { margin: 4px 0 14px; }
+
+/* The box and its sentence, laid out so the sentence wraps against itself
+   rather than under the box. */
+.terms-agree {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.terms-agree input[type="checkbox"] {
+  /* Nudged to sit on the first line's baseline rather than its top, and given
+     a real target: this is the one control on the form that cannot be
+     submitted without. */
+  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.terms-agree a { color: var(--primary); font-weight: 600; }
+
+.terms-foot {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+
+/* A button that has to look like a link, because the action behind it is a
+   POST and a real link here would look like a way out while doing nothing. */
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--primary);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.link-button:hover { opacity: 0.85; }

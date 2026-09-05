@@ -103,6 +103,6 @@ def client():
 def auth_client(client):
     client.post(
         "/api/auth/register",
-        json={"name": "Dr. Test", "email": "test@example.com", "password": "password123", "timezone": "Asia/Kolkata"},
+        json={"name": "Dr. Test", "email": "test@example.com", "password": "password123", "timezone": "Asia/Kolkata", "accepted_terms": True},
     )
     return client

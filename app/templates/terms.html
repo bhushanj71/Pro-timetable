@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Terms &amp; AI Disclaimer — ProfSchedule AI{% endblock %}
+{% block auth_content %}
+{# A public page: readable before signing up, linkable from the sign-up form,
+   and reachable afterwards from the account menu. Deliberately not behind the
+   login -- terms you have to have an account to read are not terms you can
+   agree to before making one. #}
+<div class="auth-wrap">
+  <div class="auth-card">
+   <div class="auth-panel terms-panel">
+
+    <div class="auth-brand">
+      <img src="/static/logo.svg?v={{ v }}" alt="ProfSchedule AI" class="brand-logo brand-logo-lg"
+           onerror="this.classList.add('is-missing')">
+      <div>
+        <div class="brand-name">ProfSchedule <span>AI</span></div>
+        <div class="brand-tag">Plan &middot; Teach &middot; Inspire</div>
+      </div>
+    </div>
+
+    <h1 style="margin-top:18px">Terms of use</h1>
+    <div class="subtitle">Version {{ terms_version }} &middot; in effect from {{ terms_version }}</div>
+
+    <section class="terms-body">
+
+      {# The AI section comes first on purpose. It is the part with real
+         consequences for someone planning a teaching week, and burying it
+         under boilerplate is how disclaimers become decoration. #}
+      <h2 id="ai">The AI assistant — what to expect</h2>
+
+      <p><strong>The assistant can be wrong.</strong> It reads your timetable,
+      tasks and reminders to answer questions and to draft entries. Like any
+      language model it can misread a date, invent detail that sounds
+      plausible, or answer confidently about something it did not actually
+      check. Treat what it tells you as a draft to look over, never as the
+      record.</p>
+
+      <p><strong>Check anything that matters before you rely on it.</strong>
+      If a suggestion concerns a class, an exam, a deadline or a meeting with
+      other people, confirm it against your own timetable. This application is
+      not a substitute for your institution's official schedule, and where the
+      two disagree, your institution's is the one that counts.</p>
+
+      <p><strong>Nothing is changed without you confirming it.</strong> When
+      the assistant understands a request as a change — adding a class, moving
+      one, deleting one — it shows you what it understood and waits. You
+      confirm or discard it. The assistant is not able to write to your
+      schedule on its own, and the question-answering side of it can only
+      read.</p>
+
+      <p><strong>Your text is sent to an AI provider.</strong> To answer you,
+      what you type is sent to a third-party model provider, together with the
+      parts of your timetable, tasks and reminders needed to answer it — event
+      titles and times, your working hours and your timezone. It is sent over
+      an encrypted connection and is not used to advertise to you. It does
+      leave this application, so please do not type anything into the
+      assistant that you would not be willing to send to a third party:
+      student names, personal details about colleagues, or anything
+      confidential.</p>
+
+      <p><strong>You can avoid it entirely.</strong> Every part of
+      ProfSchedule works without the assistant. If you never open it, nothing
+      of yours is sent to a model provider.</p>
+
+      <h2 id="account">Your account</h2>
+      <p>You are responsible for what happens under your account, and for
+      keeping your password to yourself. Please use a real institutional
+      email address, since colleagues will identify you by it when working
+      together. Tell us if you think someone else has got into your account.</p>
+
+      <p>Accounts belong to people, not to roles. Do not share one between
+      colleagues: the schedule, the reminders and the work assignments are all
+      built around a single person's day.</p>
+
+      <h2 id="data">Your data</h2>
+      <p>Your schedule, tasks, reminders and profile are stored so the
+      application can show them back to you. Colleagues in a shared community
+      can see the work you share with them there — that is the point of it —
+      and administrators of your college can see the members of their own
+      college. Nobody else can read your personal timetable.</p>
+
+      <p>You can delete your account, and doing so removes your schedule,
+      tasks and reminders with it. Backups may keep a copy for a short period
+      before they roll over.</p>
+
+      <h2 id="availability">Availability</h2>
+      <p>This is a working application, not a guaranteed service. It may be
+      unavailable while it is being updated, and reminders depend on your
+      device, your browser and your network as much as on us. <strong>Do not
+      rely on a reminder from this application as your only warning for
+      something you cannot afford to miss.</strong></p>
+
+      <h2 id="fair">Reasonable use</h2>
+      <p>Please do not attempt to reach other people's data, disrupt the
+      service for others, or use the assistant to generate anything unlawful
+      or abusive. Accounts doing so may be suspended.</p>
+
+      <h2 id="changes">Changes to these terms</h2>
+      <p>If these terms change in a way that matters, you will be asked to
+      read and agree to the new version the next time you sign in. The version
+      you agreed to is recorded against your account.</p>
+
+      <h2 id="contact">Getting in touch</h2>
+      <p>For anything about your account, your data, or something the
+      assistant got wrong, contact the administrator of your college through
+      the application.</p>
+
+    </section>
+
+    <div class="terms-foot">
+      <a class="btn" href="{{ back_to }}">Back</a>
+      {% if user %}
+        <a class="btn btn-primary" href="/dashboard">Open my dashboard</a>
+      {% else %}
+        <a class="btn btn-primary" href="/register">Create an account</a>
+      {% endif %}
+    </div>
+
+   </div>
+  </div>
+</div>
+{% endblock %}

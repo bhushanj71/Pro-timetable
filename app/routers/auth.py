@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import get_db
 from app.deps import COOKIE_NAME, get_current_user
+from app import terms
 from app.models import User
 from app.rate_limit import login_limiter, register_limiter
 from app.schemas import Token, UserCreate, UserLogin, UserOut, UserProfileUpdate
@@ -50,6 +51,10 @@ def register(payload: UserCreate, request: Request, response: Response, db: Sess
         lunch_end=payload.lunch_end,
         working_days=payload.working_days,
     )
+    # Recorded with the account it belongs to, in the same transaction: an
+    # account that exists without its agreement is the state this whole
+    # feature is meant to make impossible.
+    terms.record_acceptance(user)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -110,3 +115,16 @@ def token_login(payload: UserLogin, db: Session = Depends(get_db)):
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
     return Token(access_token=create_access_token(user.id))
+
+
+@router.post("/accept-terms")
+def accept_terms(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Record that this professor agreed, and to which version.
+
+    Its own endpoint rather than a flag on some settings update: agreeing is
+    not a preference, and the only thing that should ever set this is somebody
+    answering the question.
+    """
+    terms.record_acceptance(user)
+    db.commit()
+    return {"accepted": True, "version": terms.TERMS_VERSION}

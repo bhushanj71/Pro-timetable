@@ -4,7 +4,7 @@ contracts. AI-generated JSON is always parsed into these models before it
 touches the database — never executed directly.
 """
 from datetime import date, datetime, timezone
-from typing import Any, Optional
+from typing import Literal, Any, Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator, model_validator
 
@@ -39,6 +39,12 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     timezone: str = "Asia/Kolkata"
+
+    # Checked on the form and again here. The box is what somebody ticks; this
+    # is what makes the account impossible to create without it, including by
+    # anyone posting to the endpoint directly. Literal[True], not bool: false
+    # has to be a validation error rather than a quietly unrecorded agreement.
+    accepted_terms: Literal[True]
 
     # College timings vary per professor (08:45-16:15, 09:45-17:15, 11:00-18:30,
     # ...), and they drive the timetable grid, the generator, and free-time

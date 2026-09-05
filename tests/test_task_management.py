@@ -16,7 +16,7 @@ from app.models import CommunityMember, CommunityRole, User
 
 def _user(email, name):
     c = TestClient(app)
-    c.post("/api/auth/register", json={"name": name, "email": email, "password": "password123"})
+    c.post("/api/auth/register", json={"name": name, "email": email, "password": "password123", "accepted_terms": True})
     college = c.get("/api/org/colleges").json()["colleges"][0]
     dept = c.get(f"/api/org/colleges/{college['id']}/departments").json()["departments"][0]
     c.put("/api/org/profile", json={"college_id": college["id"], "department_id": dept["id"]})

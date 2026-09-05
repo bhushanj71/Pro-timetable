@@ -346,13 +346,13 @@ def test_forgetting_a_device_stops_it_receiving_push(auth_client, db_session):
 
 def test_cannot_forget_another_professors_device(client):
     client.post("/api/auth/register", json={
-        "name": "A", "email": "dev_a@example.com", "password": "password123"})
+        "name": "A", "email": "dev_a@example.com", "password": "password123", "accepted_terms": True})
     client.post("/api/push/subscribe", json=_sub_payload("https://fcm.googleapis.com/fcm/send/a-device"))
     device_id = client.get("/api/push/devices").json()["devices"][0]["id"]
     client.post("/api/auth/logout")
 
     client.post("/api/auth/register", json={
-        "name": "B", "email": "dev_b@example.com", "password": "password123"})
+        "name": "B", "email": "dev_b@example.com", "password": "password123", "accepted_terms": True})
     assert client.delete(f"/api/push/devices/{device_id}").status_code == 404
 
 
@@ -438,12 +438,12 @@ def test_clear_requires_auth(client):
 def test_clearing_is_scoped_to_one_professor(client, db_session):
     """One account's clear must not empty another's bell."""
     client.post("/api/auth/register", json={
-        "name": "A", "email": "clear_a@example.com", "password": "password123"})
+        "name": "A", "email": "clear_a@example.com", "password": "password123", "accepted_terms": True})
     _deliver_a_reminder(client, "Mine")
     client.post("/api/auth/logout")
 
     client.post("/api/auth/register", json={
-        "name": "B", "email": "clear_b@example.com", "password": "password123"})
+        "name": "B", "email": "clear_b@example.com", "password": "password123", "accepted_terms": True})
     _deliver_a_reminder(client, "Theirs")
     client.post("/api/reminders/notifications/clear")
     client.post("/api/auth/logout")
@@ -462,11 +462,11 @@ def test_a_new_reminder_makes_the_badge_reappear(auth_client):
 
 
 def test_marking_read_is_scoped_to_the_user(client):
-    client.post("/api/auth/register", json={"name": "A", "email": "bell_a@example.com", "password": "password123"})
+    client.post("/api/auth/register", json={"name": "A", "email": "bell_a@example.com", "password": "password123", "accepted_terms": True})
     _deliver_a_reminder(client, "A's reminder")
     client.post("/api/auth/logout")
 
-    client.post("/api/auth/register", json={"name": "B", "email": "bell_b@example.com", "password": "password123"})
+    client.post("/api/auth/register", json={"name": "B", "email": "bell_b@example.com", "password": "password123", "accepted_terms": True})
     client.post("/api/reminders/notifications/read")
     client.post("/api/auth/logout")
 
@@ -513,12 +513,12 @@ def test_polling_delivers_overdue_reminders_without_cron(auth_client, db_session
 def test_polling_flush_is_scoped_to_the_requesting_user(client, db_session):
     from app.models import Reminder
 
-    client.post("/api/auth/register", json={"name": "A", "email": "flush_a@example.com", "password": "password123"})
+    client.post("/api/auth/register", json={"name": "A", "email": "flush_a@example.com", "password": "password123", "accepted_terms": True})
     client.post("/api/reminders", json={
         "title": "A overdue", "reminder_datetime": "2020-03-01T09:00:00Z", "reminder_type": "in_app"})
     client.post("/api/auth/logout")
 
-    client.post("/api/auth/register", json={"name": "B", "email": "flush_b@example.com", "password": "password123"})
+    client.post("/api/auth/register", json={"name": "B", "email": "flush_b@example.com", "password": "password123", "accepted_terms": True})
     client.get("/api/reminders/notifications")  # B polls
 
     a_reminder = db_session.query(Reminder).filter(Reminder.title == "A overdue").first()

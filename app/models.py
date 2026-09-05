@@ -176,6 +176,17 @@ class User(Base):
     # the professor to any browser until they've actually made a choice.
     onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # When this professor agreed to the terms, and to which version of them.
+    #
+    # The version is stored beside the timestamp so a later revision can ask
+    # again: "they agreed" is only meaningful together with what they agreed
+    # to. Null does not mean refused -- accounts that predate the terms
+    # entirely are never asked, which is what keeps this to people signing up
+    # rather than a notice thrown at everyone mid-session.
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    terms_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

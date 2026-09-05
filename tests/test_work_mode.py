@@ -29,7 +29,7 @@ def _user(email, name="Person", department=None, complete=True):
     complete=False to test the gate itself.
     """
     c = TestClient(app)
-    c.post("/api/auth/register", json={"name": name, "email": email, "password": "password123"})
+    c.post("/api/auth/register", json={"name": name, "email": email, "password": "password123", "accepted_terms": True})
     if complete:
         college, depts = _org(c)
         chosen = next((d for d in depts if d["name"] == department), depts[0])

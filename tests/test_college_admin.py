@@ -28,7 +28,7 @@ from app.models import User
 # ---------------------------------------------------------------------------
 def _register(email, name="Person"):
     c = TestClient(app)
-    c.post("/api/auth/register", json={"name": name, "email": email, "password": "password123"})
+    c.post("/api/auth/register", json={"name": name, "email": email, "password": "password123", "accepted_terms": True})
     return c
 
 
