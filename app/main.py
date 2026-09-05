@@ -154,6 +154,36 @@ app.add_middleware(GZipMiddleware, minimum_size=1024)
 from app.perf import PerfMiddleware, install_sql_timing  # noqa: E402
 
 app.add_middleware(PerfMiddleware, expose_header=settings.ENV != "production")
+
+
+# ---------------------------------------------------------------------------
+# Static assets: cached by their own version, not re-asked for every page
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def cache_static(request, call_next):
+    """Let the browser keep an asset it already has.
+
+    Every stylesheet and script is requested with ?v=<mtime>, so the URL
+    changes the moment the file does. That is precisely the case `immutable`
+    exists for: the browser may keep it for a year and never ask again,
+    because a changed file is a different URL.
+
+    Without this the responses were correct but pointlessly expensive -- an
+    ETag and a 304 for each of fourteen assets on every single page load. Zero
+    bytes each and a round trip each, which on a phone is the slowest part of
+    opening a page that renders in fifteen milliseconds.
+
+    Only versioned requests get the long life. An asset asked for without a ?v
+    could be anything, including a URL that stays the same while the file
+    changes, so those keep revalidating.
+    """
+    response = await call_next(request)
+    if request.url.path.startswith("/static/") and response.status_code < 400:
+        if request.query_params.get("v"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            response.headers.setdefault("Cache-Control", "public, max-age=300")
+    return response
 install_sql_timing(engine)
 
 # Resolve asset paths relative to this file rather than the process working
@@ -343,3 +373,4 @@ def health():
             "provider's endpoint."
         )
     return payload
+

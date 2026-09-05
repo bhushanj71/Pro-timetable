@@ -132,3 +132,33 @@ def test_replication_does_not_start_a_thread_on_serverless(monkeypatch):
     monkeypatch.setattr(db, "IS_SERVERLESS", False)
     db._start_replication()
     assert started["n"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Delivery: an asset the browser already has should not be asked for again
+# ---------------------------------------------------------------------------
+def test_a_versioned_asset_is_kept_rather_than_revalidated(client):
+    """Every stylesheet and script is requested with ?v=<mtime>, so the URL
+    changes the moment the file does -- which is exactly what `immutable` is
+    for. Without it the responses were correct but pointlessly expensive: an
+    ETag and a 304 for each of fourteen assets on every page load. Zero bytes
+    each and a round trip each, on a page that renders in fifteen
+    milliseconds."""
+    r = client.get("/static/css/style.css?v=123")
+    assert r.status_code == 200
+    cache = r.headers.get("cache-control", "")
+    assert "immutable" in cache and "max-age=31536000" in cache
+
+
+def test_an_unversioned_asset_keeps_revalidating(client):
+    """It could be a URL that stays the same while the file behind it changes,
+    and a year-long cache on one of those is unfixable from the server."""
+    r = client.get("/static/css/style.css")
+    assert r.status_code == 200
+    assert "immutable" not in r.headers.get("cache-control", "")
+
+
+def test_pages_are_never_cached_that_way(client):
+    """A page carries the asset version numbers. Cache the page and the browser
+    goes on asking for last week's assets by name."""
+    assert "immutable" not in client.get("/login").headers.get("cache-control", "")
