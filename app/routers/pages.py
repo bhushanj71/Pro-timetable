@@ -127,6 +127,35 @@ def work_community_page(
     )
 
 
+# What is behind one of the dashboard's three counts. A page rather than a
+# dialog, so the bucket lives in the URL and the back button means something.
+#
+# The bucket is validated here as well as in the API. A shell that renders for
+# any word in the path would put a heading and a spinner on screen before the
+# fetch behind it 404s, which is a worse way to say "no such thing" than not
+# opening the page.
+WORK_HISTORY = {
+    "active": ("Active work", "📈", "active"),
+    "pending": ("Waiting on your answer", "⏱️", "info"),
+    "completed": ("Completed work", "✅", "lab"),
+}
+
+
+@router.get("/work/history/{bucket}")
+def work_history_page(
+    bucket: str, request: Request, user: User | None = Depends(get_current_user_optional)
+):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if bucket not in WORK_HISTORY:
+        return RedirectResponse("/work", status_code=302)
+    title, icon, accent = WORK_HISTORY[bucket]
+    return templates.TemplateResponse(
+        "work_history.html",
+        _ctx(request, user, bucket=bucket, page_title=title, icon=icon, accent=accent),
+    )
+
+
 # The work board: who is carrying what, and what each of them has done.
 # A page of its own rather than a panel on the community, because it is a
 # different question -- the community page is about membership, this is about

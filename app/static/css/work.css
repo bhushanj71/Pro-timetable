@@ -74,8 +74,8 @@
 }
 .wk-stat {
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  grid-template-areas: "icon body spark" "note note note";
+  grid-template-columns: auto 1fr auto auto;
+  grid-template-areas: "icon body spark go" "note note note note";
   align-items: center;
   gap: 4px 13px;
   padding: 16px;
@@ -1421,4 +1421,75 @@ button.user-chip .ps-badge { position: absolute; top: -3px; right: -3px; }
       animation-range: entry 4% cover 40%;
     }
   }
+}
+
+
+/* --------------------------------------------------------------------------
+   A count you can open
+
+   The three tiles are links now, so they take a link's colour off and get a
+   press of their own. The chevron is what says so before it is pressed -- a
+   card that happens to be clickable and looks exactly like one that is not
+   only announces itself to whoever tries.
+   -------------------------------------------------------------------------- */
+a.wk-stat {
+  color: inherit;
+  text-decoration: none;
+  transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
+}
+a.wk-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+a.wk-stat:active { transform: translateY(0); }
+a.wk-stat:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.wk-stat-go {
+  grid-area: go;
+  font-size: 1.15rem;
+  color: var(--text-muted);
+  transition: transform var(--t) var(--ease);
+}
+a.wk-stat:hover .wk-stat-go { transform: translateX(3px); }
+
+/* --------------------------------------------------------------------------
+   The history behind a count
+   -------------------------------------------------------------------------- */
+.wk-hrow {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 13px 2px;
+  border-bottom: 1px solid var(--border);
+  color: inherit; text-decoration: none;
+  transition: background var(--t-fast) var(--ease);
+}
+.wk-hrow:last-child { border-bottom: none; }
+.wk-hrow:hover { background: var(--primary-softer); }
+.wk-hrow:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 10px; }
+.wk-hrow-main { flex: 1 1 auto; min-width: 0; }
+.wk-hrow-title { font-weight: 700; font-size: 0.9rem; overflow-wrap: anywhere; }
+.wk-hrow-meta { font-size: 0.76rem; color: var(--text-muted); margin-top: 3px; overflow-wrap: anywhere; }
+
+/* The dates, laid out as a row of small facts rather than a table: there are
+   at most three of them and they wrap on a phone. */
+.wk-htrail { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; }
+.wk-hstep {
+  font-size: 0.72rem; color: var(--text-soft);
+  background: var(--bg-tint);
+  padding: 3px 9px; border-radius: var(--radius-pill, 999px);
+}
+.wk-hstep b { font-weight: 700; color: var(--text); }
+
+.wk-hdue {
+  font-size: 0.72rem; font-weight: 700;
+  color: var(--text-soft);
+  background: var(--bg-tint);
+  padding: 3px 9px; border-radius: var(--radius-pill, 999px);
+}
+/* Only ever set on work that is still outstanding: a task finished after its
+   date was late, not overdue, and the row already says when it finished. */
+.wk-hdue.is-late { color: var(--danger); background: var(--danger-soft); }
+
+.wk-hrow-right { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.wk-hpct { font-weight: 800; font-size: 0.85rem; color: var(--primary); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 768px) {
+  .wk-hrow { padding: 14px 2px; }
+  .wk-hrow-right { flex-direction: column; align-items: flex-end; gap: 4px; }
 }

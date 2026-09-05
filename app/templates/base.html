@@ -86,7 +86,10 @@
          Work look like a page rather than a place. The switch above is how you
          get between the two, so nothing is lost by hiding them. #}
       {% if in_work %}
-        <a class="nav-link {% if request.url.path == '/work' %}active{% endif %}" href="/work">
+        {# The history pages hang off this dashboard and return to it, so it
+           stays lit while you are in one. A nav with nothing marked leaves
+           the reader with no idea where they are. #}
+        <a class="nav-link {% if request.url.path == '/work' or request.url.path.startswith('/work/history') %}active{% endif %}" href="/work">
           <span class="nav-ico">📊</span> Dashboard
         </a>
         <a class="nav-link {% if request.url.path.startswith('/work/communit') %}active{% endif %}"
@@ -258,7 +261,7 @@
     <nav class="bottom-nav" aria-label="Primary">
       <span class="nav-pill" aria-hidden="true"></span>
       {% if in_work %}
-        <a class="bn-item {% if request.url.path == '/work' %}active{% endif %}" href="/work">
+        <a class="bn-item {% if request.url.path == '/work' or request.url.path.startswith('/work/history') %}active{% endif %}" href="/work">
           <span class="bn-ico">📊</span> Dashboard
         </a>
         <a class="bn-item {% if request.url.path.startswith('/work/communit') %}active{% endif %}"

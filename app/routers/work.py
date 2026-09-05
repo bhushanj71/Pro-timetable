@@ -760,6 +760,99 @@ def work_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curre
     }
 
 
+# ---------------------------------------------------------------------------
+# What is behind a headline count
+# ---------------------------------------------------------------------------
+HISTORY_BUCKETS = {
+    "active": (AssignmentStatus.ACCEPTED.value, AssignmentStatus.IN_PROGRESS.value),
+    "pending": (AssignmentStatus.PENDING.value,),
+    "completed": (AssignmentStatus.COMPLETED.value,),
+}
+
+HISTORY_TITLES = {
+    "active": "Active work",
+    "pending": "Waiting on your answer",
+    "completed": "Completed work",
+}
+
+
+@router.get("/history/{bucket}")
+def work_history(bucket: str, db: Session = Depends(get_db),
+                 user: User = Depends(get_current_user)):
+    """The assignments behind one of the dashboard's three counts.
+
+    The counts were the end of the road: a number, and no way to ask which
+    three. This is the same set the number is drawn from -- so if it says two
+    active, exactly two come back here -- with the dates that were already on
+    each assignment rather than any new record. When it arrived, when it was
+    answered, when it was finished: that is the history, and the rows have
+    been carrying it all along with nowhere to show it.
+
+    Personal and across every community, because the count on the dashboard
+    is. The per-community view of the same question already exists on the
+    community board.
+    """
+    statuses = HISTORY_BUCKETS.get(bucket)
+    if not statuses:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            f"No such history. Try one of: {', '.join(sorted(HISTORY_BUCKETS))}.",
+        )
+
+    rows = (
+        db.query(TaskAssignment)
+        .options(
+            selectinload(TaskAssignment.task).selectinload(WorkTask.community),
+            selectinload(TaskAssignment.task).selectinload(WorkTask.creator),
+        )
+        .filter(TaskAssignment.user_id == user.id,
+                TaskAssignment.status.in_(statuses))
+        .all()
+    )
+
+    now = datetime.now(timezone.utc)
+
+    def moment(value):
+        return ensure_aware_utc(value).isoformat() if value else None
+
+    def entry(a: TaskAssignment) -> dict:
+        t = a.task
+        due = ensure_aware_utc(t.due_date) if t.due_date else None
+        return {
+            "task_id": t.id,
+            "title": t.title,
+            "community": {"id": t.community_id, "name": t.community.name,
+                          "icon": t.community.icon},
+            "assigned_by": _person(t.creator),
+            "priority": t.priority,
+            "progress": a.progress,
+            "status": a.status,
+            "due_date": moment(t.due_date),
+            # Only meaningful while the work is still outstanding: a task
+            # finished after its date was late, not overdue, and saying
+            # "overdue" of something already done is just wrong.
+            "overdue": bool(due and due < now and a.status != AssignmentStatus.COMPLETED.value),
+            "assigned_at": moment(a.assigned_at),
+            "responded_at": moment(a.responded_at),
+            "completed_at": moment(a.completed_at),
+        }
+
+    # Newest first by whichever date this bucket is actually about: a
+    # completed list ordered by when the work arrived buries what was just
+    # finished.
+    def sort_key(a: TaskAssignment):
+        stamp = a.completed_at if bucket == "completed" else a.assigned_at
+        return ensure_aware_utc(stamp or a.assigned_at)
+
+    ordered = sorted(rows, key=sort_key, reverse=True)
+    return {
+        "bucket": bucket,
+        "title": HISTORY_TITLES[bucket],
+        "count": len(ordered),
+        "items": [entry(a) for a in ordered],
+    }
+
+
 def _trends(assignments: list[TaskAssignment], days: int = 7) -> dict:
     """Seven daily readings behind each headline count.
 

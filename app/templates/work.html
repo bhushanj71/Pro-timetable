@@ -25,9 +25,15 @@
     </div>
   </section>
 
-  <!-- Counts, each with the seven days behind it. -->
+  {# Counts, each with the seven days behind it -- and each now a way into the
+     set it is counting. A number with no way to ask which ones is where the
+     reading stopped.
+
+     Anchors rather than click handlers, so each carries a real destination:
+     openable in a new tab, reachable by keyboard, and announced as a link
+     without anything having to be wired up for it. #}
   <div class="wk-stats" id="wk-stats">
-    <div class="wk-stat" data-tone="active">
+    <a class="wk-stat" data-tone="active" href="/work/history/active">
       <span class="wk-stat-icon" aria-hidden="true">📈</span>
       <div class="wk-stat-body">
         <div class="wk-stat-n" id="wk-n-active">—</div>
@@ -35,8 +41,9 @@
       </div>
       <div class="wk-spark" id="wk-spark-active"></div>
       <div class="wk-stat-note" id="wk-note-active"></div>
-    </div>
-    <div class="wk-stat" data-tone="pending">
+      <span class="wk-stat-go" aria-hidden="true">›</span>
+    </a>
+    <a class="wk-stat" data-tone="pending" href="/work/history/pending">
       <span class="wk-stat-icon" aria-hidden="true">⏱️</span>
       <div class="wk-stat-body">
         <div class="wk-stat-n" id="wk-n-pending">—</div>
@@ -44,8 +51,9 @@
       </div>
       <div class="wk-spark" id="wk-spark-pending"></div>
       <div class="wk-stat-note" id="wk-note-pending"></div>
-    </div>
-    <div class="wk-stat" data-tone="done">
+      <span class="wk-stat-go" aria-hidden="true">›</span>
+    </a>
+    <a class="wk-stat" data-tone="done" href="/work/history/completed">
       <span class="wk-stat-icon" aria-hidden="true">✅</span>
       <div class="wk-stat-body">
         <div class="wk-stat-n" id="wk-n-done">—</div>
@@ -53,7 +61,8 @@
       </div>
       <div class="wk-spark" id="wk-spark-done"></div>
       <div class="wk-stat-note" id="wk-note-done"></div>
-    </div>
+      <span class="wk-stat-go" aria-hidden="true">›</span>
+    </a>
   </div>
 
 

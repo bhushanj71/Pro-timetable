@@ -1,0 +1,41 @@
+{# What is behind one of the dashboard's counts.
+
+   The three tiles were the end of the road: a number, and no way to ask which
+   two. Pressing one now opens the set it was counting.
+
+   A page rather than a dialog, for the reason the task and community views
+   stopped being dialogs -- it is a list you read down and follow into, not a
+   question you answer -- and because the bucket is then in the URL, so the
+   back button works and a filtered list can be linked to. #}
+{% extends "base.html" %}
+{% block title %}{{ page_title }} — ProfSchedule AI{% endblock %}
+
+{% block content %}
+<div class="work-mode wk-detail-page" id="wk-history" data-bucket="{{ bucket }}">
+
+  <div class="wk-detail-bar">
+    <button class="wk-back" id="wk-history-back" type="button">
+      <span class="wk-back-chev" aria-hidden="true">‹</span>
+      <span>Work</span>
+    </button>
+  </div>
+
+  <section class="wk-hero">
+    <div class="wk-hero-text">
+      <h2><span class="wk-hero-icon" aria-hidden="true">{{ icon }}</span> <span id="wk-history-title">{{ page_title }}</span></h2>
+      <p class="muted-text" id="wk-history-sub">Loading…</p>
+    </div>
+  </section>
+
+  <div class="card wk-card" data-accent="{{ accent }}">
+    <div id="wk-history-list">
+      <div class="sk sk-line long"></div>
+      <div class="sk sk-line medium"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/work-history.js?v={{ v }}"></script>
+{% endblock %}
