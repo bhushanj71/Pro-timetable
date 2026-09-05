@@ -2716,94 +2716,68 @@ pre {
 
 
 /* ==========================================================================
-   The double staircase
+   Moving between pages
 
-   Two staircases, one coming down from the top and one going up from the
-   bottom. The screen is cut into columns; each column has a panel at the top
-   and a panel at the bottom, and they leave towards their own edge. The
-   stagger across the columns is the whole effect -- without it the two halves
-   part in a straight line and it is a curtain, not a staircase.
+   The same movement as the theme toggle: a circle opening out, with a soft
+   edge, rather than panels sliding. It was a double staircase, and a
+   staircase is five hard-edged rectangles arriving on five different clocks
+   -- precise, and mechanical in a way that reads as machinery every single
+   time you move between two pages.
 
-   The page ARRIVES from behind it. That reveal is pure CSS and runs on load,
-   which matters more than it looks: a page whose JavaScript never arrives --
-   blocked, failed, still parsing -- still uncovers itself, because nothing
-   has to run for the animation to play or to finish.
+   This is one shape with no edge to speak of. An overlay in the page's own
+   colour, with a hole in it that grows: the page shows through the hole. The
+   softness is a gradient stop rather than a blur filter, which costs nothing
+   and cannot band on a large surface.
+
+   The page ARRIVES from behind it, and that opening is pure CSS running on
+   load. It matters more than it looks: the overlay rests in the covering
+   position, so a page that waited for a script to uncover it would show
+   nothing at all when the script failed.
    ========================================================================== */
-:root {
-  --stair-cols: 5;
-  --stair-ms: 520ms;
-  /* Column-to-column. Five columns at 60ms is 240ms of lean across the
-     screen, which is enough to read as steps without the last column
-     arriving noticeably late. */
-  --stair-step: 60ms;
-  /* Expo in and out: the panels leave slowly, cross most of the distance in
-     the middle, and settle. A linear slide reads as a wipe. */
-  --stair-ease: cubic-bezier(0.83, 0, 0.17, 1);
+@property --wipe-r {
+  /* Registered, or it is a string swap and the hole appears at full size
+     instead of growing -- the same reason --tap-angle is registered. */
+  syntax: "<length-percentage>";
+  initial-value: 0%;
+  inherits: false;
 }
 
-.stairs {
+.page-wipe {
   position: fixed;
   inset: 0;
   z-index: 500;
-  /* Never in the way, including during its own animation and after it: the
-     element stays in the document once the panels have gone. */
+  /* Never in the way, including after it has finished and while it waits in
+     the document for the rest of the page's life. */
   pointer-events: none;
-  display: grid;
-  grid-template-columns: repeat(var(--stair-cols), 1fr);
-}
-
-.stairs i::before,
-.stairs i::after {
-  content: "";
-  position: absolute;
-  /* A pixel wider than the column, and a shade past half its height. Column
-     widths land on fractions of a pixel, and without the overlap the page
-     shows through as hairlines between the panels and along the middle. */
-  left: -1px;
-  right: -1px;
-  height: 50.6%;
   background: var(--bg);
-  animation-duration: var(--stair-ms);
-  animation-timing-function: var(--stair-ease);
-  /* both, not forwards: the panels have to hold their starting position
-     through their own delay. With forwards alone the covering panels would
-     sit at rest -- uncovered -- until their turn came, and the page would
-     flash through before each column arrived. */
-  animation-fill-mode: both;
+  /* Where the circle grows from. The middle unless the page that sent us
+     here recorded where it was tapped, which app.js hands over. */
+  --wipe-x: 50%;
+  --wipe-y: 50%;
+  -webkit-mask: radial-gradient(circle at var(--wipe-x) var(--wipe-y),
+    transparent var(--wipe-r), #000 calc(var(--wipe-r) + 14%));
+  mask: radial-gradient(circle at var(--wipe-x) var(--wipe-y),
+    transparent var(--wipe-r), #000 calc(var(--wipe-r) + 14%));
 }
 
-.stairs i { position: relative; display: block; }
-.stairs i::before { top: 0; }
-.stairs i::after { bottom: 0; }
+/* both, not forwards: the overlay has to be covering before the animation
+   starts, and stay gone after it ends. */
+/* 700ms and the same curve as themeReveal, deliberately: this is meant to be
+   recognisably the same movement the theme toggle makes, and two circles that
+   open at different speeds are two effects rather than one idea. */
+.page-wipe-open { animation: wipeOpen 700ms var(--ease-out) both; }
+.page-wipe-close { animation: wipeClose 460ms var(--ease-out) both; }
 
-.stairs i:nth-child(1)::before, .stairs i:nth-child(1)::after { animation-delay: calc(0 * var(--stair-step)); }
-.stairs i:nth-child(2)::before, .stairs i:nth-child(2)::after { animation-delay: calc(1 * var(--stair-step)); }
-.stairs i:nth-child(3)::before, .stairs i:nth-child(3)::after { animation-delay: calc(2 * var(--stair-step)); }
-.stairs i:nth-child(4)::before, .stairs i:nth-child(4)::after { animation-delay: calc(3 * var(--stair-step)); }
-.stairs i:nth-child(5)::before, .stairs i:nth-child(5)::after { animation-delay: calc(4 * var(--stair-step)); }
+/* 160%, not 100%: the circle is measured against the box, and a circle that
+   only reaches the edge leaves the corners covered. */
+@keyframes wipeOpen { from { --wipe-r: 0%; } to { --wipe-r: 160%; } }
+@keyframes wipeClose { from { --wipe-r: 160%; } to { --wipe-r: 0%; } }
 
-/* Arriving: the panels are covering the page, and go. */
-.stairs-reveal i::before { animation-name: stairLeaveUp; }
-.stairs-reveal i::after { animation-name: stairLeaveDown; }
-
-/* Leaving: the same movement backwards, and they stay -- the navigation
-   happens behind them. */
-.stairs-cover i::before { animation-name: stairArriveDown; }
-.stairs-cover i::after { animation-name: stairArriveUp; }
-
-/* `translate`, not `transform`, for the reason it is used everywhere else
-   here: it composes rather than replaces. 101% so no sliver of panel is left
-   against the edge on a fractional viewport height. */
-@keyframes stairLeaveUp    { from { translate: 0 0; }      to { translate: 0 -101%; } }
-@keyframes stairLeaveDown  { from { translate: 0 0; }      to { translate: 0 101%; } }
-@keyframes stairArriveDown { from { translate: 0 -101%; }  to { translate: 0 0; } }
-@keyframes stairArriveUp   { from { translate: 0 101%; }   to { translate: 0 0; } }
-
-/* The label a departing page carries -- "Signing you out…" -- waits until the
-   panels have met, so it is not read through a moving gap. */
-.stairs-label {
+/* The label a departing page carries, once the page behind it has gone. */
+.page-wipe-label {
   position: absolute;
-  inset: auto 0 auto 0;
+  left: 0;
+  right: 0;
   top: 50%;
   translate: 0 -50%;
   text-align: center;
@@ -2811,14 +2785,14 @@ pre {
   font-weight: 600;
   color: var(--text-muted);
   opacity: 0;
-  animation: stairLabel 240ms var(--ease-out) forwards;
-  animation-delay: calc(var(--stair-ms) + (var(--stair-cols) - 1) * var(--stair-step));
+  animation: wipeLabel 200ms var(--ease-out) forwards;
+  animation-delay: 380ms;
 }
-@keyframes stairLabel { to { opacity: 1; } }
+@keyframes wipeLabel { to { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
-  /* No staircase at all. Half a second of moving panels between every page is
-     exactly what this preference is asking not to be given, and the page
-     underneath is ready either way. */
-  .stairs { display: none; }
+  /* Nothing between pages. The page underneath is ready either way, and a
+     wipe on every navigation is what this preference is asking not to get. */
+  .page-wipe { display: none; }
+}
 }
