@@ -120,6 +120,19 @@
   --rail-w: 340px;
 }
 
+/* The rail, ten percent narrower on a desktop: 272px, less 27.2px, is 245px.
+   Every pixel of it comes out of the column where the work actually is, and
+   the longest label in it does not need that much.
+
+   Scoped to the desktop layout on purpose. Below 769px this same element is
+   not a column beside the page at all -- it is a drawer that slides over it,
+   where the width is a legibility decision rather than a share of the screen,
+   and narrowing it there would buy nothing. Nothing else reads this token, and
+   .main-col is flex:1, so the column beside it simply takes the difference. */
+@media (min-width: 769px) {
+  :root { --sidebar-w: 245px; }
+}
+
 * { box-sizing: border-box; }
 /* Text size. 100% means "whatever the reader set in their browser", so the
    scale multiplies that rather than overriding it -- someone who has already

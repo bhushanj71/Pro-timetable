@@ -750,3 +750,53 @@ def test_the_pop_is_cleaned_up_per_control():
     control removed from the page must not be held alive by its own timer."""
     assert "WeakMap()" in TAP_JS
     assert "pressTimers.get(el)" in TAP_JS and "clearTimeout(pending)" in TAP_JS
+
+
+# ---------------------------------------------------------------------------
+# The rail's width
+#
+# Narrowed by a tenth on the desktop layout, where every pixel of it is taken
+# from the column the work is actually in. Deliberately not on a phone: below
+# 769px the same element is not a column beside the page but a drawer that
+# slides over it, where the width is a legibility decision rather than a share
+# of the screen.
+# ---------------------------------------------------------------------------
+def _root_token(css: str, name: str, scope: str | None = None) -> str | None:
+    """The value a token is given, optionally inside a particular @media."""
+    hay = css
+    if scope:
+        m = re.search(re.escape(scope) + r"\s*\{(.*?)\n\}", css, re.S)
+        assert m, f"no {scope} block"
+        hay = m.group(1)
+    found = re.findall(r"--" + re.escape(name) + r":\s*([^;]+);", hay)
+    return found[-1].strip() if found else None
+
+
+def test_the_rail_is_a_tenth_narrower_on_a_desktop():
+    base = _root_token(STYLE.split("@media")[0], "sidebar-w")
+    desktop = _root_token(STYLE, "sidebar-w", "@media (min-width: 769px)")
+    assert base and desktop, "both the base and the desktop value have to be stated"
+    b, d = int(base.rstrip("px")), int(desktop.rstrip("px"))
+    assert d == round(b * 0.9), f"{d}px is not a tenth off {b}px"
+
+
+def test_the_phone_drawer_keeps_its_width():
+    """Narrowing it there would buy nothing -- it is over the page, not beside
+    it -- and would only make the labels tighter."""
+    assert "--sidebar-w" not in MOBILE, "the drawer must keep the base width"
+
+
+def test_the_breakpoint_meets_the_phone_stylesheet_exactly():
+    """768 and 769. One pixel of daylight either way is a width where the rail
+    is a column and the phone rules are still applying, or neither."""
+    assert "@media (min-width: 769px)" in STYLE
+    assert "@media (max-width: 768px)" in MOBILE
+
+
+def test_nothing_else_measures_the_rail_for_itself():
+    """A hard-coded 272 anywhere would now disagree with the token."""
+    for name, css in (("style.css", STYLE), ("mobile.css", MOBILE)):
+        body = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+        stray = [ln for ln in body.splitlines()
+                 if "272px" in ln and "--sidebar-w" not in ln]
+        assert not stray, f"{name} measures the rail by hand: {stray}"
