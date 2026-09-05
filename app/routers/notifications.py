@@ -6,6 +6,8 @@ The calendar feed is intentionally unauthenticated: calendar clients
 The secret token in the URL is the credential, it grants read-only access to
 one professor's events, and it can be rotated from the profile page.
 """
+import hashlib
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -376,3 +378,55 @@ def onboarding_complete(db: Session = Depends(get_db), user: User = Depends(get_
     user.onboarding_completed = True
     db.commit()
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# The bell, in one request
+# ---------------------------------------------------------------------------
+@router.get("/notifications/feed")
+def notification_feed(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Both notification feeds, together.
+
+    The bell shows one merged list, but the browser was fetching the two
+    halves separately every minute: two requests, two session lookups, six
+    queries, for one badge that is usually unchanged. At a hundred thousand
+    signed-in tabs that is thousands of requests a second spent confirming
+    that nothing has happened.
+
+    This calls the two existing handlers rather than reimplementing them. They
+    remain the source of truth and remain reachable on their own URLs -- which
+    is what the clear, dismiss and mark-read paths still use -- so there is no
+    second copy of the rules here to drift out of step with them. In
+    particular the personal feed still flushes that user's overdue reminders
+    on the way past, which is what keeps the bell honest on an instance that
+    has been asleep.
+
+    The response carries an ETag. Nothing happens on most ticks, so most
+    replies are byte-for-byte the previous one; a 304 turns those into a bare
+    header exchange. It does not save the queries -- the answer has to be
+    computed before we know it is unchanged -- but it saves the body on the
+    wire and the re-render at the other end.
+    """
+    from app.routers.reminders import notifications as personal_feed
+    from app.routers.work import work_notifications as work_feed
+
+    payload = {
+        "work": work_feed(db=db, user=user),
+        "personal": personal_feed(db=db, user=user),
+    }
+
+    body = json.dumps(payload, separators=(",", ":"), sort_keys=True, default=str)
+    etag = '"' + hashlib.blake2b(body.encode("utf-8"), digest_size=16).hexdigest() + '"'
+
+    # no-cache, not no-store: the browser should keep the copy and revalidate,
+    # which is the whole mechanism that produces the 304.
+    headers = {"ETag": etag, "Cache-Control": "no-cache, private"}
+
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+
+    return Response(body, media_type="application/json", headers=headers)

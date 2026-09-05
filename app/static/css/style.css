@@ -2465,6 +2465,51 @@ pre {
 
 
 /* ==========================================================================
+   Press zoom
+
+   The glow above answers a press at the edge of the screen. This answers it
+   at the control, which is the half that says *which* thing was pressed: an
+   edge that lights tells you the application heard something without telling
+   you what it heard.
+
+   Written as `scale` rather than `transform: scale()`. The controls in this
+   stylesheet already answer :active with a transform and several answer
+   :hover with a translate; a transform here would replace whichever of those
+   was in play, so the control would drop back to its resting position and
+   only then grow. The standalone property composes with them instead, and a
+   button that lifts on hover grows from where it is rather than from where it
+   would have been.
+
+   It plays on click, which is release, while :active covers the hold. Press
+   and the control settles in; let go and it pops back. That ordering is why
+   this grows rather than shrinks -- the shrink has already happened.
+   ========================================================================== */
+@keyframes pressZoom {
+  0%   { scale: 1; }
+  40%  { scale: 1.055; }
+  100% { scale: 1; }
+}
+
+.is-pressed {
+  animation: pressZoom 240ms var(--ease-out);
+  /* Deliberately not `both`, and that is most of what this rule is for. A
+     filled `scale: 1` is still a scale, and any value other than none makes
+     the element a containing block for its position:fixed descendants -- the
+     trap that once put every admin dialog below the fold, and the reason the
+     notification panel is a sibling of its button rather than a child of it.
+     Leaving nothing behind means nothing downstream has to know this ran. */
+  animation-fill-mode: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Nothing is substituted here. Scaling is the motion, so there is no
+     quieter form of it to offer, and the press is still answered: the edge
+     glow above keeps its fade for exactly these readers. */
+  .is-pressed { animation: none; }
+}
+
+
+/* ==========================================================================
    Parallax on the dashboard hero
 
    The same effect as the ambient field behind the app, given somewhere it is

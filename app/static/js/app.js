@@ -690,10 +690,64 @@ document.addEventListener("click", (e) => {
   }
 });
 
-if (document.getElementById("notif-bell")) {
-  pollNotifications();
-  setInterval(pollNotifications, 45000);
+/* ---------------- Polling ----------------
+
+   A poll that costs nothing while nobody is looking.
+
+   Two notification requests a minute is three thousand requests a second at a
+   hundred thousand signed-in tabs, and most of those tabs are behind
+   something else. A hidden tab cannot show a badge it has just refreshed, so
+   the request, the six queries behind it and the render are all thrown away.
+   This stops the timer while the page is hidden and refreshes once on the way
+   back, which is exactly when the feed is most likely to be stale.
+
+   The period is spread by +/-15% per tab. Without that, every tab opened
+   after a deploy wakes in the same second and stays in step for as long as it
+   is open, so the load arrives as a spike on the minute rather than as a
+   rate. */
+function startPoll(fn, periodMs) {
+  /* Flicking between two tabs should not be a way to hammer the server, so a
+     return to visibility refreshes only if the answer could have changed. */
+  const MIN_GAP_MS = 5000;
+  let timer = null;
+  let last = 0;
+
+  function stop() {
+    if (timer) { clearTimeout(timer); timer = null; }
+  }
+
+  /* A rescheduling setTimeout rather than setInterval: when a response is
+     slow, the next call should be pushed out, not stack up behind it. */
+  function schedule() {
+    stop();
+    timer = setTimeout(run, periodMs * (0.85 + Math.random() * 0.3));
+  }
+
+  async function run() {
+    if (document.visibilityState !== "visible") { stop(); return; }
+    last = Date.now();
+    try { await fn(); } catch (_) {}
+    schedule();
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") { stop(); return; }
+    if (Date.now() - last >= MIN_GAP_MS) run();
+    else schedule();
+  });
+  window.addEventListener("pagehide", stop);
+
+  schedule();
+  return stop;
 }
+window.startPoll = startPoll;
+
+/* The bell is polled by work-notifications.js, which owns the unified centre
+   and is loaded on every signed-in page. There used to be a second timer here
+   as well. It did nothing but cost: this file runs first, so the flag that
+   makes pollNotifications defer to the centre is not set yet when this line
+   is reached -- which meant one duplicate fetch on every page load -- and
+   every tick after that returned immediately, forever. */
 
 /* ---------------- Skeletons ----------------
 
@@ -882,10 +936,46 @@ _sidebar?.querySelectorAll("a").forEach((a) =>
   a.addEventListener("click", () => window.innerWidth <= 768 && toggleSidebar(false))
 );
 
-// Elevate the topbar once the page scrolls beneath it.
+// Elevate the topbar once the page scrolls beneath it, and get it out of the
+// way while the page is being read.
+//
+// The bar used to be pinned: always there, over the page, costing 65px of a
+// short screen on every screenful. Taking it out of the flow entirely fixed
+// that and cost something else -- the bell, the theme toggle and the account
+// menu became a scroll to the top of the page rather than a control.
+//
+// So: reading downwards tucks it away, and any upward movement brings it
+// straight back. The controls are one gesture away, and the page still gets
+// the whole screen while it is being read.
 const _topbar = document.getElementById("topbar");
 if (_topbar) {
-  const onScroll = () => _topbar.classList.toggle("is-stuck", window.scrollY > 6);
+  // Below this there is nothing to have scrolled past yet, and a bar that
+  // vanishes at the top of a page reads as a glitch rather than as room.
+  const TUCK_BELOW = 80;
+  // A trembling finger, and the rubber-band bounce at either end of a phone
+  // scroll, are not a change of direction. Without this the bar flickers.
+  const DEADBAND = 4;
+
+  let lastY = window.scrollY;
+
+  // Both menus live inside the bar, so tucking it while one is open takes the
+  // open menu off the screen with it.
+  const menuOpen = () =>
+    !!document.querySelector("#user-menu:not(.hidden), #theme-menu:not(.hidden)");
+
+  const onScroll = () => {
+    // Clamped: iOS reports a negative scrollY while rubber-banding at the top,
+    // which reads as "going up" from zero and is meaningless here.
+    const y = Math.max(0, window.scrollY);
+    _topbar.classList.toggle("is-stuck", y > 6);
+
+    const moved = y - lastY;
+    if (Math.abs(moved) < DEADBAND) return;
+    lastY = y;
+
+    _topbar.classList.toggle("is-tucked", moved > 0 && y > TUCK_BELOW && !menuOpen());
+  };
+
   window.addEventListener("scroll", onScroll, { passive: true });
   onScroll();
 }

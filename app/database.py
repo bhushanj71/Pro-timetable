@@ -244,6 +244,7 @@ _ADDITIVE_COLUMNS = {
     "reminders": [
         ("read_at", "TIMESTAMP"),
         ("dismissed_at", "TIMESTAMP"),
+        ("claimed_at", "TIMESTAMP"),
     ],
     "work_notifications": [
         ("actor_id", "VARCHAR(36)"),

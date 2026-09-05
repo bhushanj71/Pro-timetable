@@ -644,3 +644,109 @@ def test_the_dialogs_that_were_captured_are_still_inside_the_content_block():
     for name, page in (("admin", admin), ("members", members)):
         body = page.split("{% block content %}", 1)[1]
         assert "modal-backdrop" in body, f"{name}: dialogs must stay in the content block"
+
+
+# ---------------------------------------------------------------------------
+# The pop on the control itself
+#
+# The glow says the application heard a press. This says which control was
+# pressed, which on a page of dense rows is the half that carries the meaning.
+# ---------------------------------------------------------------------------
+def _code(text: str) -> str:
+    """The source with its block comments taken out.
+
+    Both of the checks below were written against the raw text and both passed
+    for the wrong reason and then failed for the wrong reason: the word "both"
+    appears in the comment saying why `both` is not used, and the sentence
+    explaining the offsetWidth reflow sits above the line that performs it. A
+    check that cannot tell an explanation from an instruction is measuring the
+    prose, which is the same reason the stale-hostname test skips docstrings.
+    """
+    return re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+
+
+def _keyframes(css: str, name: str) -> str:
+    match = re.search(r"@keyframes\s+" + re.escape(name) + r"\s*\{(.*?)\n\}", css, re.S)
+    assert match, f"@keyframes {name} should exist"
+    return match.group(1)
+
+
+def test_the_pop_composes_with_the_transforms_already_there():
+    """Written as `scale`, never as `transform: scale()`.
+
+    Controls all over this stylesheet answer :active with a transform and
+    :hover with a translate. A transform in these keyframes would replace
+    whichever was in play, so a button that lifts on hover would drop back to
+    its resting position and only then grow -- a jerk, not a pop.
+    """
+    frames = _keyframes(STYLE, "pressZoom")
+    assert "scale:" in frames, "the standalone property, so it multiplies"
+    assert "transform" not in frames, "a transform here overwrites hover and :active"
+
+
+def test_the_pop_grows():
+    """It fires on release, while :active covers the hold. The shrink has
+    already happened by then, so this is the half that goes the other way."""
+    peaks = [float(v) for v in re.findall(r"scale:\s*([\d.]+)", _keyframes(STYLE, "pressZoom"))]
+    assert max(peaks) > 1.0, "a press that does not grow is not an answer"
+    assert peaks[0] == 1.0 and peaks[-1] == 1.0, "it has to come back"
+
+
+def test_the_pop_leaves_nothing_behind():
+    """The reason this rule is three lines and a paragraph.
+
+    A filled `scale: 1` is still a scale, and any value other than none makes
+    the element a containing block for its position:fixed descendants. That is
+    the trap that once put every admin dialog below the fold, and it would put
+    a dropdown opened by the very button that just popped in the wrong place.
+    """
+    rule = _code(_rule(STYLE, ".is-pressed"))
+    assert "animation-fill-mode: none" in rule
+    assert "both" not in rule, "`both` here is the containing-block trap"
+    assert "forwards" not in rule, "and so is forwards"
+
+
+def test_reduced_motion_drops_the_pop_but_keeps_an_answer():
+    """Scaling is the motion, so there is no quieter version of it. The press
+    still gets answered because the edge glow keeps its fade."""
+    reduced = re.findall(r"@media \(prefers-reduced-motion: reduce\)\s*\{(.*?)\n\}",
+                         STYLE, re.S)
+    zoom_off = [b for b in reduced if ".is-pressed" in b]
+    assert zoom_off, "reduced motion has to turn the pop off"
+    assert "animation: none" in zoom_off[0]
+    glow_kept = [b for b in reduced if ".tap-glow" in b]
+    assert glow_kept and "tapGlowFade" in glow_kept[0], "the glow still answers"
+
+
+def test_a_second_press_replays_the_pop():
+    """Same animation name on the same element: without taking the class off
+    and forcing a reflow, the engine goes on running the one it started and
+    the second press gets no answer at all."""
+    body = _code(TAP_JS).split("function zoom(")[1]
+    assert "classList.remove(PRESS_CLASS)" in body
+    assert "offsetWidth" in body, "the reflow between remove and add is the restart"
+    remove_at = body.index("classList.remove(PRESS_CLASS)")
+    reflow_at = body.index("offsetWidth")
+    add_at = body.index("classList.add(PRESS_CLASS)")
+    assert remove_at < reflow_at < add_at, "the reflow has to sit between the two"
+
+
+def test_the_pop_and_the_glow_are_one_listener_over_one_list():
+    """Two lists of 'every button in the application' is one list and a stale
+    one. Both effects hang off the same delegated handler."""
+    assert TAP_JS.count('addEventListener("click"') == 1
+    handler = TAP_JS.split('document.addEventListener("click"')[1]
+    assert "glow();" in handler and "zoom(el);" in handler
+
+
+def test_a_refused_press_neither_glows_nor_pops():
+    """The disabled guard sits above both, so it cannot be half-applied."""
+    handler = TAP_JS.split('document.addEventListener("click"')[1]
+    assert handler.index("el.disabled") < handler.index("zoom(el);")
+
+
+def test_the_pop_is_cleaned_up_per_control():
+    """A press on one control must not cancel the pop on another, and a
+    control removed from the page must not be held alive by its own timer."""
+    assert "WeakMap()" in TAP_JS
+    assert "pressTimers.get(el)" in TAP_JS and "clearTimeout(pending)" in TAP_JS

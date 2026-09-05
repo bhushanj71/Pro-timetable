@@ -266,6 +266,14 @@ class Reminder(Base):
     dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     delivery_status: Mapped[str] = mapped_column(String(16), default=DeliveryStatus.PENDING.value)
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    # Which worker is delivering this one, and since when.
+    #
+    # is_sent is set *after* a message goes out, so it cannot stop a send that
+    # is already under way: two workers reading the queue in the same second
+    # both deliver. A timestamp rather than a flag, so a claim left behind by a
+    # worker that died mid-delivery expires instead of stranding the reminder
+    # for ever -- never delivered is worse than delivered twice.
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 

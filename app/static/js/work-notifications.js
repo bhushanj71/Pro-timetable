@@ -50,10 +50,19 @@ function dayBucket(iso) {
 
 /** Both feeds, merged and sorted newest-first. */
 async function collectNotifications() {
-  const [work, personal] = await Promise.all([
-    apiFetch("/api/work/notifications").catch(() => ({ items: [], unread: 0 })),
-    apiFetch("/api/reminders/notifications").catch(() => ({ items: [], unread: 0 })),
-  ]);
+  /* One request, not two. The halves are still separately addressable and
+     clear, dismiss and mark-read still use them; it is the tick that runs on
+     a timer -- the one that happens whether or not anything changed -- that
+     asks once. The reply carries an ETag, so an unchanged minute costs a
+     header exchange rather than a body.
+
+     A failure now propagates instead of degrading to two empty lists. The
+     caller leaves the panel as it was, which reads as "nothing new"; the old
+     behaviour repainted it empty, which reads as "your notifications are
+     gone". */
+  const feed = await apiFetch("/api/notifications/feed");
+  const work = feed.work || { items: [], unread: 0 };
+  const personal = feed.personal || { items: [], unread: 0 };
 
   const rows = [
     ...work.items.map((n) => ({
@@ -195,7 +204,9 @@ document.getElementById("notif-bell")?.addEventListener("click", async () => {
    racing the form. */
 if (document.getElementById("notif-bell")) {
   renderNotificationCentre();
-  setInterval(renderNotificationCentre, 60_000);
+  /* Not setInterval: startPoll skips the tick entirely while the tab is
+     hidden and spreads the period across tabs. See app.js. */
+  startPoll(renderNotificationCentre, 60_000);
 }
 window.addEventListener("work-updated", renderNotificationCentre);
 window.addEventListener("schedule-updated", renderNotificationCentre);

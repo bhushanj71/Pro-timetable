@@ -8,6 +8,7 @@ don't support long-lived processes. Idempotency is enforced via is_sent.
 import logging
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
@@ -235,6 +236,46 @@ def _describe_when(reminder: Reminder, tz_name: str) -> tuple[str, str | None]:
     return " · ".join(lines), event.location
 
 
+# How long one worker's claim on a reminder is honoured before another worker
+# may take it. Long enough that a slow mail server does not cause a double
+# send; short enough that a worker killed mid-delivery does not strand the
+# reminder for the rest of the day.
+CLAIM_LEASE_SECONDS = 300
+
+
+def _claim(db: Session, due: list[Reminder], now: datetime) -> list[Reminder]:
+    """Take exclusive ownership of the reminders this worker will deliver.
+
+    The claim is a conditional UPDATE, so the database decides the winner: two
+    workers issuing it for the same row cannot both match, and the loser is
+    told by a row count of zero rather than by finding out afterwards.
+
+    This is not only about running more than one instance. process_due_reminders
+    is also called from the notification endpoint to flush a professor's overdue
+    reminders, so two open tabs belonging to one person were already enough to
+    deliver the same reminder twice.
+    """
+    stale = now - timedelta(seconds=CLAIM_LEASE_SECONDS)
+    mine: list[Reminder] = []
+    for reminder in due:
+        won = (
+            db.query(Reminder)
+            .filter(
+                Reminder.id == reminder.id,
+                Reminder.is_sent.is_(False),
+                or_(Reminder.claimed_at.is_(None), Reminder.claimed_at <= stale),
+            )
+            .update({"claimed_at": now}, synchronize_session=False)
+        )
+        if won:
+            mine.append(reminder)
+
+    # Committed before a single message goes out. An uncommitted claim is not
+    # a claim: the whole point is that the other worker can see it.
+    db.commit()
+    return mine
+
+
 def process_due_reminders(db: Session, now: datetime | None = None, user_id: str | None = None) -> dict:
     """
     Deliver every reminder that has come due, across all enabled channels.
@@ -264,7 +305,8 @@ def process_due_reminders(db: Session, now: datetime | None = None, user_id: str
     # Scoped when called from a user's own request; unscoped for the cron run.
     if user_id:
         query = query.filter(Reminder.user_id == user_id)
-    due = query.all()
+    # Everything that looks due, then only the part this worker won.
+    due = _claim(db, query.all(), now)
 
     sent = failed = emails = pushes = 0
     # user_id -> registered device count, resolved lazily and reused.
@@ -323,6 +365,9 @@ def process_due_reminders(db: Session, now: datetime | None = None, user_id: str
             if channel_attempted and not channel_ok:
                 reminder.retry_count += 1
                 if reminder.retry_count < 3:
+                    # Hand the claim back rather than making the next attempt
+                    # wait out the lease.
+                    reminder.claimed_at = None
                     continue
                 reminder.delivery_status = "failed"
                 failed += 1
@@ -338,6 +383,7 @@ def process_due_reminders(db: Session, now: datetime | None = None, user_id: str
         except Exception:
             logger.exception("Reminder %s failed to deliver", reminder.id)
             reminder.retry_count += 1
+            reminder.claimed_at = None
             failed += 1
 
     db.commit()

@@ -172,6 +172,23 @@ body.app-shell::before {
   box-shadow: var(--glass-shadow), var(--glass-edge-soft);
 }
 
+/* On a phone the bar floats clear of the edges, so there is no edge for a
+   bottom border alone to sit against -- the same argument as .bottom-nav
+   below, and the same treatment, because they are the same object at the two
+   ends of the screen.
+
+   is-stuck is given the identical shadow rather than being deleted: the class
+   is still applied on scroll, and a bar that gains a shadow as the page moves
+   under it is describing an overlap that no longer happens. */
+@media (max-width: 768px) {
+  .topbar,
+  .topbar.is-stuck {
+    border: 1px solid var(--glass-rim);
+    box-shadow: 0 12px 32px rgba(76, 52, 42, 0.16),
+                0 2px 8px rgba(76, 52, 42, 0.08), var(--glass-edge);
+  }
+}
+
 .popover,
 .theme-menu,
 .tt-overflow-menu {

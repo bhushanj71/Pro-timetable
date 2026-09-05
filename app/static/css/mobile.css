@@ -146,6 +146,30 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
     overflow: hidden;
     box-shadow: 0 10px 30px rgba(76, 52, 42, 0.16), 0 2px 8px rgba(76, 52, 42, 0.07);
   }
+  /* Nothing shows underneath the bar.
+
+     It floats ten pixels off three edges, so the page scrolled past it in the
+     gap below and in the strips either side -- a line of text sliding through
+     the space under the tab bar, which reads as a rendering fault rather than
+     as depth. .content already reserves the room; this covers what passes
+     through the reservation while it is being scrolled.
+
+     Painted on the body rather than inside the bar: .bottom-nav carries a
+     backdrop-filter, which makes it the containing block for its own
+     fixed-position children, so a strip drawn in there could never reach the
+     edges of the screen. Scoped with :has so it does not appear on the pages
+     that have no tab bar to hide anything for. */
+  body:has(.bottom-nav)::after {
+    content: "";
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    height: calc(var(--bottom-nav-gap) + var(--bottom-nav-h));
+    background: var(--bg);
+    /* Under the bar, over the page. */
+    z-index: 69;
+    pointer-events: none;
+  }
+
   .bn-item {
     flex: 1;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -204,9 +228,50 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
      there has to come down by the same amount. In a browser tab the inset is
      zero and this is exactly what it was. */
   .topbar {
-    padding: calc(10px + var(--safe-top)) calc(15px + var(--safe-right)) 10px calc(15px + var(--safe-left));
+    /* Shaped like the tab bar at the other end of the screen, and no longer
+       pinned to the top of it.
+
+       The two changes belong together. A bar that is inset from the edges
+       with corners following the phone's own reads as furniture floating on
+       the page; the same bar held in place while the page slides underneath
+       reads as a second tab bar, and costs 65px of a short screen on every
+       page to say so.
+
+       The trade is real and worth stating: the bell, the theme toggle and the
+       account menu are now reachable at the top of the page rather than from
+       anywhere in it. */
+    position: sticky;
+    top: calc(8px + var(--safe-top));
+    z-index: 55;
+    margin: calc(8px + var(--safe-top)) calc(10px + var(--safe-right)) 8px
+            calc(10px + var(--safe-left));
+    /* `translate`, not `transform`: nothing here uses transform today, but a
+       transform would be the one declaration that silently overwrites a hover
+       or :active state if one is ever added to this bar. */
+    transition: translate 260ms var(--ease-out);
+    padding: 8px 14px;
     gap: 8px;
+    /* Roughly the screen's own radius less the distance the bar is inset from
+       it, which is what makes the two curves read as concentric. The same
+       figure the tab bar uses, because they are the same object twice. */
+    border-radius: 26px;
   }
+  /* Out of the way going down, back the moment you head up.
+
+     Sticky rather than in flow: it keeps its place in the document, so
+     nothing below it has to reserve room, and it is free to stay put once
+     the page has scrolled past. What stops that being the frozen bar it
+     replaced is that reading downwards tucks it away entirely -- the page
+     gets the whole screen -- while any upward movement brings it back, so
+     the bell and the account menu are one gesture away rather than a scroll
+     to the top of the page.
+
+     Far enough up to clear its own top margin as well, or a sliver of the
+     pane is left hanging under the notch. */
+  .topbar.is-tucked {
+    translate: 0 calc(-100% - 16px - var(--safe-top));
+  }
+
   .content {
     padding-left: calc(15px + var(--safe-left));
     padding-right: calc(15px + var(--safe-right));
@@ -358,7 +423,8 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
   /* The tab bar is still taken out while a dialog is open. It is not a usable
      target mid-edit, and leaving it lit under a scrim invites a tap that
      cannot land. */
-  body:has(.modal-backdrop:not(.hidden)) .bottom-nav { display: none; }
+  body:has(.modal-backdrop:not(.hidden)) .bottom-nav,
+  body:has(.modal-backdrop:not(.hidden))::after { display: none; }
 
   .modal-actions .btn { flex: 1; min-width: 44%; }
 
@@ -386,11 +452,13 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
 
 /* Landscape phones: the tab bar would eat too much of a short viewport. */
 @media (max-width: 900px) and (orientation: landscape) and (max-height: 480px) {
-  .bottom-nav { display: none; }
+  .bottom-nav, body:has(.bottom-nav)::after { display: none; }
   .content { padding-bottom: 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* It still gets out of the way; it just does not travel to do it. */
+  .topbar { transition: none; }
   .content, .landing, .auth-wrap, .modal-card, .tt-dayview { animation: none !important; }
 }
 
@@ -529,9 +597,14 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
    untouched by any of it.
    ========================================================================== */
 .is-native .topbar {
-  /* iOS draws the status bar over the top of the web view. Without this the
-     bar's contents sit under the clock and the notch. */
+  /* iOS draws the status bar over the top of the web view. On a phone the
+     bar's own top margin already carries that inset, so adding it to the
+     padding as well would clear the notch twice. Wider layouts keep the
+     original behaviour, where the bar is still bolted to the top. */
   padding-top: calc(10px + var(--safe-top));
+}
+@media (max-width: 768px) {
+  .is-native .topbar { padding-top: 8px; }
 }
 /* The bar floats and the content reserves for it from the shared tokens, both
    of which already read the same insets the native shell reports -- so there
@@ -542,7 +615,8 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
 }
 
 /* A field focused behind the keyboard cannot be read while it is typed in. */
-.keyboard-open .bottom-nav { display: none; }
+.keyboard-open .bottom-nav,
+.keyboard-open body:has(.bottom-nav)::after { display: none; }
 .keyboard-open .content { padding-bottom: calc(var(--keyboard-h, 0px) + 16px); }
 
 /* Offline, said once, out of the way of the thing being read. */
@@ -581,7 +655,10 @@ body.is-leaving .landing { animation: pageOut 170ms var(--ease) both; }
      everything below it, and this scrolls with the card it belongs to. */
   .wk-detail-bar {
     position: sticky;
-    top: calc(var(--topbar-h, 65px) + var(--safe-top));
+    /* It used to stick below the top bar. The top bar scrolls away now, so
+       anchoring to a height that is no longer on screen would leave it
+       hanging 65px down with nothing above it. */
+    top: calc(8px + var(--safe-top));
     z-index: 5;
     margin: 0 -4px 12px;
     padding: 6px 4px;
