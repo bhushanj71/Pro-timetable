@@ -96,6 +96,18 @@ class Settings(BaseSettings):
     # and the Google OAuth redirect.
     PUBLIC_BASE_URL: Optional[str] = None
 
+    # The one hostname this application answers on. Set it and every other
+    # spelling -- the apex when you serve www, the platform's own
+    # *.onrender.com, http where https exists -- is redirected here once.
+    #
+    # It matters more than tidiness. The session cookie is host-only by
+    # design, so a professor who signs in on www.profschedule.org and later
+    # follows a link to profschedule.org is simply signed out, with nothing on
+    # screen to explain why. One canonical host is what stops that.
+    #
+    # Empty by default, so localhost and preview deployments are untouched.
+    CANONICAL_HOST: Optional[str] = None
+
     # Google Sign-In + Calendar sync (Google Cloud Console -> Credentials).
     GOOGLE_CLIENT_ID: Optional[str] = None
     GOOGLE_CLIENT_SECRET: Optional[str] = None

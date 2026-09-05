@@ -20,6 +20,23 @@
   <link rel="stylesheet" href="/static/css/theme.css?v={{ v }}">
   <link rel="stylesheet" href="/static/css/glass.css?v={{ v }}">
   <link rel="manifest" href="/manifest.json">
+
+  {# The site now has a real address, so it can say so. Without a canonical the
+     apex, the www and the platform hostname are three sites to a search engine
+     sharing none of each other's standing; without the preview tags a link
+     shared to a colleague is a bare URL. #}
+  <link rel="canonical" href="{{ site_url }}/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="ProfSchedule AI">
+  <meta property="og:url" content="{{ site_url }}/">
+  <meta property="og:title" content="ProfSchedule AI — your teaching week, typed in one sentence">
+  <meta property="og:description" content="Timetables, reminders and shared work for college faculty. Say what you need and it finds the time.">
+  <meta property="og:image" content="{{ site_url }}/static/og-card.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="ProfSchedule AI">
+  <meta name="twitter:description" content="Timetables, reminders and shared work for college faculty.">
+  <meta name="twitter:image" content="{{ site_url }}/static/og-card.png">
+  <meta name="description" content="ProfSchedule AI plans a college professor's teaching week: timetable, reminders, tasks and shared work, from a sentence.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <link rel="icon" type="image/png" href="/static/favicon.png?v={{ v }}">
   <script>

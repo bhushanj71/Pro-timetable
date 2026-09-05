@@ -10,7 +10,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
@@ -154,6 +154,44 @@ app.add_middleware(GZipMiddleware, minimum_size=1024)
 from app.perf import PerfMiddleware, install_sql_timing  # noqa: E402
 
 app.add_middleware(PerfMiddleware, expose_header=settings.ENV != "production")
+
+
+# ---------------------------------------------------------------------------
+# One hostname, one scheme
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def canonical_host(request, call_next):
+    """Send every other spelling of this site to the one it actually lives at.
+
+    The session cookie is host-only, so www.profschedule.org and
+    profschedule.org do not share a login: signing in on one and following a
+    link to the other silently signs you out. Search engines treat them as two
+    sites, and OAuth redirect URIs only match one. So one host is canonical
+    and the rest redirect to it.
+
+    Both the host and the scheme are corrected in a single hop. Render already
+    redirects http to https at its edge, but a link that arrives as
+    http://profschedule.org would otherwise take two -- one for the scheme and
+    one for the host -- and each is a round trip before anything renders.
+
+    301, because this is permanent and worth caching. Skipped entirely when
+    CANONICAL_HOST is unset, which is how localhost and preview deployments
+    stay unaffected, and skipped for the health check, which the platform
+    makes against its own hostname and must not be redirected away from.
+    """
+    # Read per request rather than captured at import: a module-level copy can
+    # only be changed by reimporting the application, which in a test replaces
+    # the very object the fixtures hold.
+    canonical = get_settings().CANONICAL_HOST
+    if canonical and not request.url.path.startswith("/api/health"):
+        host = request.headers.get("host", "").split(":")[0]
+        # Behind a proxy the socket is plain http; the edge reports the real
+        # scheme here.
+        proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+        if host and (host != canonical or proto != "https"):
+            target = request.url.replace(scheme="https", netloc=canonical)
+            return RedirectResponse(str(target), status_code=301)
+    return await call_next(request)
 
 
 # ---------------------------------------------------------------------------

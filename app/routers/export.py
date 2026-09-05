@@ -20,6 +20,26 @@ from app.deps import get_current_user
 from app.models import Event, User
 from app.services.nlp_dates import combine, resolve_time
 
+
+def _uid_domain() -> str:
+    """The domain that makes a calendar UID globally unique.
+
+    It must be one we actually control -- it was profschedule.ai, which is
+    somebody else's. Changing it does mean a calendar already subscribed to
+    this feed sees the events as new ones, so it is the sort of change that
+    only gets cheaper the sooner it is made.
+    """
+    from app.config import get_settings
+
+    settings = get_settings()
+    base = settings.PUBLIC_BASE_URL or ""
+    if settings.CANONICAL_HOST:
+        return settings.CANONICAL_HOST
+    if base:
+        return base.split("//")[-1].split("/")[0]
+    return "profschedule.org"
+
+
 router = APIRouter(prefix="/api/export", tags=["export"])
 
 
@@ -74,7 +94,7 @@ def export_ics(db: Session = Depends(get_db), user: User = Depends(get_current_u
     for e in events:
         lines += [
             "BEGIN:VEVENT",
-            f"UID:{e.id}@profschedule.ai",
+            f"UID:{e.id}@{_uid_domain()}",
             f"DTSTART:{e.start_datetime.strftime('%Y%m%dT%H%M%SZ')}",
             f"DTEND:{e.end_datetime.strftime('%Y%m%dT%H%M%SZ')}",
             f"SUMMARY:{_ics_escape(e.title)}",

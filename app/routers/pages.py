@@ -5,7 +5,7 @@ the JSON API via fetch/HTMX so these views stay thin.
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from app.deps import get_current_user_optional
@@ -15,6 +15,24 @@ from app.services import admin_scope
 router = APIRouter(tags=["pages"])
 # Absolute path so the templates resolve regardless of working directory.
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
+
+
+def _site_url(request: Request) -> str:
+    """The address this site is canonically at.
+
+    Derived rather than written into the templates: the canonical host, the
+    configured base URL and whatever the request arrived on are three answers
+    to the same question, and a page that hard-codes one of them is wrong on
+    localhost or wrong in production.
+    """
+    from app.config import get_settings
+
+    settings = get_settings()
+    if settings.PUBLIC_BASE_URL:
+        return settings.PUBLIC_BASE_URL.rstrip("/")
+    if settings.CANONICAL_HOST:
+        return f"https://{settings.CANONICAL_HOST}"
+    return str(request.base_url).rstrip("/")
 
 
 def _ctx(request: Request, user: User | None, **extra):
@@ -33,6 +51,7 @@ def _ctx(request: Request, user: User | None, **extra):
         # is, and the two disagree the moment somebody follows a link into Work
         # from a notification.
         "in_work": request.url.path.startswith("/work"),
+        "site_url": _site_url(request),
         **extra,
     }
 
@@ -234,3 +253,49 @@ def profile_page(request: Request, user: User | None = Depends(get_current_user_
     if not user:
         return RedirectResponse(url="/login")
     return templates.TemplateResponse("profile.html", _ctx(request, user))
+
+
+# ---------------------------------------------------------------------------
+# What a crawler is told
+#
+# Only the public pages. Everything behind the login is disallowed -- not as a
+# security measure, since the API enforces that and a robots file is a request
+# rather than a rule, but because a crawler following /dashboard gets a login
+# redirect and indexes that instead of the page it was after.
+# ---------------------------------------------------------------------------
+@router.get("/robots.txt", include_in_schema=False)
+def robots(request: Request):
+    site = _site_url(request)
+    body = "\n".join([
+        "User-agent: *",
+        "Allow: /$",
+        "Allow: /login",
+        "Allow: /register",
+        "Disallow: /api/",
+        "Disallow: /dashboard",
+        "Disallow: /timetable",
+        "Disallow: /calendar",
+        "Disallow: /tasks",
+        "Disallow: /reminders",
+        "Disallow: /work",
+        "Disallow: /admin",
+        "Disallow: /profile",
+        "",
+        f"Sitemap: {site}/sitemap.xml",
+        "",
+    ])
+    return Response(body, media_type="text/plain")
+
+
+@router.get("/sitemap.xml", include_in_schema=False)
+def sitemap(request: Request):
+    site = _site_url(request)
+    urls = "".join(
+        f"<url><loc>{site}{path}</loc><changefreq>weekly</changefreq>"
+        f"<priority>{priority}</priority></url>"
+        for path, priority in (("/", "1.0"), ("/login", "0.5"), ("/register", "0.8"))
+    )
+    xml = ('<?xml version="1.0" encoding="UTF-8"?>'
+           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+           f"{urls}</urlset>")
+    return Response(xml, media_type="application/xml")

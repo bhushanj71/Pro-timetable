@@ -20,6 +20,26 @@ from app.deps import get_current_user
 from app.models import Event, PushSubscription, User
 from app.services.notifier import email_configured, push_configured, send_email, send_push_to_user
 
+
+def _uid_domain() -> str:
+    """The domain that makes a calendar UID globally unique.
+
+    It must be one we actually control -- it was profschedule.ai, which is
+    somebody else's. Changing it does mean a calendar already subscribed to
+    this feed sees the events as new ones, so it is the sort of change that
+    only gets cheaper the sooner it is made.
+    """
+    from app.config import get_settings
+
+    settings = get_settings()
+    base = settings.PUBLIC_BASE_URL or ""
+    if settings.CANONICAL_HOST:
+        return settings.CANONICAL_HOST
+    if base:
+        return base.split("//")[-1].split("/")[0]
+    return "profschedule.org"
+
+
 router = APIRouter(prefix="/api", tags=["notifications"])
 logger = logging.getLogger(__name__)
 CRLF_SPACE = chr(13) + chr(10) + " "  # RFC 5545 line-fold separator
@@ -272,7 +292,7 @@ def calendar_feed(token: str, db: Session = Depends(get_db)):
         end = e.end_datetime if e.end_datetime.tzinfo else e.end_datetime.replace(tzinfo=timezone.utc)
         lines += [
             "BEGIN:VEVENT",
-            f"UID:{e.id}@profschedule.ai",
+            f"UID:{e.id}@{_uid_domain()}",
             f"DTSTAMP:{now.strftime('%Y%m%dT%H%M%SZ')}",
             f"DTSTART:{start.astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
             f"DTEND:{end.astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",

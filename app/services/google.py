@@ -155,7 +155,7 @@ def _event_body(event: Event, user: User) -> dict:
         "location": event.location or "",
         "start": {"dateTime": start.astimezone(timezone.utc).isoformat(), "timeZone": "UTC"},
         "end": {"dateTime": end.astimezone(timezone.utc).isoformat(), "timeZone": "UTC"},
-        "source": {"title": "ProfSchedule AI", "url": (settings.PUBLIC_BASE_URL or "https://profschedule.ai")},
+        "source": {"title": "ProfSchedule AI", "url": (settings.PUBLIC_BASE_URL or "https://www.profschedule.org")},
         "reminders": {
             "useDefault": False,
             # popup is what surfaces on the phone's lock screen via the

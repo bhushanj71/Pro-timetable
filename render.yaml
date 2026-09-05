@@ -9,11 +9,27 @@ services:
     # Render injects $PORT; binding to 0.0.0.0 is required for the health check.
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
+    # Add both in Render -> Settings -> Custom Domains. Render issues and
+    # renews the TLS certificate for each automatically; the apex is listed so
+    # it resolves at all, and the redirect above sends it to www.
+    domains:
+      - www.profschedule.org
+      - profschedule.org
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.9"
       - key: ENV
         value: production
+      # The domain this application answers on. Everything else -- the apex,
+      # the onrender.com hostname, plain http -- is redirected here in one hop.
+      # The session cookie is host-only, so without this a professor who signs
+      # in on www and follows a link to the apex is silently signed out.
+      - key: CANONICAL_HOST
+        value: www.profschedule.org
+      # Used to build absolute links the application sends out: the calendar
+      # feed, the Google OAuth redirect, the sitemap and the link previews.
+      - key: PUBLIC_BASE_URL
+        value: https://www.profschedule.org
       # Generated once by Render and kept stable across deploys, so existing
       # login sessions survive a redeploy.
       - key: SECRET_KEY
