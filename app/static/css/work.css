@@ -206,6 +206,28 @@
 /* The illustration is the empty state and nothing more: it sits behind the
    text, is decorative to a screen reader, and disappears the moment a real
    obligation arrives. */
+.wk-inbox {
+  /* What the illustration claims out of the card head: the glyph itself, the
+     distance it sits off the card's edge, and a gap so the caption stops
+     short of it rather than touching. Measured, not guessed -- at 1280px the
+     glyph is 57px wide sitting 26px in. */
+  --inbox-art-reserve: 80px;
+}
+
+/* The caption used to run underneath the illustration. Both are inside the
+   card and the art is positioned out of flow, so nothing made the text stop:
+   at 390px the heading and the caption both ran to x=353 and the glyph sat
+   from 307 to 353, straight over the top of them.
+
+   Keyed on whether the art is actually on screen rather than on the card's
+   has-items class. The two are toggled together today, but the class says
+   "there is something in the inbox" and what the padding needs to know is
+   "there is a picture in the corner" -- and those are one refactor away from
+   being different questions. */
+.wk-inbox:has(.wk-inbox-art:not(.hidden)) .wk-card-titles {
+  padding-right: var(--inbox-art-reserve);
+}
+
 .wk-inbox-art {
   position: absolute; right: 26px; top: 50%;
   transform: translateY(-50%);
@@ -393,6 +415,8 @@
   .wk-stat-note { margin-top: 7px; }
   .wk-stat-icon { width: 38px; height: 38px; }
 
+  /* 46px of glyph, 16px off the edge, and a gap. */
+  .wk-inbox { --inbox-art-reserve: 58px; }
   .wk-inbox-art { font-size: 2.1rem; right: 16px; }
   .wk-card-head { gap: 10px; }
   .wk-viewall { padding: 14px 13px; }
@@ -409,6 +433,8 @@
   .wk-stat { gap: 3px 10px; }
   .wk-spark-svg { width: 58px; }
   .wk-inbox-art { display: none; }
+  /* Nothing to reserve for once the picture has gone. */
+  .wk-inbox { --inbox-art-reserve: 0px; }
 }
 
 /* ==========================================================================
