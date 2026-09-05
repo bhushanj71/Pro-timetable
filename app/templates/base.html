@@ -64,6 +64,10 @@
   </script>
 </head>
 <body class="app-shell" data-profile="{{ 'work' if request.url.path == '/work' else 'personal' }}">
+{# The page arrives from behind a double staircase. First thing in the body so
+   it is painted before the content it is covering, and driven entirely by CSS
+   so a page whose scripts never run still uncovers itself. #}
+<div class="stairs stairs-reveal" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
 {% if user %}
   <div class="layout">
     <!-- ==================== Sidebar ==================== -->

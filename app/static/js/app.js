@@ -294,16 +294,23 @@ function showRouteVeil(label, sub) {
   let veil = document.getElementById("route-veil");
   if (veil) return veil;
 
+  /* The page leaves behind the same staircase it arrived from, run backwards.
+     The panels close over the page while the next document is being fetched,
+     and the next document opens them again -- so the two halves of a
+     navigation are one movement rather than a spinner and then a page.
+
+     The label rides inside the staircase rather than on a veil of its own:
+     two full-screen layers in the same colour is one layer and a bug waiting
+     to be found. Its own delay holds it back until the panels have met. */
   veil = document.createElement("div");
   veil.id = "route-veil";
-  veil.className = "route-veil";
+  veil.className = "stairs stairs-cover";
   // polite, not assertive: this is progress, not an alert.
   veil.setAttribute("role", "status");
   veil.setAttribute("aria-live", "polite");
-  veil.innerHTML = `
-    ${loaderMarkup("lg")}
-    <div class="route-veil-label">${esc(label)}</div>
-    ${sub ? `<div class="route-veil-sub">${esc(sub)}</div>` : ""}`;
+  veil.innerHTML =
+    "<i></i><i></i><i></i><i></i><i></i>" +
+    `<span class="stairs-label">${esc(label)}${sub ? ` — ${esc(sub)}` : ""}</span>`;
   document.body.appendChild(veil);
   return veil;
 }
@@ -315,6 +322,16 @@ function hideRouteVeil() {
 /* A cached page restored with the back button keeps the DOM it was unloaded
    with -- including a veil that has nothing left to wait for. */
 window.addEventListener("pageshow", (e) => { if (e.persisted) hideRouteVeil(); });
+
+/* Belt and braces on the arrival staircase.
+
+   The reveal is pure CSS precisely so it cannot depend on this file running.
+   But the failure it cannot cover for is CSS animations not running at all,
+   and the panels' resting position is *covering* -- so that failure leaves a
+   blank screen rather than a missing flourish. One timeout is a cheap price
+   for making the worst case impossible, and it tidies the element away after
+   its one job either way. */
+setTimeout(() => document.querySelector(".stairs-reveal")?.remove(), 2000);
 
 /* ---------------- Navigation feedback ----------------
    Every item in the tab bar and the sidebar is an ordinary link to a
