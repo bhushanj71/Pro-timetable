@@ -81,6 +81,18 @@ _IN_SCOPE_WORDS = {
     "progress", "percent", "accept", "decline", "pending", "complete",
     "completed", "created", "group", "colleague", "workspace",
     "before", "after", "turn", "off", "on", "set", "search", "find",
+    # How the same questions get asked of an assistant rather than typed as a
+    # command. "Do I have anything overdue?" names no class and no time and was
+    # refused outright, which is the false negative this list exists to avoid --
+    # the guard is coarse on purpose, and its own rule is that turning away real
+    # work costs more than passing an odd prompt to a model that answers in
+    # strict JSON anyway.
+    "overdue", "due", "late", "outstanding", "remaining", "left",
+    "priority", "priorities", "prioritise", "prioritize", "urgent", "important",
+    "workload", "available", "availability", "capacity", "spare", "gap", "gaps",
+    "prepare", "preparation", "study", "studying", "revise", "revision",
+    "organise", "organize", "optimise", "optimize", "rebalance", "replan",
+    "should", "recommend", "suggest", "why", "how", "anything", "everything",
 }
 
 _WORD_RE = re.compile(r"[a-z]+")

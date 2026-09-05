@@ -162,8 +162,9 @@ def _today(user: User) -> date:
 # ---------------------------------------------------------------------------
 @tool(
     "get_user_profile",
-    "Who the professor is and how their week is set up: timezone, working days, "
-    "working hours and lunch window. Call this before any scheduling reasoning.",
+    "Fuller detail about the professor -- department, designation, college. The "
+    "timezone, working days, working hours and lunch window are already given "
+    "to you each turn, so do not call this just to read those.",
     {"type": "object", "properties": {}, "required": []},
     status="Reading your preferences",
 )

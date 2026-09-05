@@ -129,11 +129,19 @@ def run(db: Session, user: User, message: str, *, max_steps: int | None = None) 
     # told, and the answer was wrong before any tool ran. A date is a fact the
     # application holds; there is nothing for a model to work out here.
     today = tk._today(user)
+    # Preferences travel with the date for the same reason. They are small,
+    # they are needed for almost any scheduling question, and a tool call to
+    # fetch them is a whole round trip spent on something already in hand --
+    # the get_user_profile description used to tell the model to spend it.
+    prefs = tk._prefs(user)
     facts = (
         f"Today is {today.isoformat()} ({today.strftime('%A')}). "
         f"The professor's timezone is {user.timezone}. "
         f"Tomorrow is {(today + _dt.timedelta(days=1)).isoformat()}. "
-        "Use these dates. Do not work out a date yourself."
+        "Use these dates. Do not work out a date yourself. "
+        f"Working days: {', '.join(d for d in prefs['working_days'] if d)}. "
+        f"Working hours: {prefs['working_hours']['start']}-{prefs['working_hours']['end']}. "
+        f"Lunch: {prefs['lunch']['start']}-{prefs['lunch']['end']}."
     )
     transcript: list[str] = [f"Professor's request: {message}"]
     steps: list[Step] = []
