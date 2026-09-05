@@ -18,7 +18,7 @@ from app.services import admin_scope
 # asked to agree to would be a closed loop -- and the ways in and out.
 TERMS_EXEMPT = frozenset({
     "/", "/login", "/register", "/terms", "/terms/accept",
-    "/robots.txt", "/sitemap.xml",
+    "/robots.txt", "/sitemap.xml", "/ads.txt",
 })
 
 
@@ -352,6 +352,18 @@ def robots(request: Request):
         "",
     ])
     return Response(body, media_type="text/plain")
+
+
+# Google will not pay out against inventory it cannot verify belongs to the
+# publisher claiming it. Without this file AdSense reports the account as
+# "earnings at risk" and can stop serving, which looks like the ad code not
+# working rather than a missing text file at the root.
+ADS_TXT = "google.com, pub-7055956095625600, DIRECT, f08c47fec0942fa0" + chr(10)
+
+
+@router.get("/ads.txt", include_in_schema=False)
+def ads_txt():
+    return Response(ADS_TXT, media_type="text/plain")
 
 
 @router.get("/sitemap.xml", include_in_schema=False)

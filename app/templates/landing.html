@@ -10,6 +10,14 @@
        want of this one token. -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#e0785d">
+  {# Google AdSense. This page keeps its own <head> rather than
+     extending base.html, so the tag has to be repeated here -- and it
+     is the page that most needs it, being the one anybody can reach.
+     security_headers.py has to admit it or it is refused in silence. #}
+  <script async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7055956095625600"
+          crossorigin="anonymous"></script>
+
   <title>ProfSchedule AI — Plan, Teach, Inspire</title>
   <meta name="description" content="AI-powered timetable, task and reminder management for college professors. Describe your classes in plain English and get reminders on your phone.">
   <link rel="preconnect" href="https://fonts.googleapis.com">

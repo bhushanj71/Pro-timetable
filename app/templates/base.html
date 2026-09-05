@@ -29,6 +29,17 @@
        the real icon was slow, so a tab could show either. -->
   <link rel="icon" type="image/svg+xml" href="/static/logo.svg?v={{ v }}">
   <link rel="icon" type="image/png" sizes="64x64" href="/static/favicon.png?v={{ v }}">
+  {# Google AdSense. In the head of every page, which is where the loader
+     expects to be, and async so it never delays first paint.
+
+     It will not run unless security_headers.py lets it: the CSP here is
+     strict, and a blocked third-party script fails silently -- no error a
+     reader would see, no ads, and nothing to suggest why. The two have to be
+     changed together, which is why they name each other. #}
+  <script async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7055956095625600"
+          crossorigin="anonymous"></script>
+
   {% block head %}{% endblock %}
   <script>
     // Applied before paint to avoid a flash of the wrong theme.

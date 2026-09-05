@@ -14,14 +14,60 @@ logger = logging.getLogger(__name__)
 # for one), so 'unsafe-inline' is required for scripts today. Everything else
 # is locked to same-origin, and the directives that actually stop data leaving
 # -- connect-src, form-action, frame-ancestors, base-uri -- are strict.
+#
+# Google AdSense is the exception, and it is a real one rather than a
+# formality. An ad network needs to fetch scripts, open frames, load creatives
+# and report back, so admitting it means widening four directives at once. The
+# tag in base.html does nothing without these, and a blocked third-party
+# script fails silently -- so if ads ever stop appearing, this list is the
+# first place to look and not the last.
+#
+# What is deliberately NOT widened: form-action stays 'self', so no injected
+# form can post a password anywhere; base-uri stays 'self'; frame-ancestors
+# stays none; and object-src stays none. Those are the directives that decide
+# whether credentials and page control can leave, and advertising does not
+# need any of them.
+_ADS_SCRIPT = (
+    "https://pagead2.googlesyndication.com "
+    "https://partner.googleadservices.com "
+    "https://tpc.googlesyndication.com "
+    "https://adservice.google.com "
+    "https://www.googletagservices.com "
+    "https://ep2.adtrafficquality.google"
+)
+_ADS_FRAME = (
+    "https://googleads.g.doubleclick.net "
+    "https://tpc.googlesyndication.com "
+    "https://www.google.com "
+    "https://ep2.adtrafficquality.google"
+)
+_ADS_IMG = (
+    "https://pagead2.googlesyndication.com "
+    "https://*.g.doubleclick.net "
+    "https://*.googlesyndication.com "
+    "https://*.googleusercontent.com "
+    "https://www.google.com "
+    "https://ep1.adtrafficquality.google"
+)
+_ADS_CONNECT = (
+    "https://pagead2.googlesyndication.com "
+    "https://*.g.doubleclick.net "
+    "https://*.googlesyndication.com "
+    "https://www.google.com "
+    "https://ep1.adtrafficquality.google"
+)
+
 CSP = "; ".join(
     [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline'",
+        f"script-src 'self' 'unsafe-inline' {_ADS_SCRIPT}",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "font-src 'self' https://fonts.gstatic.com data:",
-        "img-src 'self' data: blob:",
-        "connect-src 'self'",
+        f"img-src 'self' data: blob: {_ADS_IMG}",
+        f"connect-src 'self' {_ADS_CONNECT}",
+        # Ads render in frames. Without this they inherit default-src and every
+        # one of them is blocked, which looks exactly like having no ads.
+        f"frame-src {_ADS_FRAME}",
         "manifest-src 'self'",
         "worker-src 'self'",
         "frame-ancestors 'none'",   # no clickjacking
